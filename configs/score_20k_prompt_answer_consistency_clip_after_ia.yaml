@@ -1,0 +1,27 @@
+prompt_answer_consistency_score:
+  # Score prompt-answer consistency after image-answer scores have been added.
+  clip_model_name: ViT-B-16
+  clip_pretrained: openai
+  device: cuda
+  batch_size: 256
+  save_every: 1000
+
+  input_csv: ./data/AIGIQA-20K/info_merge_with_answer_pseudo_align_ia.csv
+  output_csv: ./data/AIGIQA-20K/info_merge_with_answer_pseudo_align_ia_pa.csv
+
+  input_encoding: auto
+  output_encoding: utf-8-sig
+
+  prompt_column: prompt
+  answer_column: answer
+  answer_status_column: answer_status
+  only_ok_answer: true
+
+  raw_score_column: prompt_answer_raw
+  score_column: prompt_answer_score
+  status_column: prompt_answer_status
+  error_column: prompt_answer_error
+
+  normalize_mode: percentile
+  normalize_q_low: 0.05
+  normalize_q_high: 0.95

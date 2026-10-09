@@ -1,0 +1,32 @@
+vqa_object_score:
+  model_name: ./Qwen2.5-VL-7B-Instruct
+  torch_dtype: auto
+  device_map: auto
+  disable_xet: true
+  local_files_only: true
+  trust_remote_code: true
+  hf_token: ""
+  max_new_tokens: 160
+  save_every: 100
+
+  image_root: ./data/AIGIQA-20K
+  input_csv: ./data/AIGIQA-20K/info_merge_with_answer_pseudo_align_nli.csv
+  output_csv: ./data/AIGIQA-20K/info_merge_with_answer_pseudo_align_nli_vqa.csv
+  input_encoding: auto
+  output_encoding: utf-8-sig
+
+  image_name_column: name
+  prompt_column: prompt
+  answer_column: answer
+  answer_status_column: answer_status
+  only_ok_answer: true
+  search_subdirs: [train, val, test]
+
+  vqa_score_column: vqa_consistency_score
+  object_score_column: object_attribute_score
+  answer_confidence_column: vlm_answer_confidence
+  image_only_answer_column: vlm_image_answer
+  mismatch_column: vqa_object_mismatch
+  raw_column: vqa_object_raw
+  status_column: vqa_object_status
+  error_column: vqa_object_error

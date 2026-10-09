@@ -1,0 +1,46 @@
+adaptive_pseudo_align:
+  input_csv: ./data/AIGIQA-20K/info_merge_with_answer_pseudo_align_ia_pa_nli_vqa.csv
+  output_csv: ./data/AIGIQA-20K/info_merge_with_answer_adaptive_align.csv
+  input_encoding: auto
+  output_encoding: utf-8-sig
+
+  score_column: adaptive_pseudo_align_score
+  status_column: adaptive_pseudo_align_status
+  valid_count_column: adaptive_source_valid_count
+  reliability_column: adaptive_reliability_score
+
+  # Prior is only a weak preference. Per-sample confidence still changes alpha.
+  prior_weights:
+    clip: 0.35
+    vqa: 0.30
+    pa: 0.20
+    obj: 0.15
+  temperature: 0.7
+  min_valid_sources: 2
+  fallback_source: clip
+
+  sources:
+    clip:
+      score_column: pseudo_align_score
+      status_column: pseudo_align_status
+      confidence_column: ""
+      default_score: 0.5
+      default_confidence: 0.05
+    vqa:
+      score_column: vqa_consistency_score
+      status_column: vqa_object_status
+      confidence_column: vlm_answer_confidence
+      default_score: 0.5
+      default_confidence: 0.05
+    pa:
+      score_column: prompt_answer_nli_score
+      status_column: prompt_answer_nli_status
+      confidence_column: prompt_answer_nli_confidence
+      default_score: 0.5
+      default_confidence: 0.05
+    obj:
+      score_column: object_attribute_score
+      status_column: vqa_object_status
+      confidence_column: vlm_answer_confidence
+      default_score: 0.5
+      default_confidence: 0.05

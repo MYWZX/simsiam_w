@@ -1,0 +1,269 @@
+seed: 42
+split_seed: 42
+results_csv: ./outputs/all_results_richhf_cleanview_component_anchor_two_output_controlled.csv
+output_dir: ./outputs/richhf18k_cm_pretrain_cleanview_component_anchor_two_output_controlled
+
+dataset:
+  type: mixed_pretrain
+  input_size: 224
+  split_strategy: official
+
+  datasets:
+    - name: richhf18k
+      type: richhf18k
+      root_dir: ./data/RichHF-18K/processed
+      split_strategy: official
+      csv_file: "{split}_with_answer_confidence.csv"
+      image_name_column: name
+      image_path_column: image_path
+      prompt_column: prompt
+      answer_column: answer
+      status_column: answer_status
+      answer_confidence_column: answer_confidence
+
+      # Dataset-independent main target: one overall quality score in [0, 1].
+      # On RichHF it is formed from artifact and aesthetics supervision.
+      quality_score_mode: weighted_components
+      artifact_score_column: artifact_score
+      aesthetics_score_column: aesthetics_score
+      quality_artifact_weight: 0.5
+      quality_aesthetics_weight: 0.5
+      align_score_column: align_score
+      rank_target_column: overall_score
+
+      use_local_feedback: true
+      misalignment_map_path_column: misalignment_map_path
+      misalignment_map_dir: "{split}/misalignment_maps"
+      prompt_misalignment_label_column: prompt_misalignment_label
+
+      only_ok_answer: true
+      skip_missing_images: true
+      filter_low_confidence_answer: false
+      answer_confidence_default: 0.0
+      answer_confidence_min: 0.20
+      align_weight_mode: human_align
+      answer_weight_mode: answer_confidence
+      prompt_answer_weight_mode: align_confidence
+      use_prompt_answer_gap: true
+      sampling_weight: 1.0
+
+loader:
+  batch_size: 8
+  num_workers: 4
+  pin_memory: true
+
+model:
+  global_encoder:
+    type: open_clip
+    model_name: ViT-B-16
+    open_clip_pretrained: openai
+    pretrained: true
+    freeze: false
+    output_dim: 512
+    source_normalization: imagenet
+    normalize_output: true
+  local_encoder:
+    type: resnet50.a1_in1k
+    pretrained: true
+    freeze: false
+    output_dim: 256
+  fusion:
+    embed_dim: 256
+    num_heads: 4
+    dropout: 0.15
+  heads:
+    mlp_hidden_dim: 256
+    dropout: 0.2
+  text_encoder:
+    clip_model_name: ViT-B-16
+    clip_pretrained: openai
+  nss_text_gate:
+    nss_dim: 6
+    gate_hidden_dim: 256
+    quality_mix_init: 0.0
+  align_gate:
+    gate_hidden_dim: 256
+  fusion_init_logit: 0.0
+  align_adapter:
+    enabled: false
+  align_vmamba:
+    enabled: false
+
+  # Dataset-specific heads are training auxiliaries. They act on the shared
+  # persistent quality context and are ignored by downstream models that do
+  # not declare them.
+  quality_auxiliary_heads:
+    enabled: true
+    components: [artifact, aesthetics]
+    hidden_dim: 256
+    dropout: 0.2
+
+  simsiam:
+    proj_dim: 256
+    proj_hidden_dim: 512
+    pred_hidden_dim: 128
+    separate_quality_projection: false
+
+train:
+  epochs: 50
+  lr: 2.0e-5
+  weight_decay: 1.0e-3
+  amp: true
+  grad_clip: 1.0
+  log_interval: 20
+  early_stop_patience: 15
+
+  use_joint_iqa_pretraining: true
+  # SafeAug1/SafeAug2 are used only by Image-Image SimSiam. The clean third
+  # view receives every cross-modal and human-label objective.
+  human_supervision_view: three_view
+  quality_supervision_target: quality_score
+  use_dual_proxy_supervision: false
+
+  # Optional text-aware horizontal mirror. Only training samples whose Prompt
+  # or Answer contains a horizontal direction are mirrored; left/right terms
+  # are swapped together. The CLI flag enables it for an experiment.
+  mirror_augmentation:
+    enabled: false
+    probability: 0.5
+    directional_only: true
+    swap_text: true
+    disable_random_horizontal_flip: true
+
+  # Optional labels are controlled entirely by target/weight keys. A missing
+  # target is skipped; a zero validity weight contributes no gradient.
+  quality_auxiliary_supervision:
+    enabled: true
+    components:
+      artifact:
+        target_key: artifact_score
+        weight_key: artifact_weight
+        lambda_reg: 0.05
+        lambda_rank: 0.025
+        lambda_srocc: 0.0
+        rank_margin: 0.05
+        required: false
+      aesthetics:
+        target_key: aesthetics_score
+        weight_key: aesthetics_weight
+        lambda_reg: 0.05
+        lambda_rank: 0.025
+        lambda_srocc: 0.0
+        rank_margin: 0.05
+        required: false
+
+  quality_anchor_ordinal:
+    enabled: false
+  # Optional label-balanced replacement sampling. The CLI flag
+  # --quality-balanced-sampling enables this without changing views or losses.
+  quality_balanced_sampling:
+    enabled: false
+    bin_edges: [0.0, 0.5, 0.6, 0.7, 0.85, 1.000001]
+    weight_power: 0.5
+    min_weight: 0.5
+    max_weight: 3.0
+    # 1.0 reproduces full quality-balanced sampling. Use 0.3 for the
+    # recommended weak/mixed sampler (70% uniform + 30% balanced).
+    balance_strength: 1.0
+
+  # Keep every image equally likely in the DataLoader. Independent quality-bin
+  # weights are applied only to their matching Component Anchor losses.
+  quality_loss_reweighting:
+    enabled: true
+    bin_edges: [0.0, 0.5, 0.6, 0.7, 0.85, 1.000001]
+    weight_power: 0.5
+    min_weight: 0.5
+    max_weight: 3.0
+    balance_strength: 0.3
+
+  # Artifact and aesthetics occupy fixed orthogonal planes in the same shared
+  # SimSiam projection; this adds no independent quality encoder.
+  quality_component_anchor_ordinal:
+    enabled: true
+    num_levels: 5
+    anchor_temperature: 0.20
+    anchor_arc_degrees: 90.0
+    artifact:
+      centers: [0.41666667, 0.58333333, 0.66666669, 0.75, 0.91666669]
+      basis_frequency: 1
+    aesthetics:
+      centers: [0.5, 0.58333333, 0.66666669, 0.75, 0.91666669]
+      basis_frequency: 2
+  mean_residual_quality:
+    enabled: false
+  quality_relation_siam:
+    enabled: false
+
+  layerwise_lr:
+    enabled: true
+    global_encoder_mult: 0.10
+    local_encoder_mult: 0.10
+    fusion_mult: 0.50
+    shared_projection_mult: 0.50
+    align_feature_mult: 1.00
+    align_patch_mult: 2.00
+    align_gate_mult: 0.50
+    iqa_head_mult: 5.00
+    simsiam_head_mult: 5.00
+    other_mult: 1.00
+
+  lambda_img_siam: 0.15
+  lambda_img_answer: 0.20
+  lambda_img_prompt: 0.25
+  lambda_prompt_answer: 0.05
+  lambda_prompt_answer_gap: 0.0
+  prompt_answer_gap_max_similarity: 0.20
+
+  # The persistent main head learns generic overall quality.
+  lambda_quality_reg: 0.20
+  lambda_quality_rank: 0.10
+  lambda_quality_srocc: 0.0
+  quality_rank_margin: 0.05
+  quality_srocc_tau: 0.02
+
+  lambda_align_pretrain_reg: 0.20
+  lambda_align_pretrain_rank: 0.10
+  lambda_align_pretrain_srocc: 0.02
+  align_rank_margin: 0.05
+  align_srocc_tau: 0.02
+
+  two_output_only: true
+  lambda_final_pretrain_reg: 0.0
+  lambda_final_pretrain_rank: 0.0
+  lambda_final_pretrain_srocc: 0.0
+  final_rank_margin: 0.05
+  final_srocc_tau: 0.02
+
+  lambda_img_prompt_local: 0.05
+  img_prompt_misaligned_max_similarity: 0.10
+  misalignment_map_active_threshold: 0.05
+  lambda_prompt_answer_word: 0.05
+  prompt_answer_misaligned_max_similarity: 0.10
+
+  lambda_quality_neighbor_siam: 0.0
+  lambda_quality_order_siam: 0.0
+  lambda_quality_triplet_siam: 0.0
+  lambda_quality_anchor: 0.0
+  lambda_quality_ordinal: 0.0
+  lambda_artifact_anchor: 0.01
+  lambda_artifact_ordinal: 0.015
+  lambda_aesthetics_anchor: 0.01
+  lambda_aesthetics_ordinal: 0.015
+  lambda_residual_huber: 0.0
+  lambda_rank: 0.0
+  lambda_pretrain_srocc: 0.0
+  pretrain_use_hard_rank: false
+
+  # Select the main checkpoint by Artifact-anchor validation ranking; auxiliary
+  # quality, align, joint, component and aesthetics checkpoints are also saved.
+  pretrain_selection_metric: val_artifact_anchor_SROCC
+  pretrain_selection_mode: max
+
+optimizer:
+  type: adamw
+
+scheduler:
+  type: cosine
+  min_lr: 1.0e-6
+
+run_id: richhf18k_pretrain_two_output_controlled

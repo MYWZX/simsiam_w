@@ -1,0 +1,161 @@
+seed: 42
+split_seed: 42
+results_csv: ./outputs/all_results_richhf18k_joint_iqa_group90.csv
+output_dir: ./outputs/richhf18k_cm_pretrain_joint_iqa_group90
+
+dataset:
+  type: mixed_pretrain
+  input_size: 224
+  # Merge all official files, then keep every repeated prompt in one subset.
+  split_strategy: group_prompt
+  train_ratio: 0.90
+  val_ratio: 0.10
+
+  datasets:
+    - name: richhf18k
+      type: richhf18k
+      root_dir: ./data/RichHF-18K/processed
+      split_strategy: group_prompt
+      split: all
+      source_splits: [train, val, test]
+      csv_file: "{split}_with_answer_confidence.csv"
+      image_name_column: name
+      image_path_column: image_path
+      prompt_column: prompt
+      answer_column: answer
+      status_column: answer_status
+      answer_confidence_column: answer_confidence
+
+      # Pure visual quality excludes overall_score to avoid semantic leakage.
+      quality_score_mode: weighted_components
+      artifact_score_column: artifact_score
+      aesthetics_score_column: aesthetics_score
+      quality_artifact_weight: 0.5
+      quality_aesthetics_weight: 0.5
+
+      # RichHF human alignment and overall feedback, both normalized to [0, 1].
+      align_score_column: align_score
+      rank_target_column: overall_score
+
+      only_ok_answer: true
+      skip_missing_images: true
+      filter_low_confidence_answer: false
+      answer_confidence_default: 0.0
+      answer_confidence_min: 0.20
+
+      # Relation weights: no quality weighting on Image-Image or Image-Answer.
+      align_weight_mode: human_align
+      answer_weight_mode: answer_confidence
+      prompt_answer_weight_mode: align_confidence
+      use_prompt_answer_gap: true
+      sampling_weight: 1.0
+
+loader:
+  batch_size: 8
+  num_workers: 4
+  pin_memory: true
+
+model:
+  global_encoder:
+    type: vit_base_patch16_224.augreg2_in21k_ft_in1k
+    pretrained: true
+    freeze: false
+    output_dim: 768
+
+  local_encoder:
+    type: resnet50.a1_in1k
+    pretrained: true
+    freeze: false
+    output_dim: 256
+
+  fusion:
+    embed_dim: 256
+    num_heads: 4
+    dropout: 0.15
+
+  heads:
+    mlp_hidden_dim: 256
+    dropout: 0.2
+
+  text_encoder:
+    clip_model_name: ViT-B-16
+    clip_pretrained: openai
+
+  nss_text_gate:
+    nss_dim: 6
+    gate_hidden_dim: 256
+    quality_mix_init: 0.0
+
+  align_gate:
+    gate_hidden_dim: 256
+
+  fusion_init_logit: 0.0
+
+  align_adapter:
+    enabled: false
+
+  align_vmamba:
+    enabled: false
+
+  simsiam:
+    proj_dim: 256
+    proj_hidden_dim: 512
+    pred_hidden_dim: 128
+
+train:
+  epochs: 50
+  lr: 2.0e-5
+  weight_decay: 1.0e-3
+  amp: true
+  grad_clip: 1.0
+  log_interval: 20
+  early_stop_patience: 15
+
+  # Enables the persistent downstream model inside stage-1 pretraining.
+  use_joint_iqa_pretraining: true
+  use_dual_proxy_supervision: false
+
+  # Four relational SimSiam objectives. Projectors/predictors are discarded later.
+  lambda_img_siam: 0.15
+  lambda_img_answer: 0.20
+  lambda_img_prompt: 0.25
+  lambda_prompt_answer: 0.05
+  lambda_prompt_answer_gap: 0.01
+  prompt_answer_gap_max_similarity: 0.20
+
+  # Persistent Quality Head: human artifact + aesthetics supervision.
+  lambda_quality_reg: 0.20
+  lambda_quality_rank: 0.10
+  lambda_quality_srocc: 0.02
+  quality_rank_margin: 0.05
+  quality_srocc_tau: 0.02
+
+  # Persistent Align Head and Align Gate: human image-prompt alignment.
+  lambda_align_pretrain_reg: 0.20
+  lambda_align_pretrain_rank: 0.10
+  lambda_align_pretrain_srocc: 0.02
+  align_rank_margin: 0.05
+  align_srocc_tau: 0.02
+
+  # Persistent final fusion: RichHF overall human preference.
+  lambda_final_pretrain_reg: 0.20
+  lambda_final_pretrain_rank: 0.10
+  lambda_final_pretrain_srocc: 0.02
+  final_rank_margin: 0.05
+  final_srocc_tau: 0.02
+
+  # Legacy cosine-proxy supervision is disabled in joint mode.
+  lambda_rank: 0.0
+  lambda_pretrain_srocc: 0.0
+  pretrain_use_hard_rank: false
+
+  # Average validation SROCC of Quality, Align and Final heads.
+  pretrain_selection_metric: val_joint_SROCC
+  pretrain_selection_mode: max
+
+optimizer:
+  type: adamw
+
+scheduler:
+  type: cosine
+  min_lr: 1.0e-6

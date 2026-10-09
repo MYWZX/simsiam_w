@@ -1,0 +1,125 @@
+seed: 42
+results_csv: ./outputs/all_results_agiqa1k_dual_projection_quality_adapter_raw_iqa.csv
+output_dir: ./outputs/agiqa1k_dual_projection_quality_adapter_raw_seed42
+
+dataset:
+  type: agiqa1k_iqa
+  root_dir: ./data/AGIQA-1K
+  image_dir: file
+  csv_file: AIGC-1K_answer.csv
+  input_size: 224
+  final_quality_weight: 1.0
+  final_align_weight: 0.0
+  train_ratio: 0.7
+  val_ratio: 0.1
+  test_ratio: 0.2
+  use_perturb: true
+  perturbation_prob: 0.7
+  perturbation_strengths: [mild, moderate]
+  saliency_sampling_ratio: 0.7
+
+loader:
+  batch_size: 8
+  num_workers: 4
+  pin_memory: true
+
+model:
+  global_encoder:
+    type: vit_base_patch16_224.augreg2_in21k_ft_in1k
+    pretrained: true
+    freeze: false
+    output_dim: 768
+  local_encoder:
+    type: resnet50.a1_in1k
+    pretrained: true
+    freeze: false
+    output_dim: 256
+  fusion:
+    embed_dim: 256
+    num_heads: 4
+    dropout: 0.15
+  heads:
+    mlp_hidden_dim: 256
+    dropout: 0.2
+  text_encoder:
+    clip_model_name: ViT-B-16
+    clip_pretrained: openai
+  nss_text_gate:
+    nss_dim: 6
+    gate_hidden_dim: 256
+    quality_mix_init: 0.0
+  align_gate:
+    gate_hidden_dim: 256
+  fusion_init_logit: 0.0
+  align_adapter:
+    enabled: false
+  quality_adapter:
+    enabled: true
+    hidden_dim: 512
+    output_dim: 256
+    dropout: 0.2
+    last_bn: true
+    # Single-variable ablation: preserve the pretrained projector scale.
+    normalize: false
+  align_vmamba:
+    enabled: false
+
+train:
+  epochs: 60
+  lr: 1.0e-4
+  weight_decay: 2.0e-3
+  amp: true
+  grad_clip: 1.0
+  log_interval: 20
+  early_stop_patience: 15
+  pretrained_checkpoint: ./outputs/richhf18k_cm_pretrain_local_feedback_dual_projection_quality_triplet_balanced_lr/best_pretrain.pth
+  pretrained_load_scope: representation
+
+  layerwise_lr:
+    enabled: true
+    global_encoder_mult: 0.10
+    local_encoder_mult: 0.10
+    fusion_mult: 0.25
+    quality_mult: 1.00
+    quality_adapter_mult: 0.25
+    align_mult: 1.00
+    other_mult: 1.00
+
+  quality_only: true
+  lambda_quality: 1.0
+  lambda_align: 0.0
+  lambda_final: 0.0
+  lambda_align_aux: 0.0
+  lambda_pert: 0.02
+  pert_margin: 0.07
+  lambda_neg: 0.0
+  neg_margin: 0.10
+
+  use_align_rank: false
+  lambda_align_rank: 0.0
+  align_rank_margin_pos_hard: 0.05
+  align_rank_margin_hard_neg: 0.05
+  hard_negative_topk: 5
+
+  lambda_rank_quality: 0.03
+  lambda_rank_align: 0.0
+  lambda_rank_final: 0.0
+  rank_margin: 0.02
+  lambda_srocc_quality: 0.03
+  lambda_srocc_align: 0.0
+  lambda_srocc_final: 0.0
+  srocc_tau: 0.02
+  use_hard_rank: true
+  hard_rank_ratio: 0.35
+
+  selection_metric: val_quality_SROCC
+  selection_mode: max
+
+optimizer:
+  type: adamw
+
+scheduler:
+  type: cosine
+  min_lr: 1.0e-6
+
+run_id: agiqa1k_dual_projection_quality_adapter_raw_seed42

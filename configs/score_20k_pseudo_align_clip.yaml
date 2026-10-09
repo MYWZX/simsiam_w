@@ -1,0 +1,34 @@
+pseudo_align_score:
+  # Method: CLIPScore via open_clip. This scores image-prompt consistency only.
+  clip_model_name: ViT-B-16
+  clip_pretrained: openai
+  device: cuda
+  batch_size: 64
+  save_every: 500
+
+  image_root: ./data/AIGIQA-20K
+  input_csv: ./data/AIGIQA-20K/info_merge_with_answer_local.csv
+  output_csv: ./data/AIGIQA-20K/info_merge_with_answer_pseudo_align.csv
+
+  # CSV encoding. Use auto to try utf-8 / utf-8-sig / gb18030 / gbk / latin1.
+  # Your current CSV hit a UnicodeDecodeError under plain utf-8, so auto is safest.
+  input_encoding: auto
+  output_encoding: utf-8-sig
+
+  image_name_column: name
+  prompt_column: prompt
+
+  raw_score_column: pseudo_align_raw
+  score_column: pseudo_align_score
+  status_column: pseudo_align_status
+  error_column: pseudo_align_error
+
+  # Search order: image_root/name, image_root/train/name, image_root/val/name, image_root/test/name
+  search_subdirs: [train, val, test]
+
+  # raw cosine is saved in pseudo_align_raw.
+  # pseudo_align_score is normalized into [0,1] for use as image-prompt weight.
+  # percentile is usually better than (cos+1)/2 because CLIP cosine has narrow range.
+  normalize_mode: percentile   # choices: percentile, minmax, cos01
+  normalize_q_low: 0.05
+  normalize_q_high: 0.95

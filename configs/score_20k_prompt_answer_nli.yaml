@@ -1,0 +1,27 @@
+prompt_answer_nli_score:
+  model_name: MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli
+  device: cuda
+  disable_xet: true
+  local_files_only: false
+  hf_token: ""
+  batch_size: 32
+  max_length: 256
+  save_every: 1000
+
+  input_csv: ./data/AIGIQA-20K/info_merge_with_answer_pseudo_align.csv
+  output_csv: ./data/AIGIQA-20K/info_merge_with_answer_pseudo_align_nli.csv
+  input_encoding: auto
+  output_encoding: utf-8-sig
+
+  prompt_column: prompt
+  answer_column: answer
+  answer_status_column: answer_status
+  only_ok_answer: true
+
+  score_column: prompt_answer_nli_score
+  confidence_column: prompt_answer_nli_confidence
+  entailment_column: prompt_answer_nli_entailment
+  contradiction_column: prompt_answer_nli_contradiction
+  neutral_column: prompt_answer_nli_neutral
+  status_column: prompt_answer_nli_status
+  error_column: prompt_answer_nli_error

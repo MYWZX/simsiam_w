@@ -1,0 +1,21 @@
+semantic_confidence:
+  input_csv: ./data/AIGIQA-20K/info_merge_with_answer_pseudo_align_ia_pa.csv
+  output_csv: ./data/AIGIQA-20K/info_merge_with_answer_semantic.csv
+
+  input_encoding: auto
+  output_encoding: utf-8-sig
+
+  image_prompt_score_column: pseudo_align_score
+  image_prompt_status_column: pseudo_align_status
+  image_answer_score_column: image_answer_score
+  image_answer_status_column: image_answer_status
+  prompt_answer_score_column: prompt_answer_score
+  prompt_answer_status_column: prompt_answer_status
+
+  # min is conservative: if any of IP/IA/PA is weak, this sample is not a strong semantic positive.
+  mode: min
+  score_column: semantic_confidence_score
+  status_column: semantic_confidence_status
+  level_column: semantic_confidence_level
+  mid_threshold: 0.35
+  high_threshold: 0.65

@@ -1,0 +1,27 @@
+pseudo_align_score:
+  # Reuse the CLIP image-text scoring script, but score image-answer consistency.
+  clip_model_name: ViT-B-16
+  clip_pretrained: openai
+  device: cuda
+  batch_size: 64
+  save_every: 500
+
+  image_root: ./data/AIGIQA-20K
+  input_csv: ./data/AIGIQA-20K/info_merge_with_answer_pseudo_align.csv
+  output_csv: ./data/AIGIQA-20K/info_merge_with_answer_pseudo_align_ia.csv
+
+  input_encoding: auto
+  output_encoding: utf-8-sig
+
+  image_name_column: name
+  prompt_column: answer
+
+  raw_score_column: image_answer_raw
+  score_column: image_answer_score
+  status_column: image_answer_status
+  error_column: image_answer_error
+
+  search_subdirs: [train, val, test]
+  normalize_mode: percentile
+  normalize_q_low: 0.05
+  normalize_q_high: 0.95

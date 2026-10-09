@@ -1,0 +1,26 @@
+answer_confidence:
+  processed_dir: ./data/RichHF-18K/processed
+  splits:
+    - train
+    - val
+    - test
+
+  input_pattern: "{split}_with_answer.csv"
+  output_pattern: "{split}_with_answer_confidence.csv"
+  calibration_file: answer_confidence_calibration.json
+
+  clip_model_name: ViT-B-16
+  clip_pretrained: openai
+  device: cuda
+  batch_size: 64
+  save_every: 500
+  minimum_success_rate: 0.98
+
+  # Fit these two endpoints on train only, then reuse them unchanged for val/test.
+  train_quantile_low: 0.05
+  train_quantile_high: 0.95
+
+  # These labels support data inspection. Training should use the continuous
+  # answer_weight instead of removing all low-confidence samples immediately.
+  medium_threshold: 0.30
+  high_threshold: 0.65

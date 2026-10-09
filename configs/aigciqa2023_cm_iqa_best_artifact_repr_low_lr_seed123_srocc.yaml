@@ -1,0 +1,126 @@
+seed: 123
+split_seed: 42
+results_csv: ./outputs/all_results_aigciqa2023_best_artifact_repr_low_lr_iqa.csv
+output_dir: ./outputs/aigciqa2023_best_artifact_repr_low_lr_split42_seed123
+
+dataset:
+  type: aigciqa2023_iqa
+  root_dir: ./data/AIGCIQA2023
+  image_dir: Image/allimg
+  input_size: 224
+  mosz1_file: DATA/MOS/mosz1.mat
+  mosz3_file: DATA/MOS/mosz3.mat
+  mosz1_key: MOSz
+  mosz3_key: MOSz
+  prompt_file: AIGCIQA2023_Prompts.xlsx
+  images_per_prompt: 4
+  num_prompts: 100
+  prompt_cycle_by_round: true
+  debug_prompt_mapping: false
+  mos_max: 100.0
+  final_quality_weight: 0.5
+  final_align_weight: 0.5
+  train_ratio: 0.7
+  val_ratio: 0.1
+  test_ratio: 0.2
+  use_perturb: true
+  perturbation_prob: 0.7
+  perturbation_strengths: [mild, moderate]
+  saliency_sampling_ratio: 0.7
+
+loader:
+  batch_size: 8
+  num_workers: 4
+  pin_memory: true
+
+model:
+  global_encoder:
+    type: open_clip
+    model_name: ViT-B-16
+    open_clip_pretrained: openai
+    pretrained: true
+    freeze: false
+    output_dim: 512
+    source_normalization: imagenet
+    normalize_output: true
+  local_encoder:
+    type: resnet50.a1_in1k
+    pretrained: true
+    freeze: false
+    output_dim: 256
+  fusion:
+    embed_dim: 256
+    num_heads: 4
+    dropout: 0.15
+  heads:
+    mlp_hidden_dim: 256
+    dropout: 0.2
+  text_encoder:
+    clip_model_name: ViT-B-16
+    clip_pretrained: openai
+  nss_text_gate:
+    nss_dim: 6
+    gate_hidden_dim: 256
+    quality_mix_init: 0.0
+  align_gate:
+    gate_hidden_dim: 256
+  fusion_init_logit: 0.0
+  align_adapter:
+    enabled: false
+  align_vmamba:
+    enabled: false
+
+train:
+  epochs: 60
+  lr: 1.0e-4
+  weight_decay: 2.0e-3
+  amp: true
+  grad_clip: 1.0
+  log_interval: 20
+  early_stop_patience: 20
+  pretrained_checkpoint: ./outputs/richhf18k_cm_pretrain_local_feedback_quality_components_ordinal_matched_clip_balanced_lr/best_artifact_anchor_pretrain.pth
+  pretrained_load_scope: representation
+
+  layerwise_lr:
+    enabled: true
+    global_encoder_mult: 0.02
+    local_encoder_mult: 0.02
+    fusion_mult: 0.10
+    quality_mult: 1.00
+    align_mult: 1.00
+    other_mult: 1.00
+
+  lambda_quality: 1.0
+  lambda_align: 1.0
+  lambda_final: 1.0
+  lambda_align_aux: 0.3
+  lambda_pert: 0.02
+  pert_margin: 0.07
+  lambda_rank_quality: 0.03
+  lambda_rank_align: 0.03
+  lambda_rank_final: 0.05
+  rank_margin: 0.02
+  lambda_neg: 0.05
+  neg_margin: 0.10
+  use_align_rank: false
+  lambda_align_rank: 0.05
+  align_rank_margin_pos_hard: 0.05
+  align_rank_margin_hard_neg: 0.05
+  hard_negative_topk: 5
+  lambda_srocc_quality: 0.02
+  lambda_srocc_align: 0.04
+  lambda_srocc_final: 0.03
+  srocc_tau: 0.02
+  use_hard_rank: true
+  hard_rank_ratio: 0.35
+  selection_metric: val_SROCC
+  selection_mode: max
+
+optimizer:
+  type: adamw
+
+scheduler:
+  type: cosine
+  min_lr: 1.0e-6
+
+run_id: aigciqa2023_best_artifact_repr_low_lr_split42_seed123
