@@ -102,6 +102,16 @@ def parse_args():
             "Artifact/Aesthetics path."
         ),
     )
+    p.add_argument(
+        "--disable-component-anchor",
+        action="store_true",
+        help="Ablation: disable Component Anchor/Ordinal supervision and heads.",
+    )
+    p.add_argument(
+        "--disable-quality-align-reg-rank",
+        action="store_true",
+        help="Ablation: disable pretraining Quality/Align regression and ranking losses only.",
+    )
     return p.parse_args()
 
 
@@ -127,6 +137,20 @@ def configure_research_controls(cfg: Dict, args: argparse.Namespace) -> None:
         if "lambda_quality_view_siam" in train_cfg:
             train_cfg["lambda_quality_view_siam"] = 0.0
         print("[INFO] Diagnostic: four regular SimSiam weights=0; modules, views, human, local and anchor supervision unchanged.")
+    if args.disable_quality_auxiliary:
+        train_cfg = cfg.setdefault("train", {})
+        train_cfg.setdefault("quality_auxiliary_supervision", {})["enabled"] = False
+        cfg.setdefault("model", {}).setdefault("quality_auxiliary_heads", {})["enabled"] = False
+        print("[INFO] Ablation: Artifact/Aesthetics auxiliary heads and losses disabled.")
+    if args.disable_component_anchor:
+        train_cfg = cfg.setdefault("train", {})
+        train_cfg.setdefault("quality_component_anchor_ordinal", {})["enabled"] = False
+        print("[INFO] Ablation: Component Anchor/Ordinal supervision disabled.")
+    if args.disable_quality_align_reg_rank:
+        train_cfg = cfg.setdefault("train", {})
+        for key in ("lambda_quality_reg", "lambda_quality_rank", "lambda_align_pretrain_reg", "lambda_align_pretrain_rank"):
+            train_cfg[key] = 0.0
+        print("[INFO] Ablation: pretraining Quality/Align regression and ranking losses disabled.")
     if fixed_epochs is not None:
         cfg.setdefault("train", {})["fixed_training_epochs"] = int(fixed_epochs)
     if planned is not None:
@@ -2546,6 +2570,7 @@ def main():
         bank_cfg["enabled"] = True
         bank_cfg["score_blend"] = 0.0
         bank_cfg.setdefault("temperature", 0.2)
+        bank_cfg.setdefault("class_context_tokens", max(1, int(args.text_context_tokens or 4)))
         # Cover the full human Align range, including rare exact-zero labels.
         # Fixed centers are dataset-independent and use no val/downstream labels.
         bank_cfg.setdefault("centers", [0.0, 0.25, 0.5, 0.75, 1.0])
@@ -2562,6 +2587,7 @@ def main():
         bank_cfg["enabled"] = True
         bank_cfg["score_blend"] = 0.0
         bank_cfg.setdefault("temperature", 0.2)
+        bank_cfg.setdefault("class_context_tokens", max(1, int(args.text_context_tokens or 4)))
         # 5/25/50/75/95 percentiles of the filtered official RichHF train CSV.
         bank_cfg.setdefault("centers", [0.375, 0.54166667, 0.66666669, 0.79166666, 0.95833334])
         cfg.setdefault("train", {})["lambda_quality_text_ce"] = 0.005

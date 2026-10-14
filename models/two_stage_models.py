@@ -147,6 +147,51 @@ class FrozenCLIPTextEncoder(nn.Module):
                 feat = feat @ self.model.text_projection
         return F.normalize(feat.float(), dim=-1)
 
+    def encode_with_context(self, texts: Sequence[str], context_vectors: torch.Tensor,
+                            device: torch.device) -> torch.Tensor:
+        """Encode one independently learnable context per text prompt.
+
+        ``context_vectors`` has shape ``[batch, N, width]``.  The frozen CLIP
+        text transformer still runs, so gradients reach only these inserted
+        context tokens and never the CLIP parameters.
+        """
+        from open_clip.transformer import text_global_pool
+
+        self.model.eval()
+        if context_vectors.ndim != 3 or context_vectors.size(0) != len(texts):
+            raise ValueError("context_vectors must have shape [len(texts), N, width].")
+        n_tokens = int(context_vectors.size(1))
+        if n_tokens < 1 or n_tokens > int(self.model.context_length) - 2:
+            raise ValueError("Invalid number of class-specific context tokens.")
+        short_tokens = self.tokenizer(
+            [str(t) for t in texts],
+            context_length=int(self.model.context_length) - n_tokens,
+        ).to(device)
+        placeholders = torch.zeros(
+            short_tokens.size(0), n_tokens, dtype=short_tokens.dtype, device=device
+        )
+        token_ids = torch.cat([short_tokens[:, :1], placeholders, short_tokens[:, 1:]], dim=1)
+        cast_dtype = self.model.transformer.get_cast_dtype()
+        fixed_embeddings = self.model.token_embedding(short_tokens).to(cast_dtype)
+        x = torch.cat([
+            fixed_embeddings[:, :1],
+            context_vectors.to(device=device, dtype=cast_dtype),
+            fixed_embeddings[:, 1:],
+        ], dim=1)
+        x = x + self.model.positional_embedding.to(cast_dtype)
+        x = self.model.transformer(x, attn_mask=self.model.attn_mask)
+        x = self.model.ln_final(x)
+        feat = text_global_pool(
+            x, token_ids, self.model.text_pool_type,
+            eos_token_id=getattr(self.model, "text_eos_id", None),
+        )
+        if self.model.text_projection is not None:
+            if isinstance(self.model.text_projection, nn.Linear):
+                feat = self.model.text_projection(feat)
+            else:
+                feat = feat @ self.model.text_projection
+        return F.normalize(feat.float(), dim=-1)
+
     def encode_cached(self, texts: Sequence[str], device: torch.device) -> torch.Tensor:
         """Encode short frozen-CLIP texts once and cache their CPU features."""
         if self.num_context_tokens:
@@ -172,13 +217,20 @@ class FrozenCLIPTextEncoder(nn.Module):
 
 
 class QualityTextPrototypeBank(nn.Module):
-    """Five fixed CLIP rating phrases with a persistent feature-to-text mapper."""
+    """Five independent trainable text-token classifiers.
+
+    Each level is initialized from its complete CLIP phrase, then its own
+    text-space prototype is optimized independently.  The CLIP text encoder
+    remains frozen; only these five classifier tokens and ``image_to_text``
+    are trainable.
+    """
 
     WORDS = ("terrible", "poor", "fair", "good", "excellent")
 
     def __init__(self, text_encoder: FrozenCLIPTextEncoder, image_dim: int,
                  centers: Sequence[float], temperature: float = 0.2,
-                 phrases: Optional[Sequence[str]] = None):
+                 phrases: Optional[Sequence[str]] = None,
+                 class_context_tokens: int = 0):
         super().__init__()
         values = [float(value) for value in centers]
         if len(values) != len(self.WORDS) or not all(0.0 <= value <= 1.0 for value in values) or not all(
@@ -192,13 +244,50 @@ class QualityTextPrototypeBank(nn.Module):
             phrases = [f"the quality of the AI-generated image is {word}" for word in self.WORDS]
         if len(phrases) != len(self.WORDS):
             raise ValueError("Five-level text bank requires exactly five phrases.")
-        self.register_buffer("text_features", text_encoder.encode_base_text(phrases))
+        object.__setattr__(self, "_phrases", tuple(str(p) for p in phrases))
+        self.class_context_tokens = int(class_context_tokens)
+        if self.class_context_tokens:
+            width = int(text_encoder.model.token_embedding.embedding_dim)
+            shared = getattr(text_encoder, "context_vectors", None)
+            if shared is not None and shared.size(0) == self.class_context_tokens:
+                initial = shared.detach().unsqueeze(0).expand(len(self.WORDS), -1, -1).clone()
+                initial += 0.001 * torch.randn_like(initial)
+            else:
+                initial = torch.empty(len(self.WORDS), self.class_context_tokens, width)
+                initial.normal_(std=0.02)
+            self.class_context = nn.Parameter(initial)
+            self.register_buffer("initial_class_context", initial.detach().clone())
+            with torch.no_grad():
+                initial_features = text_encoder.encode_with_context(
+                    phrases, self.class_context.detach(), device=next(text_encoder.model.parameters()).device
+                )
+        else:
+            self.register_parameter("class_context", None)
+            self.register_buffer("initial_class_context", torch.empty(0))
+            initial_features = text_encoder.encode_base_text(phrases)
+        # Kept as an initialization/reference buffer for compatibility and
+        # diagnostics. In class-context mode forward recomputes text features
+        # through the frozen CLIP transformer so class_context receives grads.
+        self.register_buffer("text_features", initial_features)
         self.register_buffer("centers", torch.tensor(values, dtype=torch.float32))
         self.image_to_text = nn.Linear(int(image_dim), text_encoder.output_dim, bias=False)
+        object.__setattr__(self, "_text_encoder_ref", text_encoder)
+
+    def context_anchor_loss(self) -> torch.Tensor:
+        """Keep learned class prompts close to their CLIP initialization."""
+        if self.class_context is None or self.initial_class_context.numel() == 0:
+            return self.centers.new_zeros(())
+        return (self.class_context - self.initial_class_context).pow(2).mean()
 
     def forward(self, image_feature: torch.Tensor) -> Dict[str, torch.Tensor]:
         image_text = F.normalize(self.image_to_text(image_feature).float(), dim=-1)
-        references = F.normalize(self.text_features.float(), dim=-1)
+        if self.class_context is not None:
+            references = self._text_encoder_ref.encode_with_context(
+                self._phrases, self.class_context, device=image_feature.device
+            )
+        else:
+            references = self.text_features
+        references = F.normalize(references.float(), dim=-1)
         logits = image_text @ references.T / self.temperature
         probabilities = torch.softmax(logits, dim=-1)
         return {
@@ -562,6 +651,7 @@ class CrossModalIQAFullModel(nn.Module):
                     image_dim=fused_dim,
                     centers=qt_cfg["centers"],
                     temperature=float(qt_cfg.get("temperature", 0.2)),
+                    class_context_tokens=int(qt_cfg.get("class_context_tokens", 0)),
                 )
         else:
             self.quality_text_bank = None
@@ -666,6 +756,7 @@ class CrossModalIQAFullModel(nn.Module):
                     centers=at_cfg["centers"],
                     temperature=float(at_cfg.get("temperature", 0.2)),
                     phrases=phrases,
+                    class_context_tokens=int(at_cfg.get("class_context_tokens", 0)),
                 )
         else:
             self.align_text_bank = None
@@ -823,12 +914,13 @@ class CrossModalIQAFullModel(nn.Module):
         s_quality = mix * s_patch + (1.0 - mix) * s_global
         s_quality_visual = s_quality
         quality_text_out = {}
-        if self.quality_text_bank is not None and self.quality_text_blend > 0.0:
+        if self.quality_text_bank is not None:
             quality_text_out = self.quality_text_bank(z_quality_global)
-            s_quality = (
-                (1.0 - self.quality_text_blend) * s_quality_visual
-                + self.quality_text_blend * quality_text_out["quality_text_score"]
-            )
+            if self.quality_text_blend > 0.0:
+                s_quality = (
+                    (1.0 - self.quality_text_blend) * s_quality_visual
+                    + self.quality_text_blend * quality_text_out["quality_text_score"]
+                )
 
         result = {
             "s_quality": s_quality,
@@ -1423,6 +1515,8 @@ def load_pretrained_backbone(
             "quality_text_bank.centers",
             "quality_text_bank.image_to_text.weight",
         }
+        if getattr(model.quality_text_bank, "class_context", None) is not None:
+            required_bank_keys.add("quality_text_bank.class_context")
         missing_bank_keys = required_bank_keys.difference(loadable)
         if missing_bank_keys:
             raise RuntimeError(
@@ -1441,6 +1535,8 @@ def load_pretrained_backbone(
             "align_text_bank.centers",
             "align_text_bank.image_to_text.weight",
         }
+        if getattr(model.align_text_bank, "class_context", None) is not None:
+            required_align_bank_keys.add("align_text_bank.class_context")
         missing_align_bank_keys = required_align_bank_keys.difference(loadable)
         if missing_align_bank_keys:
             raise RuntimeError(
@@ -1454,6 +1550,18 @@ def load_pretrained_backbone(
         ):
             raise RuntimeError("Align text centers differ from the pretraining checkpoint.")
     missing, unexpected = model.load_state_dict(loadable, strict=False)
+    # Older class-context checkpoints predate the initialization anchor buffer.
+    # Treat their loaded context as the anchor so enabling the new regularizer
+    # never pulls an old checkpoint toward a fresh random initialization.
+    for bank_name in ("quality_text_bank", "align_text_bank"):
+        bank = getattr(model, bank_name, None)
+        context_key = f"{bank_name}.class_context"
+        initial_key = f"{bank_name}.initial_class_context"
+        if bank is not None and context_key in loadable and initial_key not in loadable:
+            initial = getattr(bank, "initial_class_context", None)
+            context = getattr(bank, "class_context", None)
+            if initial is not None and context is not None and initial.shape == context.shape:
+                initial.copy_(context.detach())
     visual_count = sum(k.startswith(backbone_prefixes) for k in loadable)
     semantic_count = sum(k.startswith("text_to_fused.") for k in loadable)
     text_context_count = int("backbone.text_encoder.context_vectors" in loadable)

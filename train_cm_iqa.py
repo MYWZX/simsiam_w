@@ -52,6 +52,22 @@ def parse_args():
         help="Load five-word image-Prompt bank; 0=representation-only, 0.10=blend 10%% into Align.",
     )
     p.add_argument(
+        "--quality-text-lambda", type=float, default=None,
+        help="Downstream Quality five-level auxiliary CE weight (default 0.005 when enabled).",
+    )
+    p.add_argument(
+        "--align-text-lambda", type=float, default=None,
+        help="Downstream Align five-level auxiliary CE weight (default 0.005 when enabled).",
+    )
+    p.add_argument(
+        "--quality-text-anchor-lambda", type=float, default=None,
+        help="Quality class-context initialization anchor regularization weight (default 0).",
+    )
+    p.add_argument(
+        "--align-text-anchor-lambda", type=float, default=None,
+        help="Align class-context initialization anchor regularization weight (default 0).",
+    )
+    p.add_argument(
         "--quality-adapter-mode", choices=("replace", "parallel_score"), default=None,
         help="Change only the enabled quality Adapter's scoring interface.",
     )
@@ -904,6 +920,27 @@ def hard_negative_prompt_ranking_loss(
     return (loss_vec * mask).sum() / (mask.sum() + 1e-6)
 
 
+def _compute_text_bank_aux_loss(logits, score, target, mask, centers):
+    """Soft ordinal five-level loss used by downstream auxiliary training."""
+    zero = target.new_zeros(())
+    if logits is None or score is None or centers is None:
+        return zero, zero
+    logits = logits.float()
+    centers = centers.to(device=logits.device, dtype=torch.float32)
+    target = target.float().view(-1).clamp(0.0, 1.0)
+    mask = mask.float().view(-1).clamp_min(0.0)
+    high = torch.searchsorted(centers.contiguous(), target.contiguous()).clamp(1, centers.numel() - 1)
+    low = high - 1
+    fraction = ((target - centers[low]) / (centers[high] - centers[low])).clamp(0.0, 1.0)
+    soft_target = torch.zeros_like(logits)
+    soft_target.scatter_add_(1, low[:, None], (1.0 - fraction)[:, None])
+    soft_target.scatter_add_(1, high[:, None], fraction[:, None])
+    ce = -(soft_target * F.log_softmax(logits, dim=-1)).sum(dim=-1)
+    denominator = mask.sum().clamp_min(1e-6)
+    return ((ce * mask).sum() / denominator,
+            ((score.float().view(-1) - target).abs() * mask).sum() / denominator)
+
+
 def compute_losses(model, batch, device, cfg, prompt_bank=None, epoch: int | None = None):
     tcfg = cfg["train"]
     dcfg = cfg.get("dataset", {})
@@ -942,6 +979,19 @@ def compute_losses(model, batch, device, cfg, prompt_bank=None, epoch: int | Non
     l_quality_adapter_aux = masked_mse(
         out["s_quality_global_adapter"], quality, qmask
     )
+    base_model = _unwrap_model(model)
+    quality_bank = getattr(base_model, "quality_text_bank", None)
+    align_bank = getattr(base_model, "align_text_bank", None)
+    quality_text_ce, quality_text_mae = _compute_text_bank_aux_loss(
+        out.get("quality_text_logits"), out.get("quality_text_score"), quality, qmask,
+        quality_bank.centers if quality_bank is not None else None,
+    )
+    align_text_ce, align_text_mae = _compute_text_bank_aux_loss(
+        out.get("align_text_logits"), out.get("align_text_score"), align, amask,
+        align_bank.centers if align_bank is not None else None,
+    )
+    quality_text_anchor = quality_bank.context_anchor_loss() if quality_bank is not None else image.new_zeros(())
+    align_text_anchor = align_bank.context_anchor_loss() if align_bank is not None else image.new_zeros(())
 
     rank_margin = float(tcfg.get("rank_margin", 0.02))
     if bool(tcfg.get("use_hard_rank", False)):
@@ -1175,6 +1225,8 @@ def compute_losses(model, batch, device, cfg, prompt_bank=None, epoch: int | Non
 
     loss_quality_task = (
         float(tcfg.get("lambda_quality", 1.0)) * l_quality
+        + float(tcfg.get("lambda_quality_text_ce", 0.0)) * quality_text_ce
+        + float(tcfg.get("lambda_quality_text_anchor", 0.0)) * quality_text_anchor
         + lambda_quality_adapter_aux * l_quality_adapter_aux
         + 0.5 * lambda_final * l_final
         + float(tcfg.get("lambda_rank_quality", 0.0)) * l_rank_quality
@@ -1186,6 +1238,8 @@ def compute_losses(model, batch, device, cfg, prompt_bank=None, epoch: int | Non
     )
     loss_align_task = (
         float(tcfg.get("lambda_align", 1.0)) * l_align
+        + float(tcfg.get("lambda_align_text_ce", 0.0)) * align_text_ce
+        + float(tcfg.get("lambda_align_text_anchor", 0.0)) * align_text_anchor
         + 0.5 * lambda_final * l_final
         + float(tcfg.get("lambda_align_aux", 0.3)) * (l_align_g + l_align_p)
         + float(tcfg.get("lambda_rank_align", 0.0)) * l_rank_align
@@ -1205,8 +1259,14 @@ def compute_losses(model, batch, device, cfg, prompt_bank=None, epoch: int | Non
         "loss_quality_task": loss_quality_task,
         "loss_align_task": loss_align_task,
         "quality": l_quality.detach(),
+        "quality_text_ce": quality_text_ce.detach(),
+        "quality_text_mae": quality_text_mae.detach(),
+        "quality_text_anchor": quality_text_anchor.detach(),
         "quality_adapter_aux": l_quality_adapter_aux.detach(),
         "align": l_align.detach(),
+        "align_text_ce": align_text_ce.detach(),
+        "align_text_mae": align_text_mae.detach(),
+        "align_text_anchor": align_text_anchor.detach(),
         "final": l_final.detach(),
         "align_global": l_align_g.detach(),
         "align_patch": l_align_p.detach(),
@@ -1241,7 +1301,8 @@ def train_one_epoch(model, loader, optimizer, scaler, device, cfg, epoch, prompt
     enforce_progressive_frozen_eval(model, cfg, epoch)
     amp_enabled = bool(cfg["train"].get("amp", True)) and device.type == "cuda"
     keys = [
-        "loss", "quality", "quality_adapter_aux", "align", "final", "align_global", "align_patch",
+        "loss", "quality", "quality_text_ce", "quality_text_mae", "quality_text_anchor", "quality_adapter_aux",
+        "align", "align_text_ce", "align_text_mae", "align_text_anchor", "final", "align_global", "align_patch",
         "rank_quality", "rank_align", "rank_final",
         "srocc_quality", "srocc_align", "srocc_final",
         "pert", "neg", "hard_neg", "align_prompt_rank", "align_gate_reg",
@@ -1628,11 +1689,22 @@ def main():
         align_blend = float(args.align_text_blend)
         if not math.isfinite(align_blend) or not 0.0 <= align_blend <= 1.0:
             raise ValueError("--align-text-blend must be finite and in [0, 1].")
+        if args.align_text_lambda is not None and (not math.isfinite(args.align_text_lambda) or args.align_text_lambda < 0):
+            raise ValueError("--align-text-lambda must be finite and nonnegative.")
+        if args.align_text_anchor_lambda is not None and (not math.isfinite(args.align_text_anchor_lambda) or args.align_text_anchor_lambda < 0):
+            raise ValueError("--align-text-anchor-lambda must be finite and nonnegative.")
         align_bank_cfg = cfg.setdefault("model", {}).setdefault("align_text_bank", {})
         align_bank_cfg["enabled"] = True
         align_bank_cfg["score_blend"] = align_blend
         align_bank_cfg.setdefault("temperature", 0.2)
+        align_bank_cfg.setdefault("class_context_tokens", max(1, int(args.text_context_tokens or 4)))
         align_bank_cfg.setdefault("centers", [0.0, 0.25, 0.5, 0.75, 1.0])
+        cfg.setdefault("train", {})["lambda_align_text_ce"] = (
+            0.005 if args.align_text_lambda is None else float(args.align_text_lambda)
+        )
+        cfg.setdefault("train", {})["lambda_align_text_anchor"] = (
+            0.0 if args.align_text_anchor_lambda is None else float(args.align_text_anchor_lambda)
+        )
         print(f"[INFO] Five-word image-Prompt matching bank enabled; score_blend={align_blend:.2f}.")
     if args.quality_text_blend is not None:
         blend = float(args.quality_text_blend)
@@ -1640,11 +1712,22 @@ def main():
             raise ValueError("--quality-text-blend must be finite and in [0, 1].")
         if args.disable_quality_adapter:
             raise ValueError("--quality-text-blend requires an enabled Quality Adapter.")
+        if args.quality_text_lambda is not None and (not math.isfinite(args.quality_text_lambda) or args.quality_text_lambda < 0):
+            raise ValueError("--quality-text-lambda must be finite and nonnegative.")
+        if args.quality_text_anchor_lambda is not None and (not math.isfinite(args.quality_text_anchor_lambda) or args.quality_text_anchor_lambda < 0):
+            raise ValueError("--quality-text-anchor-lambda must be finite and nonnegative.")
         bank_cfg = cfg.setdefault("model", {}).setdefault("quality_text_bank", {})
         bank_cfg["enabled"] = True
         bank_cfg["score_blend"] = blend
         bank_cfg.setdefault("temperature", 0.2)
+        bank_cfg.setdefault("class_context_tokens", max(1, int(args.text_context_tokens or 4)))
         bank_cfg.setdefault("centers", [0.375, 0.54166667, 0.66666669, 0.79166666, 0.95833334])
+        cfg.setdefault("train", {})["lambda_quality_text_ce"] = (
+            0.005 if args.quality_text_lambda is None else float(args.quality_text_lambda)
+        )
+        cfg.setdefault("train", {})["lambda_quality_text_anchor"] = (
+            0.0 if args.quality_text_anchor_lambda is None else float(args.quality_text_anchor_lambda)
+        )
         print(f"[INFO] Five-word quality bank enabled; score_blend={blend:.2f}.")
     configure_quality_adapter_experiment(cfg, args)
     if args.disable_quality_adapter:
