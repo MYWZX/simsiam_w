@@ -531,6 +531,17 @@ class CrossModalIQAFullModel(nn.Module):
             nn.Linear(hidden_dim, hidden_dim // 2), nn.GELU(), nn.Dropout(dropout), nn.Linear(hidden_dim // 2, 1),
         )
         self.quality_mix_logit = nn.Parameter(torch.tensor(float(ngcfg.get("quality_mix_init", 0.0))))
+        qdcfg = mcfg.get("quality_distribution", {})
+        self.use_quality_distribution = bool(qdcfg.get("enabled", False))
+        self.quality_distribution_temperature = float(qdcfg.get("temperature", 0.2))
+        self.register_buffer(
+            "quality_distribution_centers",
+            torch.tensor(qdcfg.get("centers", [0.0, 0.25, 0.5, 0.75, 1.0]), dtype=torch.float32),
+        )
+        if self.use_quality_distribution:
+            self.quality_distribution_head = nn.Linear(fused_dim, int(self.quality_distribution_centers.numel()))
+        else:
+            self.quality_distribution_head = None
 
         # Optional dataset-specific quality factors. These small heads are
         # supervised only when the current dataset exposes the configured
@@ -913,6 +924,16 @@ class CrossModalIQAFullModel(nn.Module):
         mix = torch.sigmoid(self.quality_mix_logit)
         s_quality = mix * s_patch + (1.0 - mix) * s_global
         s_quality_visual = s_quality
+        quality_distribution_out = {}
+        if self.quality_distribution_head is not None:
+            quality_distribution_logits = self.quality_distribution_head(z_quality_global)
+            quality_distribution_prob = torch.softmax(
+                quality_distribution_logits / max(self.quality_distribution_temperature, 1e-6), dim=-1
+            )
+            quality_distribution_out = {
+                "quality_distribution_logits": quality_distribution_logits,
+                "quality_distribution_score": quality_distribution_prob @ self.quality_distribution_centers,
+            }
         quality_text_out = {}
         if self.quality_text_bank is not None:
             quality_text_out = self.quality_text_bank(z_quality_global)
@@ -925,6 +946,7 @@ class CrossModalIQAFullModel(nn.Module):
         result = {
             "s_quality": s_quality,
             "s_quality_visual": s_quality_visual,
+            **quality_distribution_out,
             **quality_text_out,
             "s_quality_patch": s_patch,
             "s_quality_global": s_global,
@@ -1043,7 +1065,13 @@ class CrossModalIQAFullModel(nn.Module):
         prompts: Optional[Sequence[str]] = None,
         local_crops: Optional[torch.Tensor] = None,
     ) -> Dict[str, torch.Tensor]:
-        img = self.backbone.encode_image(image, local_crops=local_crops)
+        # Keep high-resolution local crops isolated to the Quality branch.
+        # Align continues to use the base-resolution shared visual path.
+        img = self.backbone.encode_image(image)
+        quality_img = (
+            self.backbone.encode_image(image, local_crops=local_crops)
+            if local_crops is not None else img
+        )
         text_feat = None
         text_fused = None
         if prompts is not None:
@@ -1055,8 +1083,8 @@ class CrossModalIQAFullModel(nn.Module):
         )
         q_out = self._quality_from_patches(
             image,
-            img["z"],
-            img["f_loc"],
+            quality_img["z"],
+            quality_img["f_loc"],
             quality_text_fused,
             local_crops=local_crops,
         )
@@ -1068,7 +1096,11 @@ class CrossModalIQAFullModel(nn.Module):
             out["s_q"] = q_out["s_quality"]
             return out
 
-        a_out = self._align_from_global_and_patch(img["z"], q_out["patch_tokens"], text_fused, patch_hw=q_out.get("patch_hw"))
+        align_patch_tokens = self._make_patch_tokens(img["f_loc"])
+        a_out = self._align_from_global_and_patch(
+            img["z"], align_patch_tokens, text_fused,
+            patch_hw=(img["f_loc"].shape[-2], img["f_loc"].shape[-1]),
+        )
         w_img, fusion_gate_delta = self._compute_fusion_weight(
             img["z"], text_fused, q_out["s_quality"], a_out["s_align"]
         )

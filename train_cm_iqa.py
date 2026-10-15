@@ -68,6 +68,18 @@ def parse_args():
         help="Align class-context initialization anchor regularization weight (default 0).",
     )
     p.add_argument(
+        "--disable-perturbation", action="store_true",
+        help="Disable synthetic downstream perturbation augmentation for this run.",
+    )
+    p.add_argument(
+        "--quality-distribution", action="store_true",
+        help="Enable an optional five-bin Quality distribution head and auxiliary loss.",
+    )
+    p.add_argument(
+        "--quality-highres-crops", action="store_true",
+        help="Use high-resolution local crops only in the Quality branch (Align stays base-resolution).",
+    )
+    p.add_argument(
         "--quality-adapter-mode", choices=("replace", "parallel_score"), default=None,
         help="Change only the enabled quality Adapter's scoring interface.",
     )
@@ -316,6 +328,7 @@ def build_optimizer(cfg: Dict, model: nn.Module):
     quality_prefixes = (
         "local_patch_proj", "nss_proj", "nss_gate", "text_gate",
         "patch_quality_head", "global_quality_head", "quality_mix_logit",
+        "quality_distribution_head",
         "quality_adapter_head", "quality_adapter_gate_logit",
     )
     align_prefixes = (
@@ -992,6 +1005,10 @@ def compute_losses(model, batch, device, cfg, prompt_bank=None, epoch: int | Non
     )
     quality_text_anchor = quality_bank.context_anchor_loss() if quality_bank is not None else image.new_zeros(())
     align_text_anchor = align_bank.context_anchor_loss() if align_bank is not None else image.new_zeros(())
+    quality_distribution_ce, quality_distribution_mae = _compute_text_bank_aux_loss(
+        out.get("quality_distribution_logits"), out.get("quality_distribution_score"),
+        quality, qmask, getattr(base_model, "quality_distribution_centers", None),
+    )
 
     rank_margin = float(tcfg.get("rank_margin", 0.02))
     if bool(tcfg.get("use_hard_rank", False)):
@@ -1227,6 +1244,7 @@ def compute_losses(model, batch, device, cfg, prompt_bank=None, epoch: int | Non
         float(tcfg.get("lambda_quality", 1.0)) * l_quality
         + float(tcfg.get("lambda_quality_text_ce", 0.0)) * quality_text_ce
         + float(tcfg.get("lambda_quality_text_anchor", 0.0)) * quality_text_anchor
+        + float(tcfg.get("lambda_quality_distribution_ce", 0.0)) * quality_distribution_ce
         + lambda_quality_adapter_aux * l_quality_adapter_aux
         + 0.5 * lambda_final * l_final
         + float(tcfg.get("lambda_rank_quality", 0.0)) * l_rank_quality
@@ -1262,6 +1280,8 @@ def compute_losses(model, batch, device, cfg, prompt_bank=None, epoch: int | Non
         "quality_text_ce": quality_text_ce.detach(),
         "quality_text_mae": quality_text_mae.detach(),
         "quality_text_anchor": quality_text_anchor.detach(),
+        "quality_distribution_ce": quality_distribution_ce.detach(),
+        "quality_distribution_mae": quality_distribution_mae.detach(),
         "quality_adapter_aux": l_quality_adapter_aux.detach(),
         "align": l_align.detach(),
         "align_text_ce": align_text_ce.detach(),
@@ -1301,7 +1321,8 @@ def train_one_epoch(model, loader, optimizer, scaler, device, cfg, epoch, prompt
     enforce_progressive_frozen_eval(model, cfg, epoch)
     amp_enabled = bool(cfg["train"].get("amp", True)) and device.type == "cuda"
     keys = [
-        "loss", "quality", "quality_text_ce", "quality_text_mae", "quality_text_anchor", "quality_adapter_aux",
+        "loss", "quality", "quality_text_ce", "quality_text_mae", "quality_text_anchor",
+        "quality_distribution_ce", "quality_distribution_mae", "quality_adapter_aux",
         "align", "align_text_ce", "align_text_mae", "align_text_anchor", "final", "align_global", "align_patch",
         "rank_quality", "rank_align", "rank_final",
         "srocc_quality", "srocc_align", "srocc_final",
@@ -1729,6 +1750,21 @@ def main():
             0.0 if args.quality_text_anchor_lambda is None else float(args.quality_text_anchor_lambda)
         )
         print(f"[INFO] Five-word quality bank enabled; score_blend={blend:.2f}.")
+    if args.disable_perturbation:
+        dataset_cfg = cfg.setdefault("dataset", {})
+        dataset_cfg["use_perturb"] = False
+        dataset_cfg["perturbation_strengths"] = []
+        print("[INFO] Synthetic downstream perturbation disabled.")
+    if args.quality_distribution:
+        qdcfg = cfg.setdefault("model", {}).setdefault("quality_distribution", {})
+        qdcfg["enabled"] = True
+        qdcfg.setdefault("centers", [0.0, 0.25, 0.5, 0.75, 1.0])
+        cfg.setdefault("train", {})["lambda_quality_distribution_ce"] = 0.005
+        print("[INFO] Optional five-bin Quality distribution head enabled.")
+    if args.quality_highres_crops:
+        crop_cfg = cfg.setdefault("dataset", {}).setdefault("local_multicrop", {})
+        crop_cfg.update({"enabled": True, "input_size": 336, "train_num_crops": 5, "eval_num_crops": 5})
+        print("[INFO] 336px local crops enabled for Quality only; Align remains base-resolution.")
     configure_quality_adapter_experiment(cfg, args)
     if args.disable_quality_adapter:
         # Keep this as a command-line override rather than a second YAML copy.
