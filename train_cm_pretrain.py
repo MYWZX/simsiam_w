@@ -112,6 +112,14 @@ def parse_args():
         action="store_true",
         help="Ablation: disable pretraining Quality/Align regression and ranking losses only.",
     )
+    p.add_argument(
+        "--pretrain-selection-metric", type=str, default=None,
+        help="Override train.pretrain_selection_metric for an ablation (e.g. val_quality_proxy_SROCC).",
+    )
+    p.add_argument(
+        "--pretrain-selection-mode", choices=("max", "min"), default=None,
+        help="Override train.pretrain_selection_mode for an ablation.",
+    )
     return p.parse_args()
 
 
@@ -151,6 +159,10 @@ def configure_research_controls(cfg: Dict, args: argparse.Namespace) -> None:
         for key in ("lambda_quality_reg", "lambda_quality_rank", "lambda_align_pretrain_reg", "lambda_align_pretrain_rank"):
             train_cfg[key] = 0.0
         print("[INFO] Ablation: pretraining Quality/Align regression and ranking losses disabled.")
+    if args.pretrain_selection_metric is not None:
+        cfg.setdefault("train", {})["pretrain_selection_metric"] = str(args.pretrain_selection_metric)
+    if args.pretrain_selection_mode is not None:
+        cfg.setdefault("train", {})["pretrain_selection_mode"] = str(args.pretrain_selection_mode)
     if fixed_epochs is not None:
         cfg.setdefault("train", {})["fixed_training_epochs"] = int(fixed_epochs)
     if planned is not None:
