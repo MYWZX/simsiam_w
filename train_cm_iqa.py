@@ -1876,10 +1876,13 @@ def main():
     )
     scaler = GradScaler(device.type, enabled=bool(cfg["train"].get("amp", True)) and device.type == "cuda")
 
-    # Best checkpoint can be selected by validation loss or by validation SROCC.
-    # For SROCC-oriented runs, configs set selection_metric=val_SROCC and selection_mode=max.
+    # Best epoch is selected by validation loss or validation SROCC.  Downstream
+    # runs intentionally do not write model checkpoints: keep the selected
+    # weights in memory for the final validation/test report and retain only
+    # the config snapshot plus the experiment CSV.
     best = None
     best_epoch = -1
+    best_model_state = None
     no_improve = 0
     patience = int(cfg["train"].get("early_stop_patience", 15))
     last_epoch = 0
@@ -1925,24 +1928,14 @@ def main():
 
         current_lrs = {str(g.get("name", f"group{i}")): float(g["lr"]) for i, g in enumerate(optimizer.param_groups)}
         print(f"Epoch {epoch}: lr={max(current_lrs.values()):.6e} | {format_metrics('Train', tr)} | {format_metrics('Val', va)}")
-        ckpt = {
-            "epoch": epoch,
-            "model": model.state_dict(),
-            "optimizer": optimizer.state_dict(),
-            "scheduler": scheduler.state_dict(),
-            "cfg": cfg,
-            "run_id": run_id,
-        }
-        torch.save(ckpt, os.path.join(outdir, "last.pth"))
-
         cur, maximize, sel_key = get_selection_value(va, cfg)
         is_best = (best is None) or (cur > best if maximize else cur < best)
         if is_best:
             best = cur
             best_epoch = epoch
             no_improve = 0
-            torch.save(ckpt, os.path.join(outdir, "best.pth"))
-            print(f"Saved best checkpoint epoch={epoch}, best_{sel_key}={best:.6f}")
+            best_model_state = copy.deepcopy(model.state_dict())
+            print(f"Selected epoch={epoch}, best_{sel_key}={best:.6f}")
         else:
             no_improve += 1
             print(f"No improvement for {no_improve} epoch(s). Best epoch so far: {best_epoch}, best_{sel_key}={best:.6f}")
@@ -1971,14 +1964,11 @@ def main():
             )
             break
 
-    ckpt_path = os.path.join(outdir, "best.pth")
-    if os.path.exists(ckpt_path):
-        ckpt = torch.load(ckpt_path, map_location=device)
-        model.load_state_dict(ckpt["model"])
-        best_epoch = int(ckpt.get("epoch", best_epoch))
-        print(f"Loaded best checkpoint from epoch {best_epoch}.")
+    if best_model_state is not None:
+        model.load_state_dict(best_model_state)
+        print(f"Restored selected in-memory model state from epoch {best_epoch}.")
 
-    print("Evaluating best checkpoint on validation set...")
+    print("Evaluating the selected in-memory model on validation set...")
     best_val = evaluate(model, val_loader, device, cfg, split="val")
     print(f"Best epoch: {best_epoch}")
     print(format_metrics("Best-Val", best_val))
@@ -1986,7 +1976,7 @@ def main():
 
     best_test = None
     if test_loader is not None:
-        print("Evaluating best checkpoint on test set...")
+        print("Evaluating the selected in-memory model on test set...")
         best_test = evaluate(model, test_loader, device, cfg, split="test")
         print(format_metrics("Best-Test", best_test))
         logger.log(event="best_test", epoch=best_epoch, metrics=best_test, best_epoch=best_epoch, is_best=True)
@@ -1996,8 +1986,8 @@ def main():
         "best_selection_value": best,
         "selection_metric": cfg.get("train", {}).get("selection_metric", "val_reg_loss"),
         "last_epoch": last_epoch,
-        "best_checkpoint": ckpt_path,
-        "last_checkpoint": os.path.join(outdir, "last.pth"),
+        "best_checkpoint": "",
+        "last_checkpoint": "",
         "best_val": best_val,
         "best_test": best_test or {},
     }
