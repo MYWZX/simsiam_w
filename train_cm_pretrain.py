@@ -103,6 +103,15 @@ def parse_args():
         ),
     )
     p.add_argument(
+        "--quality-aux-scale",
+        type=float,
+        default=None,
+        help=(
+            "Multiply every Quality Auxiliary component loss weight by this "
+            "factor (for example 0.1 or 0.5); 0 disables the auxiliary task."
+        ),
+    )
+    p.add_argument(
         "--disable-component-anchor",
         action="store_true",
         help="Ablation: disable Component Anchor/Ordinal supervision and heads.",
@@ -2642,6 +2651,30 @@ def main():
             "[INFO] Quality Auxiliary disabled: model auxiliary heads and their "
             "losses are off; Component Anchor supervision remains enabled."
         )
+    if args.quality_aux_scale is not None:
+        scale = float(args.quality_aux_scale)
+        if scale < 0.0:
+            raise ValueError("--quality-aux-scale must be non-negative.")
+        model_cfg = cfg.setdefault("model", {})
+        train_cfg = cfg.setdefault("train", {})
+        aux_cfg = dict(train_cfg.get("quality_auxiliary_supervision", {}))
+        components = aux_cfg.get("components", {})
+        if isinstance(components, dict):
+            scaled_components = {}
+            for component, raw_spec in components.items():
+                spec = dict(raw_spec or {})
+                for key in ("lambda_reg", "lambda_rank", "lambda_srocc"):
+                    if key in spec:
+                        spec[key] = float(spec[key]) * scale
+                scaled_components[component] = spec
+            aux_cfg["components"] = scaled_components
+        if scale == 0.0:
+            aux_cfg["enabled"] = False
+            heads_cfg = dict(model_cfg.get("quality_auxiliary_heads", {}))
+            heads_cfg["enabled"] = False
+            model_cfg["quality_auxiliary_heads"] = heads_cfg
+        train_cfg["quality_auxiliary_supervision"] = aux_cfg
+        print(f"[INFO] Quality Auxiliary loss scale set to {scale:g}.")
     if args.quality_balanced_sampling:
         train_cfg = cfg.setdefault("train", {})
         sampling_cfg = dict(train_cfg.get("quality_balanced_sampling", {}))
