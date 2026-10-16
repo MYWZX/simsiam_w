@@ -80,6 +80,14 @@ def parse_args():
         help="Use high-resolution local crops only in the Quality branch (Align stays base-resolution).",
     )
     p.add_argument(
+        "--quality-attention-pooling", action="store_true",
+        help="Use global-query attention pooling over Quality local patch/crop tokens.",
+    )
+    p.add_argument(
+        "--align-prompt-cross-attention", action="store_true",
+        help="Use Prompt token-to-visual-patch cross-attention in the Align branch.",
+    )
+    p.add_argument(
         "--quality-adapter-mode", choices=("replace", "parallel_score"), default=None,
         help="Change only the enabled quality Adapter's scoring interface.",
     )
@@ -1765,6 +1773,18 @@ def main():
         crop_cfg = cfg.setdefault("dataset", {}).setdefault("local_multicrop", {})
         crop_cfg.update({"enabled": True, "input_size": 336, "train_num_crops": 5, "eval_num_crops": 5})
         print("[INFO] 336px local crops enabled for Quality only; Align remains base-resolution.")
+    if args.quality_attention_pooling:
+        qlcfg = cfg.setdefault("model", {}).setdefault("quality_local_attention", {})
+        qlcfg["enabled"] = True
+        qlcfg.setdefault("num_heads", cfg.get("model", {}).get("fusion", {}).get("num_heads", 4))
+        qlcfg.setdefault("mix_init_logit", -1.1)
+        print("[INFO] Quality global-query local attention pooling enabled.")
+    if args.align_prompt_cross_attention:
+        atcfg = cfg.setdefault("model", {}).setdefault("align_prompt_cross_attention", {})
+        atcfg["enabled"] = True
+        atcfg.setdefault("num_heads", cfg.get("model", {}).get("fusion", {}).get("num_heads", 4))
+        atcfg.setdefault("residual_scale", 1.0)
+        print("[INFO] Align Prompt-token cross-attention enabled.")
     configure_quality_adapter_experiment(cfg, args)
     if args.disable_quality_adapter:
         # Keep this as a command-line override rather than a second YAML copy.

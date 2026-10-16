@@ -192,6 +192,48 @@ class FrozenCLIPTextEncoder(nn.Module):
                 feat = feat @ self.model.text_projection
         return F.normalize(feat.float(), dim=-1)
 
+    def encode_token_features(
+        self, texts: Sequence[str], device: torch.device
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Return frozen CLIP token features and token ids for cross-attention.
+
+        The returned features are before CLIP's pooled text projection and have
+        shape ``[B, context_length, text_width]``. Padding ids are returned so
+        downstream attention can ignore them. Learnable prefix contexts remain
+        differentiable when enabled; CLIP parameters stay frozen.
+        """
+        self.model.eval()
+        strings = [str(t) for t in texts]
+        if self.num_context_tokens:
+            short_tokens = self.tokenizer(
+                strings,
+                context_length=int(self.model.context_length) - self.num_context_tokens,
+            ).to(device)
+            placeholders = torch.zeros(
+                short_tokens.size(0), self.num_context_tokens,
+                dtype=short_tokens.dtype, device=device,
+            )
+            token_ids = torch.cat(
+                [short_tokens[:, :1], placeholders, short_tokens[:, 1:]], dim=1
+            )
+            cast_dtype = self.model.transformer.get_cast_dtype()
+            fixed_embeddings = self.model.token_embedding(short_tokens).to(cast_dtype)
+            context = self.context_vectors.to(cast_dtype).unsqueeze(0).expand(
+                short_tokens.size(0), -1, -1
+            )
+            x = torch.cat(
+                [fixed_embeddings[:, :1], context, fixed_embeddings[:, 1:]], dim=1
+            )
+        else:
+            token_ids = self.tokenizer(strings).to(device)
+            cast_dtype = self.model.transformer.get_cast_dtype()
+            x = self.model.token_embedding(token_ids).to(cast_dtype)
+        x = x + self.model.positional_embedding.to(x.dtype)
+        with torch.set_grad_enabled(bool(self.num_context_tokens)):
+            x = self.model.transformer(x, attn_mask=self.model.attn_mask)
+            x = self.model.ln_final(x)
+        return x.float(), token_ids
+
     def encode_cached(self, texts: Sequence[str], device: torch.device) -> torch.Tensor:
         """Encode short frozen-CLIP texts once and cache their CPU features."""
         if self.num_context_tokens:
@@ -526,6 +568,29 @@ class CrossModalIQAFullModel(nn.Module):
             mcfg.get("quality_branch_use_text_gate", True)
         )
         self.patch_quality_head = nn.Sequential(nn.Linear(fused_dim, gate_hidden), nn.GELU(), nn.Dropout(dropout), nn.Linear(gate_hidden, 1))
+        qlcfg = mcfg.get("quality_local_attention", {})
+        self.use_quality_local_attention = bool(qlcfg.get("enabled", False))
+        if self.use_quality_local_attention:
+            q_heads = int(qlcfg.get("num_heads", fcfg.get("num_heads", 4)))
+            if fused_dim % q_heads != 0:
+                raise ValueError("quality_local_attention.num_heads must divide fusion.embed_dim")
+            self.quality_local_attention = nn.MultiheadAttention(
+                fused_dim, q_heads, dropout=float(qlcfg.get("dropout", dropout)),
+                batch_first=True,
+            )
+            self.quality_local_attention_norm = nn.LayerNorm(fused_dim)
+            self.quality_attention_head = nn.Sequential(
+                nn.Linear(fused_dim, gate_hidden), nn.GELU(),
+                nn.Dropout(dropout), nn.Linear(gate_hidden, 1),
+            )
+            self.quality_attention_mix_logit = nn.Parameter(
+                torch.tensor(float(qlcfg.get("mix_init_logit", -1.1)))
+            )
+        else:
+            self.quality_local_attention = None
+            self.quality_local_attention_norm = nn.Identity()
+            self.quality_attention_head = None
+            self.quality_attention_mix_logit = None
         self.global_quality_head = nn.Sequential(
             nn.Linear(fused_dim, hidden_dim), nn.GELU(), nn.Dropout(dropout),
             nn.Linear(hidden_dim, hidden_dim // 2), nn.GELU(), nn.Dropout(dropout), nn.Linear(hidden_dim // 2, 1),
@@ -674,6 +739,24 @@ class CrossModalIQAFullModel(nn.Module):
         )
         self.align_patch_img_proj = nn.Linear(fused_dim, fused_dim)
         self.align_patch_txt_proj = nn.Linear(fused_dim, fused_dim)
+        atcfg = mcfg.get("align_prompt_cross_attention", {})
+        self.use_align_prompt_cross_attention = bool(atcfg.get("enabled", False))
+        if self.use_align_prompt_cross_attention:
+            a_heads = int(atcfg.get("num_heads", fcfg.get("num_heads", 4)))
+            if fused_dim % a_heads != 0:
+                raise ValueError("align_prompt_cross_attention.num_heads must divide fusion.embed_dim")
+            self.align_text_token_proj = nn.Linear(text_dim, fused_dim)
+            self.align_prompt_cross_attention = nn.MultiheadAttention(
+                fused_dim, a_heads, dropout=float(atcfg.get("dropout", dropout)),
+                batch_first=True,
+            )
+            self.align_prompt_cross_norm = nn.LayerNorm(fused_dim)
+            self.align_prompt_cross_scale = float(atcfg.get("residual_scale", 1.0))
+        else:
+            self.align_text_token_proj = None
+            self.align_prompt_cross_attention = None
+            self.align_prompt_cross_norm = nn.Identity()
+            self.align_prompt_cross_scale = 0.0
         self.align_patch_head = nn.Sequential(
             nn.Linear(fused_dim * 3, hidden_dim), nn.GELU(), nn.Dropout(dropout),
             nn.Linear(hidden_dim, hidden_dim // 2), nn.GELU(), nn.Dropout(dropout), nn.Linear(hidden_dim // 2, 1),
@@ -871,6 +954,23 @@ class CrossModalIQAFullModel(nn.Module):
         nss = self._compute_local_nss_features(image, f_loc, local_crops)
         patch_tokens = patch_tokens + self.nss_proj(nss)
 
+        quality_attention_score = None
+        quality_attention_weights = None
+        if self.quality_local_attention is not None:
+            # Use the global image representation as a query over local
+            # patches. This learns which high-resolution regions matter for
+            # quality instead of averaging all crop tokens equally.
+            local_query, quality_attention_weights = self.quality_local_attention(
+                z_global.unsqueeze(1), patch_tokens, patch_tokens,
+                need_weights=True,
+            )
+            local_query = self.quality_local_attention_norm(
+                z_global.unsqueeze(1) + local_query
+            ).squeeze(1)
+            quality_attention_score = torch.sigmoid(
+                self.quality_attention_head(local_query).squeeze(-1)
+            )
+
         # NSS gate: which patches are quality/statistics-sensitive?
         nss_logits = self.nss_gate(torch.cat([patch_tokens, nss], dim=-1)).squeeze(-1)
 
@@ -884,6 +984,14 @@ class CrossModalIQAFullModel(nn.Module):
         weights = torch.softmax(nss_logits + text_logits, dim=1)
         patch_scores = torch.sigmoid(self.patch_quality_head(patch_tokens).squeeze(-1))
         s_patch = torch.sum(weights * patch_scores, dim=1)
+        if quality_attention_score is not None:
+            attention_mix = torch.sigmoid(self.quality_attention_mix_logit)
+            s_patch = (
+                (1.0 - attention_mix) * s_patch
+                + attention_mix * quality_attention_score
+            )
+        else:
+            attention_mix = z_global.new_tensor(0.0)
 
         # The optional quality adapter receives the learned SimSiam projector
         # weights. ``replace`` preserves the previous behavior. The safer
@@ -955,6 +1063,9 @@ class CrossModalIQAFullModel(nn.Module):
             "quality_adapter_gate": quality_adapter_gate.detach(),
             "quality_mix": mix.detach(),
             "quality_patch_weights": weights,
+            "quality_attention_weights": quality_attention_weights,
+            "quality_attention_score": quality_attention_score,
+            "quality_attention_mix": attention_mix.detach(),
             "patch_tokens": patch_tokens,
             "patch_hw": (h, w),
             "z_quality_global": z_quality_global,
@@ -975,10 +1086,38 @@ class CrossModalIQAFullModel(nn.Module):
                 )
         return result
 
-    def _align_from_global_and_patch(self, z_global: torch.Tensor, patch_tokens: torch.Tensor, text_fused: torch.Tensor, patch_hw: Optional[tuple[int, int]] = None) -> Dict[str, torch.Tensor]:
+    def _align_from_global_and_patch(
+        self,
+        z_global: torch.Tensor,
+        patch_tokens: torch.Tensor,
+        text_fused: torch.Tensor,
+        patch_hw: Optional[tuple[int, int]] = None,
+        text_tokens: Optional[torch.Tensor] = None,
+        text_token_ids: Optional[torch.Tensor] = None,
+    ) -> Dict[str, torch.Tensor]:
         z_align = self.align_global_adapter(z_global)
         text_align = self.align_text_adapter(text_fused)
         patch_align = self.align_patch_adapter(patch_tokens)
+
+        align_cross_attention_weights = None
+        if (
+            self.align_prompt_cross_attention is not None
+            and text_tokens is not None
+        ):
+            token_features = self.align_text_token_proj(text_tokens)
+            key_padding_mask = None
+            if text_token_ids is not None:
+                key_padding_mask = text_token_ids.eq(0)
+            cross_out, align_cross_attention_weights = self.align_prompt_cross_attention(
+                patch_align,
+                token_features,
+                token_features,
+                key_padding_mask=key_padding_mask,
+                need_weights=True,
+            )
+            patch_align = self.align_prompt_cross_norm(
+                patch_align + self.align_prompt_cross_scale * cross_out
+            )
 
         pair_g = torch.cat([z_align, text_align, torch.abs(z_align - text_align)], dim=-1)
         s_global = torch.sigmoid(self.align_global_head(pair_g).squeeze(-1))
@@ -1028,6 +1167,7 @@ class CrossModalIQAFullModel(nn.Module):
             "align_gate_logit": gate_logit,
             "align_gate_input": gate_in,
             "align_patch_weights": attn,
+            "align_cross_attention_weights": align_cross_attention_weights,
             # Exposed only for RichHF relational pretraining. They are the
             # same projected features used to form downstream patch evidence.
             "align_patch_features": p_img,
@@ -1074,9 +1214,15 @@ class CrossModalIQAFullModel(nn.Module):
         )
         text_feat = None
         text_fused = None
+        text_tokens = None
+        text_token_ids = None
         if prompts is not None:
             text_feat = self.backbone.encode_text(prompts, image.device)
             text_fused = self.text_to_fused(text_feat)
+            if self.align_prompt_cross_attention is not None:
+                text_tokens, text_token_ids = self.backbone.text_encoder.encode_token_features(
+                    prompts, image.device
+                )
 
         quality_text_fused = (
             text_fused if self.quality_branch_use_text_gate else None
@@ -1100,6 +1246,8 @@ class CrossModalIQAFullModel(nn.Module):
         a_out = self._align_from_global_and_patch(
             img["z"], align_patch_tokens, text_fused,
             patch_hw=(img["f_loc"].shape[-2], img["f_loc"].shape[-1]),
+            text_tokens=text_tokens,
+            text_token_ids=text_token_ids,
         )
         w_img, fusion_gate_delta = self._compute_fusion_weight(
             img["z"], text_fused, q_out["s_quality"], a_out["s_align"]
@@ -1109,6 +1257,8 @@ class CrossModalIQAFullModel(nn.Module):
         out.update({
             "text_feat": text_feat,
             "text_fused": text_fused,
+            "text_tokens": text_tokens,
+            "text_token_ids": text_token_ids,
             "s_final": s_final,
             "s_q": s_final,
             "fusion_w_img": w_img.detach(),
@@ -1352,6 +1502,8 @@ class CrossModalIQAJointPretrain(nn.Module):
             q2["patch_tokens"],
             score1["text_fused"],
             patch_hw=q2.get("patch_hw"),
+            text_tokens=score1.get("text_tokens"),
+            text_token_ids=score1.get("text_token_ids"),
         )
         fusion_w, _ = self.iqa._compute_fusion_weight(
             img2["z"], score1["text_fused"], q2["s_quality"], a2["s_align"]
