@@ -545,6 +545,7 @@ class CrossModalIQAFullModel(nn.Module):
         hcfg = mcfg.get("heads", {})
         ngcfg = mcfg.get("nss_text_gate", {})
         agcfg = mcfg.get("align_gate", {})
+        fcfg = mcfg.get("fusion", {})
         fused_dim = self.backbone.fused_dim
         local_dim = self.backbone.local_dim
         text_dim = self.backbone.text_dim
