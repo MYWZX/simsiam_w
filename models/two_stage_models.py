@@ -1675,6 +1675,16 @@ def load_pretrained_backbone(
             continue
         if load_scope == "backbone" and not target_key.startswith(backbone_prefixes):
             continue
+        if (
+            target_key in target
+            and target_key.startswith("backbone.global_encoder.")
+            and target[target_key].shape != v.shape
+        ):
+            raise RuntimeError(
+                f"CLIP checkpoint architecture mismatch at {target_key}: "
+                f"checkpoint={tuple(v.shape)}, model={tuple(target[target_key].shape)}. "
+                "Use --clip-large for both pretraining and downstream, or neither."
+            )
         if target_key in target and target[target_key].shape == v.shape:
             loadable[target_key] = v
     context = target.get("backbone.text_encoder.context_vectors")

@@ -31,8 +31,13 @@ from utils.train_utils import AverageMeter, ensure_dir, load_yaml, set_seed
 from utils.pcgrad import PCGRAD_DIAGNOSTIC_KEYS, global_shared_pcgrad_backward
 
 
+from utils.clip_experiments import configure_clip_large, calibrate_quality_centers
+
+
 def parse_args():
     p = argparse.ArgumentParser()
+    p.add_argument("--clip-large", action="store_true", help="Use ViT-L/14; supply a matching Large pretraining checkpoint.")
+    p.add_argument("--quality-centers-train-quantiles", action="store_true", help="Calibrate five centers using only AIGCIQA2023 training labels after checkpoint loading.")
     p.add_argument("--config", type=str, required=True)
     p.add_argument("--results-csv", type=str, default=None, help="Write results to a dedicated experiment CSV.")
     p.add_argument(
@@ -1690,6 +1695,8 @@ def get_selection_value(metrics: Dict, cfg: Dict) -> tuple[float, bool, str]:
 def main():
     args = parse_args()
     cfg = load_yaml(args.config)
+    if args.clip_large:
+        configure_clip_large(cfg)
     if args.seed is not None:
         # Preserve the YAML seed as the data-split seed while varying only
         # initialization, shuffling and augmentation across repeated runs.
@@ -1855,6 +1862,12 @@ def main():
             load_scope=cfg["train"].get("pretrained_load_scope", "auto"),
             skip_quality_adapter=bool(cfg["train"].get("skip_pretrained_quality_adapter", False)),
         )
+
+    if args.quality_centers_train_quantiles:
+        details = calibrate_quality_centers(model, train_loader.dataset, cfg)
+        dump_config_snapshot(cfg, outdir, config_path=args.config)
+        logger.log(event="quality_center_calibration", epoch=0, metrics=details)
+        print(f"[INFO] Training-only Quality centers: {details['centers']} (N={details['count']})")
 
     prompt_bank = None
     tcfg = cfg.get("train", {})

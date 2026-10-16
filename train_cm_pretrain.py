@@ -21,8 +21,12 @@ from utils.experiment_logger import CSVExperimentLogger, dump_config_snapshot, m
 from utils.losses import masked_pairwise_label_ranking_loss, masked_soft_spearman_loss, masked_hard_pairwise_label_ranking_loss
 
 
+from utils.clip_experiments import configure_clip_large
+
+
 def parse_args():
     p = argparse.ArgumentParser()
+    p.add_argument("--clip-large", action="store_true", help="Use matching OpenAI ViT-L/14 visual/text encoders; requires new pretraining.")
     p.add_argument("--config", type=str, required=True)
     p.add_argument("--seed", type=int, default=None)
     p.add_argument("--output-dir", type=str, default=None)
@@ -2574,6 +2578,8 @@ def get_pretrain_selection_value(metrics: Dict, cfg: Dict) -> tuple[float, bool,
 def main():
     args = parse_args()
     cfg = load_yaml(args.config)
+    if args.clip_large:
+        configure_clip_large(cfg)
     if args.seed is not None:
         cfg.setdefault("split_seed", int(cfg.get("seed", 42)))
         cfg["seed"] = int(args.seed)
