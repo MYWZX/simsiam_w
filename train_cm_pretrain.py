@@ -6,6 +6,9 @@ import json
 import math
 import os
 import re
+import random
+import time
+import numpy as np
 from typing import Dict, Optional
 
 import torch
@@ -24,8 +27,13 @@ from utils.losses import masked_pairwise_label_ranking_loss, masked_soft_spearma
 from utils.clip_experiments import configure_clip_large
 
 
+from utils.pretrain_resume import atomic_save, legacy_resume_records
+
+
 def parse_args():
     p = argparse.ArgumentParser()
+    p.add_argument("--resume", type=str, default=None, help="Restore a complete pretraining checkpoint and continue at epoch+1.")
+    p.add_argument("--max-runtime-hours", type=float, default=None, help="Soft runtime budget: stop between epochs, leaving a complete resumable checkpoint.")
     p.add_argument("--clip-large", action="store_true", help="Use matching OpenAI ViT-L/14 visual/text encoders; requires new pretraining.")
     p.add_argument("--config", type=str, required=True)
     p.add_argument("--seed", type=int, default=None)
@@ -2577,6 +2585,9 @@ def get_pretrain_selection_value(metrics: Dict, cfg: Dict) -> tuple[float, bool,
 
 def main():
     args = parse_args()
+    session_started = time.monotonic()
+    if args.max_runtime_hours is not None and (not math.isfinite(args.max_runtime_hours) or args.max_runtime_hours <= 0):
+        raise ValueError("--max-runtime-hours must be finite and positive.")
     cfg = load_yaml(args.config)
     if args.clip_large:
         configure_clip_large(cfg)
@@ -2807,7 +2818,68 @@ def main():
 
     fixed_training_epochs = cfg["train"].get("fixed_training_epochs")
     training_epochs = int(fixed_training_epochs or cfg["train"].get("epochs", 40))
-    for epoch in range(1, training_epochs + 1):
+    start_epoch = 1
+    if args.resume:
+        # Old full checkpoints contain optimizer/scheduler but not RNG/scaler
+        # or selection counters. Recover their counters from the experiment CSV.
+        checkpoint = torch.load(args.resume, map_location="cpu", weights_only=False)
+        for required in ("epoch", "model", "optimizer", "scheduler", "cfg"):
+            if required not in checkpoint:
+                raise ValueError(f"Resume requires a full checkpoint; missing {required}.")
+        for section in ("model", "dataset", "train", "optimizer", "scheduler", "seed"):
+            if checkpoint["cfg"].get(section) != cfg.get(section):
+                raise ValueError(f"Resume configuration differs in {section}; use the original config/flags.")
+        saved_split = checkpoint["cfg"].get("split_seed", checkpoint["cfg"].get("seed", 42))
+        if saved_split != cfg.get("split_seed", cfg.get("seed", 42)):
+            raise ValueError("Resume split_seed differs from checkpoint.")
+        model.load_state_dict(checkpoint["model"], strict=True)
+        optimizer.load_state_dict(checkpoint["optimizer"])
+        scheduler.load_state_dict(checkpoint["scheduler"])
+        start_epoch = int(checkpoint["epoch"]) + 1
+        if start_epoch > training_epochs:
+            raise ValueError("Checkpoint already reached the configured training horizon.")
+        historical_main, historical_aux = legacy_resume_records(
+            resolve_results_csv(cfg), checkpoint.get("run_id", run_id),
+            start_epoch - 1, output_dir, auxiliary_best_specs,
+        )
+        state = checkpoint.get("training_state", historical_main)
+        if state is None:
+            restored_val = evaluate(model, val_loader, device, cfg)
+            restored_metrics = {f"val_{key}": value for key, value in restored_val.items()}
+            restored_best, _, _ = get_pretrain_selection_value(restored_metrics, cfg)
+            state = dict(best=restored_best, best_epoch=start_epoch-1, no_improve=0)
+            print("[WARN] No saved selection history; initialize selection from restored model validation.")
+        best, best_epoch, no_improve = state["best"], state["best_epoch"], state["no_improve"]
+        auxiliary_bests.update(checkpoint.get("auxiliary_bests", {}))
+        for name, record in historical_aux.items():
+            existing = auxiliary_bests[name]
+            if existing["value"] is None or record["value"] > existing["value"]:
+                auxiliary_bests[name] = record
+        if "scaler" in checkpoint:
+            scaler.load_state_dict(checkpoint["scaler"])
+        if "rng" in checkpoint:
+            rng = checkpoint["rng"]
+            random.setstate(rng["python"])
+            np.random.set_state(rng["numpy"])
+            torch.set_rng_state(rng["torch"])
+            if device.type == "cuda" and rng.get("cuda") is not None:
+                torch.cuda.set_rng_state_all(rng["cuda"])
+        else:
+            print("[WARN] Legacy checkpoint has no RNG/scaler snapshot; continuation is not bitwise identical.")
+        del checkpoint
+        logger.log(event="resume", epoch=start_epoch-1,
+                   metrics={"checkpoint": args.resume, "start_epoch": start_epoch}, best_epoch=best_epoch)
+        print(f"[INFO] Resumed full training state; next epoch={start_epoch}, best epoch={best_epoch}.")
+
+    epoch = start_epoch - 1
+    previous_epoch_seconds = 0.0
+    for epoch in range(start_epoch, training_epochs + 1):
+        if (args.max_runtime_hours is not None and
+            time.monotonic() - session_started + previous_epoch_seconds >= args.max_runtime_hours * 3600):
+            print("[INFO] Runtime budget reached; stop before another epoch. Resume from last_pretrain.pth (or original source if no new epoch ran).")
+            logger.log(event="paused", epoch=epoch-1, metrics={"reason": "runtime_budget"}, best_epoch=best_epoch)
+            return
+        epoch_started = time.monotonic()
         tr = train_one_epoch(model, train_loader, optimizer, scaler, device, cfg, epoch)
         va = evaluate(model, val_loader, device, cfg)
         scheduler.step()
@@ -2866,7 +2938,6 @@ def main():
             "cfg": cfg,
             "run_id": run_id,
         }
-        torch.save(ckpt, os.path.join(output_dir, "last_pretrain.pth"))
 
         cur_value, maximize, sel_key = get_pretrain_selection_value(metrics, cfg)
         is_best = (best is None) or (cur_value > best if maximize else cur_value < best)
@@ -2874,7 +2945,6 @@ def main():
             best = cur_value
             best_epoch = epoch
             no_improve = 0
-            torch.save(ckpt, os.path.join(output_dir, "best_pretrain.pth"))
             print(f"Saved best pretrain checkpoint: epoch={best_epoch}, best_{sel_key}={best:.6f}")
         else:
             no_improve += 1
@@ -2899,11 +2969,24 @@ def main():
                     "selection_metric": metric_key,
                     "selection_value": value,
                 }
-                torch.save(auxiliary_ckpt, os.path.join(output_dir, filename))
+                atomic_save(auxiliary_ckpt, os.path.join(output_dir, filename), torch.save)
                 print(
                     f"Saved best {name} pretrain checkpoint: "
                     f"epoch={epoch}, {metric_key}={value:.6f}"
                 )
+
+        ckpt.update({
+            "scaler": scaler.state_dict(),
+            "training_state": dict(best=best, best_epoch=best_epoch, no_improve=no_improve),
+            "auxiliary_bests": auxiliary_bests,
+            "rng": {"python": random.getstate(), "numpy": np.random.get_state(),
+                    "torch": torch.get_rng_state(),
+                    "cuda": torch.cuda.get_rng_state_all() if device.type == "cuda" else None},
+        })
+        if is_best:
+            atomic_save(ckpt, os.path.join(output_dir, "best_pretrain.pth"), torch.save)
+        atomic_save(ckpt, os.path.join(output_dir, "last_pretrain.pth"), torch.save)
+        previous_epoch_seconds = time.monotonic() - epoch_started
 
         auxiliary_metrics = {}
         for name, record in auxiliary_bests.items():
