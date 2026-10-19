@@ -27,12 +27,12 @@ class TinyBackbone(nn.Module):
         return torch.ones(len(prompts), 6, device=device)
 
 
-def build(mode='residual_feature'):
+def build(mode='residual_feature', fixed=None):
     cfg = dict(model=dict(heads=dict(mlp_hidden_dim=16, dropout=0.),
                           fusion=dict(num_heads=2), quality_global_only=True,
                           quality_branch_use_text_gate=False,
                           quality_adapter=dict(enabled=True, output_dim=8, hidden_dim=16,
-                                               dropout=0., mode=mode, residual_init=.1)))
+                                               dropout=0., mode=mode, residual_init=.1, residual_fixed=fixed)))
     with patch('models.two_stage_models.ImageTextBackbone', TinyBackbone):
         return CrossModalIQAFullModel(cfg)
 
@@ -93,6 +93,33 @@ class ResidualFeatureTests(unittest.TestCase):
         out = model.forward_single(torch.randn(3, 3, 8, 8))
         torch.testing.assert_close(model.quality_text_bank.seen, out['z_quality_global'])
         torch.testing.assert_close(out['z_quality_global'].norm(dim=-1), torch.ones(3))
+
+    def test_fixed_zero_is_identity_and_auxiliary_gradient_survives(self):
+        class CaptureBank(nn.Module):
+            def forward(self, features):
+                return dict(quality_text_logits=features[:, :5],
+                            quality_text_score=features[:, 0].sigmoid())
+        model = build(fixed=0.).eval()
+        model.quality_text_bank = CaptureBank()
+        self.assertFalse(model.quality_adapter_gate_logit.requires_grad)
+        shared = torch.randn(3, 8, requires_grad=True)
+        mixed, alpha = model._quality_residual_feature(shared, torch.randn(3, 8))
+        self.assertIs(mixed, shared)
+        self.assertEqual(alpha.item(), 0.)
+        out = model.forward_single(torch.randn(3, 3, 8, 8))
+        torch.testing.assert_close(out['s_quality_global'], out['s_quality_global_shared'])
+        self.assertEqual(out['quality_adapter_gate'].item(), 0.)
+        out['s_quality'].sum().backward(retain_graph=True)
+        self.assertIsNone(model.quality_adapter.net[0].weight.grad)
+        out['quality_text_logits'].square().sum().backward()
+        self.assertGreater(model.quality_adapter.net[0].weight.grad.abs().sum().item(), 0.)
+
+    def test_invalid_fixed_residual_is_rejected(self):
+        for value in [-.1, 1.1, float('nan')]:
+            with self.assertRaises(ValueError):
+                build(fixed=value)
+        with self.assertRaises(ValueError):
+            build(mode='replace', fixed=0.)
 
     def test_zero_features_are_finite(self):
         model = build()

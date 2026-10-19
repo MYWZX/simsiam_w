@@ -105,6 +105,10 @@ def parse_args():
         help="Initial feature residual weight in (0,1), used only with residual_feature (default 0.1).",
     )
     p.add_argument(
+        "--quality-adapter-residual-fixed", type=float, default=None,
+        help="Fix feature residual alpha in [0,1] instead of learning it; 0 keeps Adapter auxiliary training but removes direct residual scoring.",
+    )
+    p.add_argument(
         "--quality-adapter-init", choices=("pretrained", "random"), default=None,
         help="Keep identical Adapter architecture; choose checkpoint weights or seeded random initialization.",
     )
@@ -180,7 +184,8 @@ def parse_args():
 def configure_quality_adapter_experiment(cfg: Dict, args: argparse.Namespace) -> None:
     """Keep architecture/initialization controls separate from optimizer controls."""
     residual_init = getattr(args, "quality_adapter_residual_init", None)
-    if args.quality_adapter_mode is None and args.quality_adapter_init is None and residual_init is None:
+    residual_fixed = getattr(args, "quality_adapter_residual_fixed", None)
+    if args.quality_adapter_mode is None and args.quality_adapter_init is None and residual_init is None and residual_fixed is None:
         return
     qcfg = cfg.get("model", {}).get("quality_adapter", {})
     if args.disable_quality_adapter or not bool(qcfg.get("enabled", False)):
@@ -193,6 +198,13 @@ def configure_quality_adapter_experiment(cfg: Dict, args: argparse.Namespace) ->
         if not math.isfinite(residual_init) or not 0.0 < residual_init < 1.0:
             raise ValueError("--quality-adapter-residual-init must be finite and in (0,1).")
         qcfg["residual_init"] = float(residual_init)
+    if residual_fixed is not None:
+        if qcfg.get("mode") != "residual_feature":
+            raise ValueError("--quality-adapter-residual-fixed requires --quality-adapter-mode residual_feature.")
+        if not math.isfinite(residual_fixed) or not 0.0 <= residual_fixed <= 1.0:
+            raise ValueError("--quality-adapter-residual-fixed must be finite and in [0,1].")
+        qcfg["residual_fixed"] = float(residual_fixed)
+        print(f"[INFO] Quality feature residual alpha fixed at {residual_fixed:g}; Adapter and auxiliary supervision retained.")
     if args.quality_adapter_init is not None:
         cfg.setdefault("train", {})["skip_pretrained_quality_adapter"] = args.quality_adapter_init == "random"
     if qcfg.get("mode") == "residual_feature":

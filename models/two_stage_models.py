@@ -667,6 +667,13 @@ class CrossModalIQAFullModel(nn.Module):
                 "model.quality_adapter.mode must be 'replace', 'parallel_score', or 'residual_feature', "
                 f"got {self.quality_adapter_mode!r}."
             )
+        fixed_residual = qacfg.get("residual_fixed", None)
+        self.quality_adapter_residual_fixed = None if fixed_residual is None else float(fixed_residual)
+        if self.quality_adapter_residual_fixed is not None:
+            if not self.use_quality_adapter or self.quality_adapter_mode != "residual_feature":
+                raise ValueError("quality_adapter.residual_fixed requires an enabled residual_feature Adapter.")
+            if not math.isfinite(self.quality_adapter_residual_fixed) or not 0.0 <= self.quality_adapter_residual_fixed <= 1.0:
+                raise ValueError("quality_adapter.residual_fixed must be finite and in [0,1].")
         self.normalize_quality_adapter = bool(qacfg.get("normalize", True))
         self.freeze_quality_adapter = bool(qacfg.get("freeze", False))
         self.detach_quality_adapter_input = bool(qacfg.get("detach_input", False))
@@ -711,6 +718,9 @@ class CrossModalIQAFullModel(nn.Module):
             else:
                 self.quality_adapter_head = None
                 self.quality_adapter_gate_logit = None
+
+            if self.quality_adapter_residual_fixed is not None:
+                self.quality_adapter_gate_logit.requires_grad_(False)
 
             if self.freeze_quality_adapter:
                 for parameter in self.quality_adapter.parameters():
@@ -945,7 +955,14 @@ class CrossModalIQAFullModel(nn.Module):
         adapter is usually L2 normalized (norm 1). Match these scales so alpha
         is meaningful. Only the norm estimate is detached, not either branch.
         """
-        alpha = torch.sigmoid(self.quality_adapter_gate_logit)
+        if self.quality_adapter_residual_fixed is None:
+            alpha = torch.sigmoid(self.quality_adapter_gate_logit)
+        else:
+            alpha = shared.new_tensor(self.quality_adapter_residual_fixed)
+            if self.quality_adapter_residual_fixed == 0.0:
+                # Exact identity, with no direct score gradient to the Adapter.
+                # Its forward and auxiliary text-bank supervision still run.
+                return shared, alpha
         magnitude = shared.float().norm(dim=-1, keepdim=True).detach()
         delta = F.normalize(adapted.float(), dim=-1) * magnitude
         fused = shared.float() + alpha * delta
