@@ -97,8 +97,12 @@ def parse_args():
         help="Use only the global Quality score, bypassing explicit patch-score fusion; keep ResNet/Fusion and Align.",
     )
     p.add_argument(
-        "--quality-adapter-mode", choices=("replace", "parallel_score"), default=None,
+        "--quality-adapter-mode", choices=("replace", "parallel_score", "residual_feature"), default=None,
         help="Change only the enabled quality Adapter's scoring interface.",
+    )
+    p.add_argument(
+        "--quality-adapter-residual-init", type=float, default=None,
+        help="Initial feature residual weight in (0,1), used only with residual_feature (default 0.1).",
     )
     p.add_argument(
         "--quality-adapter-init", choices=("pretrained", "random"), default=None,
@@ -175,15 +179,24 @@ def parse_args():
 
 def configure_quality_adapter_experiment(cfg: Dict, args: argparse.Namespace) -> None:
     """Keep architecture/initialization controls separate from optimizer controls."""
-    if args.quality_adapter_mode is None and args.quality_adapter_init is None:
+    residual_init = getattr(args, "quality_adapter_residual_init", None)
+    if args.quality_adapter_mode is None and args.quality_adapter_init is None and residual_init is None:
         return
     qcfg = cfg.get("model", {}).get("quality_adapter", {})
     if args.disable_quality_adapter or not bool(qcfg.get("enabled", False)):
         raise ValueError("Quality Adapter mode/init controls require an enabled Adapter.")
     if args.quality_adapter_mode is not None:
         qcfg["mode"] = args.quality_adapter_mode
+    if residual_init is not None:
+        if qcfg.get("mode") != "residual_feature":
+            raise ValueError("--quality-adapter-residual-init requires --quality-adapter-mode residual_feature.")
+        if not math.isfinite(residual_init) or not 0.0 < residual_init < 1.0:
+            raise ValueError("--quality-adapter-residual-init must be finite and in (0,1).")
+        qcfg["residual_init"] = float(residual_init)
     if args.quality_adapter_init is not None:
         cfg.setdefault("train", {})["skip_pretrained_quality_adapter"] = args.quality_adapter_init == "random"
+    if qcfg.get("mode") == "residual_feature":
+        qcfg.setdefault("residual_init", 0.1)
     print(
         f"[INFO] Quality Adapter experiment: mode={qcfg.get('mode', 'replace')}, "
         f"initialization={'random' if cfg.get('train', {}).get('skip_pretrained_quality_adapter', False) else 'pretrained'}; "

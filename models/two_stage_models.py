@@ -662,9 +662,9 @@ class CrossModalIQAFullModel(nn.Module):
         qacfg = mcfg.get("quality_adapter", {})
         self.use_quality_adapter = bool(qacfg.get("enabled", False))
         self.quality_adapter_mode = str(qacfg.get("mode", "replace")).strip().lower()
-        if self.quality_adapter_mode not in {"replace", "parallel_score"}:
+        if self.quality_adapter_mode not in {"replace", "parallel_score", "residual_feature"}:
             raise ValueError(
-                "model.quality_adapter.mode must be 'replace' or 'parallel_score', "
+                "model.quality_adapter.mode must be 'replace', 'parallel_score', or 'residual_feature', "
                 f"got {self.quality_adapter_mode!r}."
             )
         self.normalize_quality_adapter = bool(qacfg.get("normalize", True))
@@ -698,6 +698,16 @@ class CrossModalIQAFullModel(nn.Module):
                     )
                 gate_logit = math.log(gate_init / (1.0 - gate_init))
                 self.quality_adapter_gate_logit = nn.Parameter(torch.tensor(gate_logit))
+            elif self.quality_adapter_mode == "residual_feature":
+                # Reuse the existing optimizer/logging scalar slot, but this
+                # weight controls feature addition rather than score blending.
+                residual_init = float(qacfg.get("residual_init", 0.1))
+                if not math.isfinite(residual_init) or not 0.0 < residual_init < 1.0:
+                    raise ValueError("quality_adapter.residual_init must be finite and in (0, 1).")
+                self.quality_adapter_head = None
+                self.quality_adapter_gate_logit = nn.Parameter(
+                    torch.tensor(math.log(residual_init / (1.0 - residual_init)))
+                )
             else:
                 self.quality_adapter_head = None
                 self.quality_adapter_gate_logit = None
@@ -928,6 +938,19 @@ class CrossModalIQAFullModel(nn.Module):
             batch_size, -1, 6
         )
 
+    def _quality_residual_feature(self, shared: torch.Tensor, adapted: torch.Tensor):
+        """Add an adapted direction at a fraction of the shared feature norm.
+
+        Fusion uses LayerNorm (norm roughly sqrt(D)), while the pretrained
+        adapter is usually L2 normalized (norm 1). Match these scales so alpha
+        is meaningful. Only the norm estimate is detached, not either branch.
+        """
+        alpha = torch.sigmoid(self.quality_adapter_gate_logit)
+        magnitude = shared.float().norm(dim=-1, keepdim=True).detach()
+        delta = F.normalize(adapted.float(), dim=-1) * magnitude
+        fused = shared.float() + alpha * delta
+        return fused.to(shared.dtype), alpha
+
     def _quality_from_patches(
         self,
         image: torch.Tensor,
@@ -1023,6 +1046,22 @@ class CrossModalIQAFullModel(nn.Module):
                     (1.0 - quality_adapter_gate) * s_global_shared
                     + quality_adapter_gate * s_global_adapter
                 )
+            elif self.quality_adapter_mode == "residual_feature":
+                quality_residual, quality_adapter_gate = self._quality_residual_feature(
+                    z_global, z_quality_global
+                )
+                s_global = torch.sigmoid(self.global_quality_head(quality_residual).squeeze(-1))
+                # Diagnostics use the SAME head in eval mode so its dropout
+                # does not consume RNG or change the actual training path.
+                # The five-level auxiliary bank still receives adapter-only
+                # features, keeping its input identical to the baseline.
+                head_training = self.global_quality_head.training
+                try:
+                    self.global_quality_head.eval()
+                    s_global_shared = torch.sigmoid(self.global_quality_head(z_global).squeeze(-1))
+                    s_global_adapter = torch.sigmoid(self.global_quality_head(z_quality_global).squeeze(-1))
+                finally:
+                    self.global_quality_head.train(head_training)
             else:
                 s_global = torch.sigmoid(
                     self.global_quality_head(z_quality_global).squeeze(-1)
