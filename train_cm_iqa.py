@@ -93,6 +93,10 @@ def parse_args():
         help="Use Prompt token-to-visual-patch cross-attention in the Align branch.",
     )
     p.add_argument(
+        "--quality-global-only", action="store_true",
+        help="Use only the global Quality score, bypassing explicit patch-score fusion; keep ResNet/Fusion and Align.",
+    )
+    p.add_argument(
         "--quality-adapter-mode", choices=("replace", "parallel_score"), default=None,
         help="Change only the enabled quality Adapter's scoring interface.",
     )
@@ -1792,6 +1796,11 @@ def main():
         atcfg.setdefault("num_heads", cfg.get("model", {}).get("fusion", {}).get("num_heads", 4))
         atcfg.setdefault("residual_scale", 1.0)
         print("[INFO] Align Prompt-token cross-attention enabled.")
+    if args.quality_global_only:
+        cfg.setdefault("model", {})["quality_global_only"] = True
+        if float(cfg["model"].get("quality_text_bank", {}).get("score_blend", 0.0)) != 0.0:
+            raise ValueError("--quality-global-only requires --quality-text-blend 0.")
+        print("[INFO] Global-only Quality scoring enabled: patch score fusion bypassed; ResNet/Fusion and Align retained.")
     configure_quality_adapter_experiment(cfg, args)
     if args.disable_quality_adapter:
         # Keep this as a command-line override rather than a second YAML copy.

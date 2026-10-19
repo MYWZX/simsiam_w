@@ -568,6 +568,9 @@ class CrossModalIQAFullModel(nn.Module):
         self.quality_branch_use_text_gate = bool(
             mcfg.get("quality_branch_use_text_gate", True)
         )
+        # Ablation removes only the explicit local-score contribution. The
+        # fused global representation still contains ResNet/Fusion information.
+        self.quality_global_only = bool(mcfg.get("quality_global_only", False))
         self.patch_quality_head = nn.Sequential(nn.Linear(fused_dim, gate_hidden), nn.GELU(), nn.Dropout(dropout), nn.Linear(gate_hidden, 1))
         qlcfg = mcfg.get("quality_local_attention", {})
         self.use_quality_local_attention = bool(qlcfg.get("enabled", False))
@@ -715,6 +718,8 @@ class CrossModalIQAFullModel(nn.Module):
         qt_cfg = mcfg.get("quality_text_bank", {})
         self.use_quality_text_bank = bool(qt_cfg.get("enabled", False))
         self.quality_text_blend = float(qt_cfg.get("score_blend", 0.0))
+        if self.quality_global_only and self.quality_text_blend != 0.0:
+            raise ValueError("quality_global_only requires quality_text_bank.score_blend=0.")
         if not 0.0 <= self.quality_text_blend <= 1.0:
             raise ValueError("model.quality_text_bank.score_blend must be in [0, 1].")
         if self.quality_text_blend > 0.0 and not self.use_quality_adapter:
@@ -1030,8 +1035,12 @@ class CrossModalIQAFullModel(nn.Module):
             )
             s_global_adapter = s_global_shared
             s_global = s_global_shared
-        mix = torch.sigmoid(self.quality_mix_logit)
-        s_quality = mix * s_patch + (1.0 - mix) * s_global
+        if self.quality_global_only:
+            mix = z_global.new_tensor(0.0)
+            s_quality = s_global
+        else:
+            mix = torch.sigmoid(self.quality_mix_logit)
+            s_quality = mix * s_patch + (1.0 - mix) * s_global
         s_quality_visual = s_quality
         quality_distribution_out = {}
         if self.quality_distribution_head is not None:
