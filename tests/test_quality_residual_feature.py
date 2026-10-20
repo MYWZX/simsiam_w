@@ -27,12 +27,13 @@ class TinyBackbone(nn.Module):
         return torch.ones(len(prompts), 6, device=device)
 
 
-def build(mode='residual_feature', fixed=None):
+def build(mode='residual_feature', fixed=None, freeze_bn_stats=False, adapter_dropout=0.):
     cfg = dict(model=dict(heads=dict(mlp_hidden_dim=16, dropout=0.),
                           fusion=dict(num_heads=2), quality_global_only=True,
                           quality_branch_use_text_gate=False,
                           quality_adapter=dict(enabled=True, output_dim=8, hidden_dim=16,
-                                               dropout=0., mode=mode, residual_init=.1, residual_fixed=fixed)))
+                                               dropout=adapter_dropout, mode=mode, residual_init=.1, residual_fixed=fixed,
+                                               freeze_bn_stats=freeze_bn_stats)))
     with patch('models.two_stage_models.ImageTextBackbone', TinyBackbone):
         return CrossModalIQAFullModel(cfg)
 
@@ -120,6 +121,44 @@ class ResidualFeatureTests(unittest.TestCase):
                 build(fixed=value)
         with self.assertRaises(ValueError):
             build(mode='replace', fixed=0.)
+
+    def test_frozen_adapter_bn_statistics_and_trainable_parameters(self):
+        model = build(freeze_bn_stats=True, adapter_dropout=.2)
+        # Stand-in for normalization outside the Quality Adapter.
+        model.unrelated_bn = nn.BatchNorm1d(8)
+        bns = [m for m in model.quality_adapter.modules() if isinstance(m, nn.BatchNorm1d)]
+        self.assertGreater(len(bns), 0)
+        for bn in bns:
+            bn.running_mean.fill_(.2)
+            bn.running_var.fill_(1.3)
+            bn.num_batches_tracked.fill_(12)
+        originals = [(bn.running_mean.clone(), bn.running_var.clone(), bn.num_batches_tracked.clone()) for bn in bns]
+        for _ in range(2):
+            model.eval()
+            model.train()
+            self.assertTrue(model.unrelated_bn.training)
+            self.assertTrue(model.quality_adapter.training)
+            self.assertTrue(all(not bn.training for bn in bns))
+            self.assertTrue(all(m.training for m in model.quality_adapter.modules() if isinstance(m, nn.Dropout)))
+        model.zero_grad()
+        out = model.forward_single(torch.randn(4, 3, 8, 8), prompts=['test']*4)
+        out['s_quality'].sum().backward()
+        self.assertGreater(model.quality_adapter.net[0].weight.grad.abs().sum().item(), 0.)
+        for bn, original in zip(bns, originals):
+            for current, before in zip((bn.running_mean, bn.running_var, bn.num_batches_tracked), original):
+                torch.testing.assert_close(current, before, rtol=0, atol=0)
+            if bn.affine:
+                self.assertTrue(bn.weight.requires_grad and bn.bias.requires_grad)
+                self.assertGreater(bn.weight.grad.abs().sum().item(), 0.)
+                self.assertGreater(bn.bias.grad.abs().sum().item(), 0.)
+
+    def test_default_adapter_bn_keeps_updating(self):
+        model = build().train()
+        bn = next(m for m in model.quality_adapter.modules() if isinstance(m, nn.BatchNorm1d))
+        before = bn.num_batches_tracked.clone()
+        model.forward_single(torch.randn(4, 3, 8, 8))
+        self.assertTrue(bn.training)
+        self.assertEqual(bn.num_batches_tracked.item(), before.item()+1)
 
     def test_zero_features_are_finite(self):
         model = build()

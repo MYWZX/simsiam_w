@@ -676,6 +676,9 @@ class CrossModalIQAFullModel(nn.Module):
                 raise ValueError("quality_adapter.residual_fixed must be finite and in [0,1].")
         self.normalize_quality_adapter = bool(qacfg.get("normalize", True))
         self.freeze_quality_adapter = bool(qacfg.get("freeze", False))
+        self.freeze_quality_adapter_bn_stats = bool(qacfg.get("freeze_bn_stats", False))
+        if self.freeze_quality_adapter_bn_stats and not self.use_quality_adapter:
+            raise ValueError("quality_adapter.freeze_bn_stats requires an enabled Quality Adapter.")
         self.detach_quality_adapter_input = bool(qacfg.get("detach_input", False))
         if self.use_quality_adapter:
             quality_adapter_dim = int(qacfg.get("output_dim", fused_dim))
@@ -728,6 +731,8 @@ class CrossModalIQAFullModel(nn.Module):
                 # Preserve the projector BatchNorm statistics learned during
                 # pretraining instead of updating them with downstream batch 8.
                 self.quality_adapter.eval()
+            elif self.freeze_quality_adapter_bn_stats:
+                self._freeze_quality_adapter_bn_running_stats()
         else:
             self.quality_adapter = nn.Identity()
             self.quality_adapter_head = None
@@ -881,11 +886,21 @@ class CrossModalIQAFullModel(nn.Module):
         else:
             self.align_text_bank = None
 
+    def _freeze_quality_adapter_bn_running_stats(self):
+        # eval() changes BatchNorm's source of statistics, not requires_grad.
+        # Keep affine parameters and other Adapter layers (including Dropout)
+        # trainable, while leaving ResNet/Align BatchNorm untouched.
+        for module in self.quality_adapter.modules():
+            if isinstance(module, nn.modules.batchnorm._BatchNorm):
+                module.eval()
+
     def train(self, mode: bool = True):
-        """Keep a frozen pretrained quality projector in evaluation mode."""
+        """Reapply the Adapter-only normalization policy after model.train()."""
         super().train(mode)
         if self.use_quality_adapter and self.freeze_quality_adapter:
             self.quality_adapter.eval()
+        elif self.use_quality_adapter and self.freeze_quality_adapter_bn_stats:
+            self._freeze_quality_adapter_bn_running_stats()
         return self
 
     @staticmethod

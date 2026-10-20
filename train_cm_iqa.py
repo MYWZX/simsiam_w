@@ -109,6 +109,10 @@ def parse_args():
         help="Fix feature residual alpha in [0,1] instead of learning it; 0 keeps Adapter auxiliary training but removes direct residual scoring.",
     )
     p.add_argument(
+        "--quality-adapter-freeze-bn-stats", action="store_true",
+        help="Use pretrained Quality Adapter BatchNorm running statistics; keep affine/Adapter parameters trainable and Dropout active.",
+    )
+    p.add_argument(
         "--quality-adapter-init", choices=("pretrained", "random"), default=None,
         help="Keep identical Adapter architecture; choose checkpoint weights or seeded random initialization.",
     )
@@ -185,11 +189,17 @@ def configure_quality_adapter_experiment(cfg: Dict, args: argparse.Namespace) ->
     """Keep architecture/initialization controls separate from optimizer controls."""
     residual_init = getattr(args, "quality_adapter_residual_init", None)
     residual_fixed = getattr(args, "quality_adapter_residual_fixed", None)
-    if args.quality_adapter_mode is None and args.quality_adapter_init is None and residual_init is None and residual_fixed is None:
+    freeze_bn_stats = getattr(args, "quality_adapter_freeze_bn_stats", False)
+    if args.quality_adapter_mode is None and args.quality_adapter_init is None and residual_init is None and residual_fixed is None and not freeze_bn_stats:
         return
     qcfg = cfg.get("model", {}).get("quality_adapter", {})
     if args.disable_quality_adapter or not bool(qcfg.get("enabled", False)):
         raise ValueError("Quality Adapter mode/init controls require an enabled Adapter.")
+    if freeze_bn_stats:
+        if bool(qcfg.get("freeze", False)):
+            raise ValueError("BN-statistics-only ablation requires quality_adapter.freeze=false.")
+        qcfg["freeze_bn_stats"] = True
+        print("[INFO] Quality Adapter BatchNorm running statistics frozen; affine and other Adapter parameters remain trainable.")
     if args.quality_adapter_mode is not None:
         qcfg["mode"] = args.quality_adapter_mode
     if residual_init is not None:
