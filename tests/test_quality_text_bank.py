@@ -64,7 +64,9 @@ class QualityTextBankTests(unittest.TestCase):
         out = bank(image)
         self.assertEqual(tuple(out["quality_text_logits"].shape), (3, 5))
         self.assertEqual(tuple(out["quality_text_score"].shape), (3,))
-        self.assertTrue(bank.text_features.requires_grad)
+        # With class_context_tokens=0 these are fixed CLIP reference buffers;
+        # gradients reach the image mapping, not the fixed reference features.
+        self.assertFalse(bank.text_features.requires_grad)
         self.assertEqual(tuple(bank.text_features.shape), (5, 6))
         self.assertTrue(((out["quality_text_score"] >= CENTERS[0]) &
                          (out["quality_text_score"] <= CENTERS[-1])).all().item())

@@ -34,8 +34,15 @@ from utils.pcgrad import PCGRAD_DIAGNOSTIC_KEYS, global_shared_pcgrad_backward
 from utils.clip_experiments import configure_clip_large, calibrate_quality_centers
 
 
+from utils.downstream_controls import configure_downstream_controls, distinct_prompt_mask, audit_fusion_gradients, validate_local_crops
+
+
 def parse_args():
     p = argparse.ArgumentParser()
+    p.add_argument("--quality-safe-input", action="store_true", help="Use whole-image resize only for training on all downstream datasets; no crop, flip or color jitter.")
+    p.add_argument("--disable-legacy-negative", action="store_true", help="Set lambda_neg=0 without changing other losses.")
+    p.add_argument("--selection-metric", choices=("val_quality_SROCC", "val_align_SROCC", "val_component_hmean_SROCC"), default=None)
+    p.add_argument("--audit-loss-gradients", action="store_true", help="Log first-batch Fusion gradient norms per epoch (additional backward probes; no optimizer update).")
     p.add_argument("--clip-large", action="store_true", help="Use ViT-L/14; supply a matching Large pretraining checkpoint.")
     p.add_argument("--quality-centers-train-quantiles", action="store_true", help="Calibrate five centers using only AIGCIQA2023 training labels after checkpoint loading.")
     p.add_argument("--config", type=str, required=True)
@@ -1010,6 +1017,7 @@ def compute_losses(model, batch, device, cfg, prompt_bank=None, epoch: int | Non
     tcfg = cfg["train"]
     dcfg = cfg.get("dataset", {})
     image = batch["image"].to(device, non_blocking=True)
+    validate_local_crops(batch, cfg)
     local_crops = batch.get("local_crops")
     if local_crops is not None:
         local_crops = local_crops.to(device, non_blocking=True)
@@ -1094,11 +1102,14 @@ def compute_losses(model, batch, device, cfg, prompt_bank=None, epoch: int | Non
     # S_align(image, true_prompt) > S_align(image, shifted_prompt).
     if float(tcfg.get("lambda_neg", 0.0)) > 0 and amask.sum() > 0:
         neg_prompts = make_shifted_prompts(prompts)
-        neg_out = model.forward_single(
-            image, prompts=neg_prompts, local_crops=local_crops
-        )
-        neg_vec = F.relu(float(tcfg.get("neg_margin", 0.10)) - (out["s_align"] - neg_out["s_align"]))
-        l_neg = (neg_vec * amask.view(-1)).sum() / (amask.sum() + 1e-6)
+        negative_mask = amask.view(-1) * distinct_prompt_mask(prompts, neg_prompts, device)
+        if bool((negative_mask > 0).any()):
+            # Keep full batch size for BN; exclude invalid pairs from the loss.
+            neg_out = model.forward_single(image, prompts=neg_prompts, local_crops=local_crops)
+            neg_vec = F.relu(float(tcfg.get("neg_margin", 0.10)) - (out["s_align"] - neg_out["s_align"]))
+            l_neg = (neg_vec * negative_mask).sum() / (negative_mask.sum() + 1e-6)
+        else:
+            l_neg = image.new_tensor(0.0)
     else:
         l_neg = image.new_tensor(0.0)
 
@@ -1326,9 +1337,17 @@ def compute_losses(model, batch, device, cfg, prompt_bank=None, epoch: int | Non
     loss = loss_quality_task + loss_align_task
     losses = {
         "loss": loss,
+        "objective_quality_mse": float(tcfg.get("lambda_quality", 1.0)) * l_quality,
+        "objective_quality_text": float(tcfg.get("lambda_quality_text_ce", 0.0)) * quality_text_ce,
         "loss_quality_task": loss_quality_task,
         "loss_align_task": loss_align_task,
         "quality": l_quality.detach(),
+        "weighted_quality_mse": (float(tcfg.get("lambda_quality", 1.0)) * l_quality).detach(),
+        "weighted_quality_text": (float(tcfg.get("lambda_quality_text_ce", 0.0)) * quality_text_ce).detach(),
+        "weighted_quality_rank": (float(tcfg.get("lambda_rank_quality", 0.0)) * l_rank_quality).detach(),
+        "weighted_quality_srocc": (float(tcfg.get("lambda_srocc_quality", 0.0)) * l_srocc_quality).detach(),
+        "weighted_align_patch": (float(tcfg.get("lambda_align_aux", 0.3)) * l_align_p).detach(),
+        "weighted_legacy_negative": (float(tcfg.get("lambda_neg", 0.05)) * l_neg).detach(),
         "quality_text_ce": quality_text_ce.detach(),
         "quality_text_mae": quality_text_mae.detach(),
         "quality_text_anchor": quality_text_anchor.detach(),
@@ -1374,6 +1393,8 @@ def train_one_epoch(model, loader, optimizer, scaler, device, cfg, epoch, prompt
     amp_enabled = bool(cfg["train"].get("amp", True)) and device.type == "cuda"
     keys = [
         "loss", "quality", "quality_text_ce", "quality_text_mae", "quality_text_anchor",
+        "weighted_quality_mse", "weighted_quality_text", "weighted_quality_rank", "weighted_quality_srocc",
+        "weighted_align_patch", "weighted_legacy_negative",
         "quality_distribution_ce", "quality_distribution_mae", "quality_adapter_aux",
         "align", "align_text_ce", "align_text_mae", "align_text_anchor", "final", "align_global", "align_patch",
         "rank_quality", "rank_align", "rank_final",
@@ -1402,11 +1423,20 @@ def train_one_epoch(model, loader, optimizer, scaler, device, cfg, epoch, prompt
     all_f, all_ft, all_q, all_qt, all_a, all_at = [], [], [], [], [], []
     all_ag, all_agt, all_ap, all_apt = [], [], [], []
     all_qgs, all_qgst, all_qga, all_qgat = [], [], [], []
+    gradient_audit = {}
     for step, batch in enumerate(loader):
         optimizer.zero_grad(set_to_none=True)
         with autocast(device_type=device.type, enabled=amp_enabled):
             out, losses = compute_losses(model, batch, device, cfg, prompt_bank=prompt_bank, epoch=epoch)
             loss = losses["loss"]
+        if step == 0 and bool(cfg["train"].get("audit_loss_gradients", False)):
+            gradient_audit = audit_fusion_gradients(_unwrap_model(model), {
+                "quality_mse": losses["objective_quality_mse"],
+                "quality_text": losses["objective_quality_text"],
+                "quality_task": losses["loss_quality_task"],
+                "align_task": losses["loss_align_task"],
+            })
+            print(f"[INFO] Fusion gradient audit: {gradient_audit}")
         if global_pcgrad:
             quality_mask = batch.get("quality_mask")
             align_mask = batch.get("align_mask")
@@ -1529,6 +1559,7 @@ def train_one_epoch(model, loader, optimizer, scaler, device, cfg, epoch, prompt
         m["pcgrad_nonfinite_steps"] = pcgrad_nonfinite_steps
         m["pcgrad_conflict_rate"] = pcgrad_conflict_steps / max(1, pcgrad_active_steps)
         m["pcgrad_active_rate"] = pcgrad_active_steps / max(1, pcgrad_steps)
+    m.update(gradient_audit)
     return m
 
 
@@ -1551,6 +1582,7 @@ def evaluate(model, loader, device, cfg, split="val"):
     align_valid_count = 0.0
     for batch in loader:
         image = batch["image"].to(device, non_blocking=True)
+        validate_local_crops(batch, cfg)
         local_crops = batch.get("local_crops")
         if local_crops is not None:
             local_crops = local_crops.to(device, non_blocking=True)
@@ -1569,8 +1601,14 @@ def evaluate(model, loader, device, cfg, split="val"):
             out["s_final"] = out["s_quality"]
             out["fusion_w_img"] = out["s_quality"].new_tensor(1.0)
         bs = image.size(0)
-        losses.update(float(masked_mse(out["s_final"], score, fmask).item()), bs)
-        qloss.update(float(masked_mse(out["s_quality"], quality, qmask).item()), bs)
+        q_mse = float(masked_mse(out["s_quality"], quality, qmask).item())
+        a_mse = float(masked_mse(out["s_align"], align, amask).item())
+        if qmask.sum() > 0:
+            qloss.update(q_mse, float(qmask.sum()))
+        if amask.sum() > 0:
+            aloss.update(a_mse, float(amask.sum()))
+        if not bool(cfg.get("train", {}).get("two_output_only", False)):
+            losses.update(float(masked_mse(out["s_final"], score, fmask).item()), bs)
         qag.update(float(out["quality_adapter_gate"].item()), bs)
         fw.update(float(out["fusion_w_img"].mean().item()), bs)
         fw_std.update(float(out["fusion_w_img"].std(unbiased=False).item()), bs)
@@ -1618,7 +1656,11 @@ def evaluate(model, loader, device, cfg, split="val"):
             m[f"{split}_align_text_{key}"] = value
         for key, value in compute_regression_metrics(all_abase_target, all_abase).items():
             m[f"{split}_align_base_{key}"] = value
-    m[f"{split}_reg_loss"] = losses.avg
+    m[f"{split}_reg_loss"] = (
+        float(cfg["train"].get("lambda_quality", 1.0)) * qloss.avg
+        + float(cfg["train"].get("lambda_align", 1.0)) * aloss.avg
+        if two_output_only else losses.avg
+    )
     m[f"{split}_quality_adapter_gate"] = qag.avg
     m[f"{split}_quality_loss"] = qloss.avg
     m[f"{split}_align_loss"] = aloss.avg
@@ -1702,8 +1744,14 @@ def get_selection_value(metrics: Dict, cfg: Dict) -> tuple[float, bool, str]:
     if key in {"val_component_hmean_SROCC", "val_quality_align_hmean_SROCC"}:
         # No synthetic Final-MOS checkpoint selection. Combine the two
         # independently labelled tasks only for model selection.
-        q = float(metrics.get("val_quality_SROCC", 0.0))
+        if "val_quality_SROCC" not in metrics:
+            raise ValueError("Joint selection requires val_quality_SROCC.")
+        q = float(metrics["val_quality_SROCC"])
         a = float(metrics.get("val_align_SROCC", 0.0))
+        if not math.isfinite(q) or not math.isfinite(a):
+            raise ValueError("Joint selection requires finite Quality/Align SROCC.")
+        if float(metrics.get("val_align_N", 0.0)) >= 2.0 and "val_align_SROCC" not in metrics:
+            raise ValueError("Joint selection has Align labels but no val_align_SROCC.")
         if float(metrics.get("val_align_N", 0.0)) >= 2.0:
             # Map correlations from [-1, 1] to [0, 1] before applying the
             # harmonic mean, so early negative correlations remain well-defined.
@@ -1723,10 +1771,10 @@ def get_selection_value(metrics: Dict, cfg: Dict) -> tuple[float, bool, str]:
         if stripped_key and stripped_key in metrics:
             key = stripped_key
         else:
-            print(f"[WARN] selection_metric={key} not found; fallback to val_reg_loss")
-            key = "val_reg_loss"
-            mode = "min"
-    value = float(metrics.get(key, 0.0))
+            raise ValueError(f"selection_metric={key!r} is absent from validation metrics; refusing a silent fallback.")
+    value = float(metrics[key])
+    if not math.isfinite(value):
+        raise ValueError(f"selection_metric={key!r} is nonfinite: {value}")
     maximize = mode == "max"
     return value, maximize, key
 
@@ -1836,6 +1884,7 @@ def main():
         if float(cfg["model"].get("quality_text_bank", {}).get("score_blend", 0.0)) != 0.0:
             raise ValueError("--quality-global-only requires --quality-text-blend 0.")
         print("[INFO] Global-only Quality scoring enabled: patch score fusion bypassed; ResNet/Fusion and Align retained.")
+    configure_downstream_controls(cfg, args)
     configure_quality_adapter_experiment(cfg, args)
     if args.disable_quality_adapter:
         # Keep this as a command-line override rather than a second YAML copy.

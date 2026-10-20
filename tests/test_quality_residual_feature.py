@@ -123,6 +123,7 @@ class ResidualFeatureTests(unittest.TestCase):
             build(mode='replace', fixed=0.)
 
     def test_frozen_adapter_bn_statistics_and_trainable_parameters(self):
+        torch.manual_seed(42)
         model = build(freeze_bn_stats=True, adapter_dropout=.2)
         # Stand-in for normalization outside the Quality Adapter.
         model.unrelated_bn = nn.BatchNorm1d(8)

@@ -32,6 +32,7 @@ from utils.pretrain_resume import atomic_save, legacy_resume_records
 
 def parse_args():
     p = argparse.ArgumentParser()
+    p.add_argument("--disable-pretrain-pcgrad", action="store_true", help="Explicitly disable pretraining PCGrad for a NEW controlled pretraining run.")
     p.add_argument("--resume", type=str, default=None, help="Restore a complete pretraining checkpoint and continue at epoch+1.")
     p.add_argument("--max-runtime-hours", type=float, default=None, help="Soft runtime budget: stop between epochs, leaving a complete resumable checkpoint.")
     p.add_argument("--clip-large", action="store_true", help="Use matching OpenAI ViT-L/14 visual/text encoders; requires new pretraining.")
@@ -151,6 +152,9 @@ REGULAR_SIMSIAM_WEIGHT_KEYS = (
 
 def configure_research_controls(cfg: Dict, args: argparse.Namespace) -> None:
     """Apply explicit diagnostic overrides before recording the effective config."""
+    if getattr(args, "disable_pretrain_pcgrad", False):
+        cfg.setdefault("train", {}).setdefault("pcgrad", {})["enabled"] = False
+    print(f"[INFO] Pretraining PCGrad enabled={bool(cfg.get('train', {}).get('pcgrad', {}).get('enabled', False))}.")
     fixed_epochs = args.fixed_epochs
     planned = fixed_epochs if fixed_epochs is not None else cfg.get("train", {}).get("fixed_training_epochs")
     if planned is not None:

@@ -116,6 +116,9 @@ class AGIQA3KSimSiamDataset(Dataset):
         saliency_sampling_ratio: float = 0.7,
         verify_images: bool = False,
         mirror_augmentation: Dict | None = None,
+        train_augmentation_mode: str = "legacy",
+        quality_safe_flip_prob: float = 0.5,
+        local_multicrop: Dict | None = None,
     ) -> None:
         super().__init__()
         self.root_dir = Path(root_dir)
@@ -174,6 +177,17 @@ class AGIQA3KSimSiamDataset(Dataset):
         self.eval_transform = IQAImageTransform(
             input_size=input_size, train=False, horizontal_flip_prob=mirror_flip_prob
         )
+        # Reuse the same crop implementation as 1K/2023; legacy transforms
+        # above remain untouched for reproducibility of existing experiments.
+        from .multi_iqa_dataset import IQAImageTransform as CropTransform
+        self.crop_transform = CropTransform(input_size=input_size, train=False)
+        self.train_augmentation_mode = str(train_augmentation_mode).lower()
+        if self.train_augmentation_mode not in {"legacy", "quality_safe"}:
+            raise ValueError("train_augmentation_mode must be legacy or quality_safe")
+        self.quality_safe_flip_prob = float(quality_safe_flip_prob)
+        if not 0.0 <= self.quality_safe_flip_prob <= 1.0:
+            raise ValueError("quality_safe_flip_prob must be in [0,1]")
+        self.local_multicrop = dict(local_multicrop or {})
 
     def __len__(self) -> int:
         return len(self.df)
@@ -261,7 +275,13 @@ class AGIQA3KSimSiamDataset(Dataset):
         if mirror_applied:
             bgr = cv2.flip(bgr, 1)
 
-        if self.train:
+        if self.train and self.train_augmentation_mode == "quality_safe":
+            if random.random() < self.quality_safe_flip_prob:
+                pil = pil.transpose(Image.FLIP_LEFT_RIGHT)
+                bgr = cv2.flip(bgr, 1)
+            image1 = self.eval_transform(pil)
+            image2 = image1
+        elif self.train:
             image1 = self.train_transform(pil)
             image2 = self.train_transform(pil)
         else:
@@ -282,6 +302,14 @@ class AGIQA3KSimSiamDataset(Dataset):
             "mirror_applied": torch.tensor(float(mirror_applied), dtype=torch.float32),
             "path": str(path),
         }
+
+        if self.local_multicrop.get("enabled", False):
+            crops = self.local_multicrop
+            sample["local_crops"] = self.crop_transform.fixed_crops(
+                pil, crop_scale=float(crops.get("crop_scale", .65)),
+                num_crops=int(crops.get("train_num_crops" if self.train else "eval_num_crops", 5)),
+                output_size=int(crops.get("input_size", self.input_size)),
+            )
 
         if self.use_perturb and self.perturbation_strengths:
             for strength in self.perturbation_strengths:
@@ -315,6 +343,9 @@ def build_agiqa3k_simsiam_dataloaders(cfg: Dict):
         saliency_sampling_ratio=dcfg.get("saliency_sampling_ratio", 0.7),
         verify_images=dcfg.get("verify_images", False),
         mirror_augmentation=dcfg.get("mirror_augmentation", {}),
+        train_augmentation_mode=dcfg.get("train_augmentation_mode", "legacy"),
+        quality_safe_flip_prob=dcfg.get("quality_safe_flip_prob", .5),
+        local_multicrop=dcfg.get("local_multicrop", {}),
     )
     train_dataset = AGIQA3KSimSiamDataset(train=True, **base_kwargs)
     eval_dataset = AGIQA3KSimSiamDataset(train=False, **base_kwargs)
