@@ -31,6 +31,9 @@ from utils.train_utils import AverageMeter, ensure_dir, load_yaml, set_seed
 from utils.pcgrad import PCGRAD_DIAGNOSTIC_KEYS, global_shared_pcgrad_backward
 
 
+from utils.selection_policies import configure_selection_comparison, SelectionComparison
+from utils.run_metadata import checkpoint_fingerprint, collect_run_metadata, write_run_metadata
+
 from utils.clip_experiments import configure_clip_large, calibrate_quality_centers
 
 
@@ -39,6 +42,7 @@ from utils.downstream_controls import configure_downstream_controls, distinct_pr
 
 def parse_args():
     p = argparse.ArgumentParser()
+    p.add_argument("--compare-selection-policies", action="store_true", help="Compare Quality and joint validation selection on one fixed 60-epoch trajectory, no early stopping or disk weights.")
     p.add_argument("--quality-safe-input", action="store_true", help="Use whole-image resize only for training on all downstream datasets; no crop, flip or color jitter.")
     p.add_argument("--disable-legacy-negative", action="store_true", help="Set lambda_neg=0 without changing other losses.")
     p.add_argument("--selection-metric", choices=("val_quality_SROCC", "val_align_SROCC", "val_component_hmean_SROCC"), default=None)
@@ -1914,6 +1918,7 @@ def main():
             ),
         })
         dataset_cfg["mirror_augmentation"] = mirror_cfg
+    compare_selection = configure_selection_comparison(cfg, args)
     validate_progressive_finetune_config(cfg)
     set_seed(int(cfg.get("seed", 42)))
     print(
@@ -1946,7 +1951,15 @@ def main():
     if pretrain_path and not os.path.isfile(pretrain_path):
         raise FileNotFoundError(f"Pretrained checkpoint not found: {pretrain_path}")
 
+    fingerprint = checkpoint_fingerprint(pretrain_path) if compare_selection else None
+    metadata = None
+    if compare_selection:
+        metadata = collect_run_metadata(fingerprint, cfg)
+        metadata_path = write_run_metadata(outdir, metadata)
+        print("[INFO] Comparing validation selection on one 60-epoch trajectory; early stopping disabled.")
     train_loader, val_loader, test_loader = unpack_loaders(build_dataloaders(cfg))
+    if compare_selection and test_loader is None:
+        raise ValueError("Selection comparison requires a held-out test loader for final reporting.")
     model = build_iqa_model(cfg, pretrain_path).to(device)
     if pretrain_path:
         load_pretrained_backbone(
@@ -1955,6 +1968,15 @@ def main():
             load_scope=cfg["train"].get("pretrained_load_scope", "auto"),
             skip_quality_adapter=bool(cfg["train"].get("skip_pretrained_quality_adapter", False)),
         )
+
+    if compare_selection:
+        # Hash again after both model construction and checkpoint loading. A
+        # replaced input must not silently acquire an unrelated provenance hash.
+        if checkpoint_fingerprint(pretrain_path) != fingerprint:
+            raise RuntimeError("Input checkpoint changed during model loading; aborting run.")
+        metadata["checkpoint_verified_after_load"] = bool(pretrain_path)
+        write_run_metadata(outdir, metadata)
+        logger.log(event="run_metadata", epoch=0, metrics={"metadata_path": metadata_path, **metadata})
 
     if args.quality_centers_train_quantiles:
         details = calibrate_quality_centers(model, train_loader.dataset, cfg)
@@ -2006,6 +2028,7 @@ def main():
     # runs intentionally do not write model checkpoints: keep the selected
     # weights in memory for the final validation/test report and retain only
     # the config snapshot plus the experiment CSV.
+    comparison = SelectionComparison() if compare_selection else None
     best = None
     best_epoch = -1
     best_model_state = None
@@ -2054,32 +2077,40 @@ def main():
 
         current_lrs = {str(g.get("name", f"group{i}")): float(g["lr"]) for i, g in enumerate(optimizer.param_groups)}
         print(f"Epoch {epoch}: lr={max(current_lrs.values()):.6e} | {format_metrics('Train', tr)} | {format_metrics('Val', va)}")
-        cur, maximize, sel_key = get_selection_value(va, cfg)
-        is_best = (best is None) or (cur > best if maximize else cur < best)
-        if is_best:
-            best = cur
-            best_epoch = epoch
-            no_improve = 0
-            best_model_state = copy.deepcopy(model.state_dict())
-            print(f"Selected epoch={epoch}, best_{sel_key}={best:.6f}")
+        policy_status = None
+        if comparison is not None:
+            policy_status = comparison.update(model, va, epoch, get_selection_value)
+            quality = policy_status["quality"]
+            best, best_epoch, is_best = quality["value"], quality["epoch"], quality["is_best"]
+            for name, selected in policy_status.items():
+                print(f"[Selection:{name}] best epoch={selected['epoch']}, value={selected['value']:.6f}")
         else:
-            no_improve += 1
-            print(f"No improvement for {no_improve} epoch(s). Best epoch so far: {best_epoch}, best_{sel_key}={best:.6f}")
-
+            cur, maximize, sel_key = get_selection_value(va, cfg)
+            is_best = (best is None) or (cur > best if maximize else cur < best)
+            if is_best:
+                best = cur
+                best_epoch = epoch
+                no_improve = 0
+                best_model_state = copy.deepcopy(model.state_dict())
+                print(f"Selected epoch={epoch}, best_{sel_key}={best:.6f}")
+            else:
+                no_improve += 1
+                print(f"No improvement for {no_improve} epoch(s). Best epoch so far: {best_epoch}, best_{sel_key}={best:.6f}")
         metrics = {
             "lr": max(current_lrs.values()),
             **{f"lr_{k}": v for k, v in current_lrs.items()},
             **{f"train_{k}": v for k, v in tr.items()},
             **{f"val_{k}": v for k, v in va.items()},
             "best_selection_value": best,
-            "selection_metric": cfg.get("train", {}).get("selection_metric", "val_reg_loss"),
+            "selection_metric": "val_quality_SROCC" if compare_selection else cfg.get("train", {}).get("selection_metric", "val_reg_loss"),
+            **({"selection_policies": policy_status} if compare_selection else {}),
             "no_improve": no_improve,
             "finetune_stage": finetune_stage,
             "trainable_parameters": int(sum(trainable_counts.values())),
         }
         logger.log(event="epoch", epoch=epoch, metrics=metrics, best_epoch=best_epoch, is_best=is_best)
 
-        if no_improve >= patience:
+        if not compare_selection and no_improve >= patience:
             print(f"Early stopping triggered at epoch {epoch}.")
             logger.log(
                 event="early_stop",
@@ -2089,6 +2120,27 @@ def main():
                 is_best=False,
             )
             break
+
+    if comparison is not None:
+        def evaluate_policy():
+            val = evaluate(model, val_loader, device, cfg, split="val")
+            test = evaluate(model, test_loader, device, cfg, split="test") if test_loader is not None else None
+            return val, test
+
+        results = comparison.evaluate_selected(model, evaluate_policy)
+        for name, result in results.items():
+            selected_epoch = result["best_epoch"]
+            print(f"[Selection:{name}] epoch={selected_epoch}, {result['selection_metric']}={result['best_selection_value']:.6f}")
+            print(format_metrics(f"{name}-Val", result["best_val"]))
+            print(format_metrics(f"{name}-Test", result["best_test"]))
+            logger.log(event=f"{name}_selected", epoch=selected_epoch,
+                       metrics=result, best_epoch=selected_epoch, is_best=True)
+        logger.log(event="final", epoch=last_epoch, metrics={
+            "last_epoch": last_epoch, "comparison_complete": True,
+            "selection_policies": results, "run_metadata_path": metadata_path,
+            "best_checkpoint": "", "last_checkpoint": "",
+        })
+        return
 
     if best_model_state is not None:
         model.load_state_dict(best_model_state)

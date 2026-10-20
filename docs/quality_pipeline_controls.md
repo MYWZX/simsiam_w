@@ -32,3 +32,72 @@ Do not simultaneously change text lambda, epoch selection, Adapter BN, or archit
 Existing CLIP Large checkpoint was trained with PCGrad enabled. A new `--disable-pretrain-pcgrad` flag makes disabling it explicit for future NEW pretraining experiments. It does not modify existing checkpoints and cannot be applied to resume an otherwise identical run without changing its training protocol. Current initialization also prints PCGrad status.
 
 The OpenCLIP QuickGELU compatibility concern remains a separate verification task for a new pretraining run. This change deliberately preserves existing activation functions/checkpoint semantics.
+
+## Same-trajectory selection comparison
+
+`--compare-selection-policies` trains one model for exactly 60 epochs, disables
+early stopping, and uses the single normal validation pass per epoch for both:
+
+- `quality`: maximize `val_quality_SROCC`.
+- `joint`: maximize `val_component_hmean_SROCC` using the existing mapped
+  harmonic mean of Quality and Align correlations.
+
+Strict improvement updates a policy; ties retain the earlier epoch. Both
+values must be finite and at least two validation Align labels must exist.
+This comparison is for 3K/2023, not Quality-only 1K. Do not combine it with
+`--selection-metric`. The effective snapshot records both policies and the
+60-epoch override before optimizer/scheduler construction. These source
+configs already specify 60 epochs, so their cosine horizon is unchanged;
+other configs are explicitly overridden to 60 (progressive schedules retain
+the existing encoder-start offset). Losses, augmentation, BN behavior and
+model structure are unchanged by this flag.
+
+Best states are independent CPU tensor copies including state-dict metadata,
+never downstream `.pth` files. If both policies select the same epoch they
+share a snapshot and one final validation/test evaluation. Different epochs
+require two CPU model snapshots; plan sufficient host RAM for Large models.
+Test data is evaluated only after all 60 epochs and cannot affect selection.
+No in-progress early stopping or per-epoch test selection is performed.
+
+CSV keeps the existing header and ordinary-mode schema. Comparison mode adds
+`selection_policies` to epoch metrics, emits `quality_selected` and
+`joint_selected` with `best_epoch`, `best_selection_value`, `best_val` and
+`best_test`, then one `final` record with `comparison_complete`, `last_epoch`
+and both results under `selection_policies`. No single-policy `best_test`
+event is emitted in comparison mode. If epochs coincide, both named records
+contain the same measured result. Consumers must not count these as two runs.
+
+`run_metadata.json` and the `run_metadata` CSV event record the input checkpoint
+SHA256, Git commit/dirty status, Python/library/CUDA/cuDNN versions, GPUs and
+key deterministic/TF32 settings. The input file is hashed before construction
+and again after loading; changes abort the run. The metadata is not a full
+archive of code, data, bootstrap CLIP caches or runtime state, and does not
+prove bitwise reproducibility. Settings are recorded without enabling new
+deterministic algorithms. A missing `final` event means the comparison did
+not finish. An interrupted run loses its in-memory selected weights.
+
+### Commands on the training server
+
+First sync the `work` branch using `git fetch origin`, `git checkout work`,
+then `git pull --ff-only origin work` from the project directory. Use fresh
+output directories and CSV paths; do not overwrite earlier experiments.
+The Large Component Anchor checkpoint should be the completed epoch46 file;
+its actual digest is recorded at runtime. The existing pretrained checkpoint
+includes pretraining PCGrad; this comparison does not change its history.
+
+AGIQA-3K:
+
+```bash
+cd /home1/wzx/aigc_naturalness_code/simsiam
+HF_HUB_OFFLINE=1 /home/sll/anaconda3/envs/WZX-AI/bin/python train_cm_iqa.py --config configs/agiqa3k_cm_iqa_decoupled_quality_align.yaml --clip-large --seed 42 --text-context-tokens 4 --quality-text-blend 0 --quality-text-lambda 0.005 --quality-adapter-mode residual_feature --quality-adapter-residual-init 0.1 --quality-safe-input --disable-perturbation --disable-legacy-negative --audit-loss-gradients --compare-selection-policies --pretrained-checkpoint outputs/richhf18k_quality_classprompt_cliplarge_seed42/best_component_anchor_pretrain.pth --output-dir outputs/agiqa3k_quality_cliplarge_safeinput_noneg_dualselect_seed42 --results-csv outputs/all_results_agiqa3k_quality_cliplarge_safeinput_noneg_dualselect_seed42.csv
+```
+
+AIGCIQA2023:
+
+```bash
+cd /home1/wzx/aigc_naturalness_code/simsiam
+HF_HUB_OFFLINE=1 /home/sll/anaconda3/envs/WZX-AI/bin/python train_cm_iqa.py --config configs/aigciqa2023_cm_iqa_decoupled_quality_align.yaml --clip-large --seed 42 --text-context-tokens 4 --quality-text-blend 0 --quality-text-lambda 0.005 --quality-adapter-mode residual_feature --quality-adapter-residual-init 0.1 --quality-safe-input --disable-perturbation --disable-legacy-negative --audit-loss-gradients --compare-selection-policies --pretrained-checkpoint outputs/richhf18k_quality_classprompt_cliplarge_seed42/best_component_anchor_pretrain.pth --output-dir outputs/aigciqa2023_quality_cliplarge_safeinput_noneg_dualselect_seed42 --results-csv outputs/all_results_aigciqa2023_quality_cliplarge_safeinput_noneg_dualselect_seed42.csv
+```
+
+These commands were checked for CLI/config compatibility in the CPU development
+environment; full dataset/GPU training was not run there.

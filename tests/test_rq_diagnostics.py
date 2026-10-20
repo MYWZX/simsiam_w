@@ -115,7 +115,7 @@ class ResearchControlTests(unittest.TestCase):
             patch.object(pretrain, "train_one_epoch", return_value={"loss": 1.0}) as train,
             patch.object(pretrain, "evaluate", return_value={"loss": 1.0}),
             patch.object(pretrain.torch.cuda, "is_available", return_value=False),
-            patch.object(pretrain.torch, "save"),
+            patch.object(pretrain, "atomic_save"),
         ):
             pretrain.main()
         self.assertEqual(train.call_count, 3)
@@ -144,7 +144,7 @@ class ResearchControlTests(unittest.TestCase):
             patch.object(pretrain, "train_one_epoch", return_value={"loss": 1.0}) as train,
             patch.object(pretrain, "evaluate", return_value={"loss": 1.0}),
             patch.object(pretrain.torch.cuda, "is_available", return_value=False),
-            patch.object(pretrain.torch, "save"),
+            patch.object(pretrain, "atomic_save"),
         ):
             pretrain.main()
         self.assertEqual(train.call_count, 2)
