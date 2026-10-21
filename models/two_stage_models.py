@@ -367,6 +367,7 @@ class ImageTextBackbone(nn.Module):
             pretrained=lcfg.get("pretrained", True),
             output_dim=lcfg.get("output_dim", 256),
             model_name=lcfg.get("type", "resnet50.a1_in1k"),
+            feature_stage=lcfg.get("feature_stage", "layer4"),
         )
         maybe_freeze(self.global_encoder, gcfg.get("freeze", False))
         maybe_freeze(self.local_encoder, lcfg.get("freeze", False))
@@ -1671,6 +1672,7 @@ def load_pretrained_backbone(
     strict: bool = False,
     load_scope: str = "auto",
     skip_quality_adapter: bool = False,
+    reinit_local_projection: bool = False,
 ) -> None:
     """Load a legacy backbone or a joint-pretraining IQA checkpoint.
 
@@ -1727,6 +1729,8 @@ def load_pretrained_backbone(
         for key in state
     )
     loadable = {}
+    source_local_projection = {}
+    local_projection_prefix = "backbone.local_encoder.proj."
     for k, v in state.items():
         source_key = k[7:] if k.startswith("module.") else k
         if skip_quality_adapter and source_key.startswith((
@@ -1765,8 +1769,46 @@ def load_pretrained_backbone(
                 f"checkpoint={tuple(v.shape)}, model={tuple(target[target_key].shape)}. "
                 "Use --clip-large for both pretraining and downstream, or neither."
             )
+        if target_key.startswith(local_projection_prefix) and target_key in target:
+            source_local_projection[target_key] = v
+            if reinit_local_projection:
+                # Skip weight AND bias as a unit; keep the seeded new module.
+                continue
+            if target[target_key].shape != v.shape:
+                raise RuntimeError(
+                    f"Local projection checkpoint mismatch at {target_key}: "
+                    f"checkpoint={tuple(v.shape)}, model={tuple(target[target_key].shape)}. "
+                    "Use a matching --local-feature-stage; layer4-to-layer3 transfer "
+                    "requires explicit --reinit-local-projection."
+                )
         if target_key in target and target[target_key].shape == v.shape:
             loadable[target_key] = v
+    projection_keys = {key for key in target if key.startswith(local_projection_prefix)}
+    if projection_keys:
+        missing_projection = projection_keys.difference(source_local_projection)
+        if missing_projection:
+            raise RuntimeError(f"Checkpoint lacks local projection keys: {sorted(missing_projection)}")
+    if reinit_local_projection:
+        weight_key = local_projection_prefix + "weight"
+        source_weight = source_local_projection.get(weight_key)
+        target_weight = target.get(weight_key)
+        if (source_weight is None or target_weight is None
+                or tuple(source_weight.shape) != (target_weight.shape[0], 2048, 1, 1)
+                or tuple(target_weight.shape) != (target_weight.shape[0], 1024, 1, 1)):
+            raise ValueError(
+                "--reinit-local-projection is only supported for explicit "
+                "ResNet50 layer4 (2048 channels) to layer3 (1024 channels) transfer. "
+                "For a matching layer3 checkpoint omit this flag."
+            )
+        # A stage change may discard source layer4, but must restore every
+        # requested target trunk tensor; never leave random stage1-3 weights.
+        trunk_prefix = "backbone.local_encoder.backbone."
+        required_trunk = {key for key in target if key.startswith(trunk_prefix)}
+        missing_trunk = required_trunk.difference(loadable)
+        if missing_trunk:
+            raise RuntimeError(f"Incomplete local trunk transfer: {sorted(missing_trunk)}")
+        print("[INFO] Explicit layer4 -> layer3 transfer: local trunk restored; "
+              "local_encoder.proj weight AND bias kept at seeded initialization.")
     context = target.get("backbone.text_encoder.context_vectors")
     if context is not None and load_scope != "backbone" and (
         "backbone.text_encoder.context_vectors" not in loadable

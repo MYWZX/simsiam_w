@@ -24,7 +24,7 @@ from utils.experiment_logger import CSVExperimentLogger, dump_config_snapshot, m
 from utils.losses import masked_pairwise_label_ranking_loss, masked_soft_spearman_loss, masked_hard_pairwise_label_ranking_loss
 
 
-from utils.clip_experiments import configure_clip_large
+from utils.clip_experiments import configure_clip_large, configure_local_feature_stage
 
 
 from utils.pretrain_resume import atomic_save, legacy_resume_records
@@ -32,6 +32,7 @@ from utils.pretrain_resume import atomic_save, legacy_resume_records
 
 def parse_args():
     p = argparse.ArgumentParser()
+    p.add_argument("--local-feature-stage", choices=("layer3", "layer4"), default=None, help="Select ResNet output stage for new pretraining; default layer4.")
     p.add_argument("--disable-pretrain-pcgrad", action="store_true", help="Explicitly disable pretraining PCGrad for a NEW controlled pretraining run.")
     p.add_argument("--resume", type=str, default=None, help="Restore a complete pretraining checkpoint and continue at epoch+1.")
     p.add_argument("--max-runtime-hours", type=float, default=None, help="Soft runtime budget: stop between epochs, leaving a complete resumable checkpoint.")
@@ -2603,6 +2604,7 @@ def main():
     if args.results_csv:
         cfg["results_csv"] = str(args.results_csv)
     configure_research_controls(cfg, args)
+    configure_local_feature_stage(cfg, args)
     if args.align_text_levels:
         if not bool(cfg.get("train", {}).get("use_joint_iqa_pretraining", False)):
             raise ValueError("--align-text-levels requires joint IQA pretraining.")

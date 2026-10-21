@@ -51,3 +51,18 @@ def calibrate_quality_centers(model, train_dataset, cfg):
                    count=count, pretrained_centers=old, centers=centers)
     cfg.setdefault('train', {})['quality_center_calibration'] = details
     return details
+
+
+def configure_local_feature_stage(cfg, args):
+    """Record stage and explicit downstream projection reset before snapshots."""
+    stage = getattr(args, 'local_feature_stage', None)
+    if stage is not None:
+        cfg.setdefault('model', {}).setdefault('local_encoder', {})['feature_stage'] = stage
+    stage = cfg.get('model', {}).get('local_encoder', {}).get('feature_stage', 'layer4')
+    if stage not in {'layer3', 'layer4'}:
+        raise ValueError('local_encoder.feature_stage must be layer3 or layer4.')
+    if getattr(args, 'reinit_local_projection', False):
+        cfg.setdefault('train', {})['reinit_local_projection'] = True
+    if cfg.get('train', {}).get('reinit_local_projection', False):
+        if stage != 'layer3' or not cfg['train'].get('pretrained_checkpoint'):
+            raise ValueError('--reinit-local-projection requires layer3 and a pretrained checkpoint.')

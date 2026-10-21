@@ -220,14 +220,18 @@ class ResNet50LocalEncoder(nn.Module):
         pretrained: bool = True,
         output_dim: int = 256,
         model_name: str = "resnet50.a1_in1k",
+        feature_stage: str = "layer4",
     ):
         super().__init__()
+        if feature_stage not in {"layer3", "layer4"}:
+            raise ValueError("local_encoder.feature_stage must be layer3 or layer4.")
+        self.feature_stage = feature_stage
         timm = _require_timm()
         self.backbone = timm.create_model(
             model_name,
             pretrained=pretrained,
             features_only=True,
-            out_indices=(4,),
+            out_indices=({"layer3": 3, "layer4": 4}[feature_stage],),
         )
         feat_info = self.backbone.feature_info
         last_ch = feat_info.channels()[-1]

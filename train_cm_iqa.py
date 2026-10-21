@@ -34,7 +34,7 @@ from utils.pcgrad import PCGRAD_DIAGNOSTIC_KEYS, global_shared_pcgrad_backward
 from utils.selection_policies import configure_selection_comparison, SelectionComparison
 from utils.run_metadata import checkpoint_fingerprint, collect_run_metadata, write_run_metadata
 
-from utils.clip_experiments import configure_clip_large, calibrate_quality_centers
+from utils.clip_experiments import configure_clip_large, calibrate_quality_centers, configure_local_feature_stage
 
 
 from utils.downstream_controls import configure_downstream_controls, distinct_prompt_mask, audit_fusion_gradients, validate_local_crops
@@ -42,6 +42,8 @@ from utils.downstream_controls import configure_downstream_controls, distinct_pr
 
 def parse_args():
     p = argparse.ArgumentParser()
+    p.add_argument("--local-feature-stage", choices=("layer3", "layer4"), default=None, help="Select ResNet stage; default layer4 (7x7), layer3 produces 14x14 at 224 input.")
+    p.add_argument("--reinit-local-projection", action="store_true", help="Explicitly reset only local projection weight/bias for layer4 checkpoint -> layer3 downstream transfer.")
     p.add_argument("--compare-selection-policies", action="store_true", help="Compare Quality and joint validation selection on one fixed 60-epoch trajectory, no early stopping or disk weights.")
     p.add_argument("--quality-safe-input", action="store_true", help="Use whole-image resize only for training on all downstream datasets; no crop, flip or color jitter.")
     p.add_argument("--disable-legacy-negative", action="store_true", help="Set lambda_neg=0 without changing other losses.")
@@ -1888,6 +1890,7 @@ def main():
         if float(cfg["model"].get("quality_text_bank", {}).get("score_blend", 0.0)) != 0.0:
             raise ValueError("--quality-global-only requires --quality-text-blend 0.")
         print("[INFO] Global-only Quality scoring enabled: patch score fusion bypassed; ResNet/Fusion and Align retained.")
+    configure_local_feature_stage(cfg, args)
     configure_downstream_controls(cfg, args)
     configure_quality_adapter_experiment(cfg, args)
     if args.disable_quality_adapter:
@@ -1967,6 +1970,7 @@ def main():
             pretrain_path,
             load_scope=cfg["train"].get("pretrained_load_scope", "auto"),
             skip_quality_adapter=bool(cfg["train"].get("skip_pretrained_quality_adapter", False)),
+            reinit_local_projection=bool(cfg["train"].get("reinit_local_projection", False)),
         )
 
     if compare_selection:
