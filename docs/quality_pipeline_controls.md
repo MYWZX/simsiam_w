@@ -101,3 +101,12 @@ HF_HUB_OFFLINE=1 /home/sll/anaconda3/envs/WZX-AI/bin/python train_cm_iqa.py --co
 
 These commands were checked for CLI/config compatibility in the CPU development
 environment; full dataset/GPU training was not run there.
+
+## Current architecture and code review
+
+See the [current framework and exact data-flow notes](figures/aigc_iqa_current_framework.md)
+and the [2026-10-21 code review](audits/current_code_review_20261021.md).
+The generated figure describes the active Large/residual-feature configuration;
+optional modules are not all enabled together. The review documents remaining
+compatibility, loading, memory and training-protocol concerns without changing
+existing model behavior or historical results.
