@@ -1,0 +1,133 @@
+digraph G {
+graph [rankdir=LR, pack=true, packmode="array_u6", bgcolor="white", pad=0.3, nodesep=0.25, ranksep=0.55, fontname="DejaVu Sans", fontsize=21, labelloc=t, label="PRETRAINING | Actual forward heads and parameter sharing\nSame [ID] = same parameter object; different IDs = independent parameters"];
+node [shape=box, style="rounded,filled", fillcolor="#eef5fc", color="#38658a", fontname="DejaVu Sans", fontsize=11, margin="0.13,0.09"];
+edge [color="#30485f", arrowsize=0.65, fontname="DejaVu Sans", fontsize=9];
+subgraph cluster_backbone {
+sortv=99;
+label="A. Image and text inputs / shared backbone"; color="#2c6399"; fontsize=15; style=rounded;
+views [sortv=0,label="SafeAug1 / SafeAug2 / Clean\nSeparate forwards through SAME V/R/F"];
+v [sortv=0,label="[V] CLIP visual\n768-D global"];
+r [sortv=0,label="[R] ResNet50\n256-D local map"];
+f [sortv=0,label="[F] Fusion: attention + FFN\nGlobal query, local keys/values"];
+z [sortv=0,label="z1 / z2 / zc: 256-D"];
+lp [sortv=0,label="Local maps\nClean map supplies MOS / region paths"];
+texts [sortv=0,label="Prompt / Answer / auxiliary phrases\nSAME trainable contexts [C]"];
+t [sortv=0,label="[T] Frozen CLIP text Transformer"];
+u [sortv=0,label="[U] text_to_fused\n768 -> 256"];
+views -> v [label=""];
+v -> f [label=""];
+f -> z [label=""];
+views -> r [label=""];
+r -> f [label=""];
+r -> lp [label=""];
+texts -> t [label=""];
+t -> u [label=""];
+}
+subgraph cluster_quality {
+sortv=98;
+label="B. Quality projection space | shared across three views"; color="#1d8c78"; fontsize=15; style=rounded;
+qinputs [sortv=0,label="z1 / z2 / zc",fillcolor="#dcf3ed"];
+pq [sortv=0,label="[PQ] quality_image_projector\n256 -> 512 -> 512 -> 256\nBN / ReLU / dropout / final BN",fillcolor="#dcf3ed"];
+q12 [sortv=0,label="q1 / q2 (normalized)",fillcolor="#dcf3ed"];
+qc [sortv=0,label="qc (normalized Clean projection)",fillcolor="#dcf3ed"];
+dq [sortv=0,label="[DQ] quality_image_predictor\n256 -> 128 -> 256",fillcolor="#dcf3ed"];
+ii [sortv=0,label="I-I SimSiam loss\npredictor vs stop-gradient target",fillcolor="#fff0cb"];
+anchors [sortv=0,label="Artifact + Aesthetics\nfixed Anchor / Ordinal losses\nNO learned regression head",fillcolor="#fff0cb"];
+bqm [sortv=0,label="[BQ.M] image_to_text\nLinear 256 -> 768",fillcolor="#dcf3ed"];
+qrefs [sortv=0,label="5 quality phrases + independent\nclass_context [5,4,768]\n-> SAME frozen [T] -> 5 references",fillcolor="#dcf3ed"];
+ce [sortv=0,label="5-way similarity logits -> soft-label CE",fillcolor="#fff0cb"];
+qcp [sortv=0,label="[DQ] also runs on qc\nOutput computed, NOT used by Anchor/CE",fillcolor="#ededed"];
+qinputs -> pq [label=""];
+pq -> q12 [label=""];
+pq -> qc [label=""];
+q12 -> dq [label=""];
+dq -> ii [label=""];
+q12 -> ii [label="stop-gradient targets",style=dashed,color="#9b6b22"];
+qc -> anchors [label=""];
+qc -> bqm [label=""];
+bqm -> ce [label=""];
+qrefs -> ce [label=""];
+qc -> qcp [label=""];
+}
+subgraph cluster_semantic {
+sortv=97;
+label="C. Semantic projection heads | exact upstream routes"; color="#8552aa"; fontsize=15; style=rounded;
+simg [sortv=0,label="zc for main I-P / I-A losses\nz1/z2 also computed",fillcolor="#eee4fa"];
+ag [sortv=0,label="[AG] align_global_adapter",fillcolor="#eee4fa"];
+pi [sortv=0,label="[PI] image_projector\nIndependent of PQ and PT",fillcolor="#eee4fa"];
+di [sortv=0,label="[DI] image_predictor",fillcolor="#eee4fa"];
+sp [sortv=0,label="Prompt: [T+C] -> [U]",fillcolor="#eee4fa"];
+at [sortv=0,label="[AT] align_text_adapter",fillcolor="#eee4fa"];
+xt [sortv=0,label="[XT] align_patch_txt_proj\n+ L2 normalize",fillcolor="#eee4fa"];
+sa [sortv=0,label="Answer: [T+C] -> [U]\nNo AT or XT",fillcolor="#eee4fa"];
+pt [sortv=0,label="[PT] text_projector\nSAME for Prompt / Answer / phrases\nIndependent of PQ and PI",fillcolor="#eee4fa"];
+dt [sortv=0,label="[DT] text_predictor\nSAME for all text relations",fillcolor="#eee4fa"];
+loss [sortv=0,label="I-P / I-A / P-A\nSymmetric SimSiam with stop-gradient targets",fillcolor="#fff0cb"];
+simg -> ag [label=""];
+ag -> pi [label=""];
+pi -> di [label=""];
+di -> loss [label=""];
+sp -> at [label=""];
+at -> xt [label=""];
+xt -> pt [label=""];
+pt -> dt [label=""];
+dt -> loss [label=""];
+sa -> pt [label=""];
+pi -> loss [label="targets",style=dashed,color="#9b6b22"];
+pt -> loss [label="targets",style=dashed,color="#9b6b22"];
+}
+subgraph cluster_mos {
+sortv=96;
+label="D. Clean-view MOS scoring | does NOT pass through PQ"; color="#cb8b27"; fontsize=15; style=rounded;
+mzin [sortv=0,label="zc",fillcolor="#fff0cb"];
+qg [sortv=0,label="[QG] global_quality_head\nMLP -> sigmoid",fillcolor="#fff0cb"];
+mlocal [sortv=0,label="Clean local map -> SAME [L] local_patch_proj\n+ [N] nss_proj(NSS) -> Pq",fillcolor="#fff0cb"];
+qp [sortv=0,label="[QP] patch_quality_head\npatch score",fillcolor="#fff0cb"];
+ng [sortv=0,label="[NG] nss_gate(concat Pq,NSS)\nsoftmax patch weights",fillcolor="#fff0cb"];
+qpool [sortv=0,label="Weighted sum -> patch Q",fillcolor="#fff0cb"];
+mix [sortv=0,label="Learned scalar beta\nMix global Q and patch Q",fillcolor="#fff0cb"];
+mos [sortv=0,label="Quality MOS regression / ranking",fillcolor="#fff0cb"];
+auxin [sortv=0,label="concat(zc, weighted Pq evidence, abs difference)",fillcolor="#fff0cb"];
+ha [sortv=0,label="[HA] Artifact auxiliary regression head",fillcolor="#fff0cb"];
+he [sortv=0,label="[HE] Aesthetics auxiliary regression head",fillcolor="#fff0cb"];
+ascore [sortv=0,label="Clean z / Prompt / local tokens\n-> AG / AT / AP + XI / XT\nSame Align scoring path as downstream",fillcolor="#fff0cb"];
+ahg [sortv=0,label="[AHG] align_global_head",fillcolor="#fff0cb"];
+ahp [sortv=0,label="[AHP] align_patch_head",fillcolor="#fff0cb"];
+gate [sortv=0,label="[G] align_gate\nper-sample score mixing",fillcolor="#fff0cb"];
+amos [sortv=0,label="Align MOS regression / ranking / soft-SROCC",fillcolor="#fff0cb"];
+mzin -> qg [label=""];
+qg -> mix [label=""];
+mix -> mos [label=""];
+mlocal -> qp [label=""];
+qp -> qpool [label=""];
+qpool -> mix [label=""];
+mlocal -> ng [label=""];
+ng -> qpool [label=""];
+mzin -> auxin [label=""];
+mlocal -> auxin [label=""];
+ng -> auxin [label=""];
+auxin -> ha [label=""];
+auxin -> he [label=""];
+ascore -> ahg [label=""];
+ahg -> gate [label=""];
+gate -> amos [label=""];
+ascore -> ahp [label=""];
+ahp -> gate [label=""];
+}
+subgraph cluster_local {
+sortv=95;
+label="E. Region / word feedback | shared heads, distinct upstream features"; color="#8552aa"; fontsize=15; style=rounded;
+reg [sortv=0,label="Clean map -> [L] -> [AP] -> [XI] normalize\nHuman map-weighted region pooling",fillcolor="#eee4fa"];
+regpath [sortv=0,label="SAME [AG] -> [PI] -> [DI]",fillcolor="#eee4fa"];
+phrase [sortv=0,label="Aligned / misaligned phrases\n[T+C] -> [U] -> [AT]\nNO XT",fillcolor="#eee4fa"];
+phhead [sortv=0,label="SAME [PT] -> [DT]",fillcolor="#eee4fa"];
+pref [sortv=0,label="Main Prompt [XT] output\nSAME [PT] -> [DT] called again\nShared parameters, separate forward/BN/dropout",fillcolor="#eee4fa"];
+rel [sortv=0,label="Region / word pull-push losses\nTargets use stop-gradient",fillcolor="#eee4fa"];
+reg -> regpath [label=""];
+regpath -> rel [label=""];
+phrase -> phhead [label=""];
+phhead -> rel [label=""];
+pref -> rel [label=""];
+}
+note [sortv=0,label="ACTIVE CONFIG: Quality Adapter OFF in pretraining; separate_quality_projection=True.\nMOS heads do not directly train PQ; Anchor/CE do. Shared backbone receives both tasks.\nPQ -> downstream QA is INITIALIZATION, not runtime sharing. PI/PT and predictors not transferred.\nExisting checkpoint PCGrad ON. Legacy Final score computed but not supervised.",fillcolor="#ededed"];
+}

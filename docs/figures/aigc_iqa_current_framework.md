@@ -92,3 +92,5 @@ Align：全局视觉与 Prompt 的配对特征，以及 Prompt 加权局部证�
 - [当前审查结论](../audits/current_code_review_20261021.md)
 
 图片是架构概览，未表达 dropout、每个 Adapter 的所有层、loss mask 和每一条梯度边；如有简化，以本说明及代码为准。
+
+更细的逐头前向、权重共享和迁移对照，见 [具体模型流程与共享说明](model_forward_and_sharing.md)。该文补充了主 Prompt 的 XT 路径、Quality/Align 的 L 复用，以及计算但不进入当前损失的输出。
