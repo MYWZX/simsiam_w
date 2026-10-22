@@ -601,6 +601,17 @@ class CrossModalIQAFullModel(nn.Module):
             nn.Linear(hidden_dim, hidden_dim // 2), nn.GELU(), nn.Dropout(dropout), nn.Linear(hidden_dim // 2, 1),
         )
         self.quality_mix_logit = nn.Parameter(torch.tensor(float(ngcfg.get("quality_mix_init", 0.0))))
+        # Preserve RNG for all existing modules when enabling this ablation.
+        self.quality_sample_gate = None
+        if bool(mcfg.get("quality_sample_gate", {}).get("enabled", False)):
+            if self.quality_global_only:
+                raise ValueError("quality_sample_gate is incompatible with quality_global_only")
+            with torch.random.fork_rng(devices=[]):
+                self.quality_sample_gate = nn.Sequential(
+                    nn.Linear(2 * fused_dim, 32), nn.GELU(), nn.Linear(32, 1),
+                )
+                nn.init.zeros_(self.quality_sample_gate[-1].weight)
+                nn.init.zeros_(self.quality_sample_gate[-1].bias)
         qdcfg = mcfg.get("quality_distribution", {})
         self.use_quality_distribution = bool(qdcfg.get("enabled", False))
         self.quality_distribution_temperature = float(qdcfg.get("temperature", 0.2))
@@ -1111,7 +1122,13 @@ class CrossModalIQAFullModel(nn.Module):
             mix = z_global.new_tensor(0.0)
             s_quality = s_global
         else:
-            mix = torch.sigmoid(self.quality_mix_logit)
+            mix_logit = self.quality_mix_logit
+            if self.quality_sample_gate is not None:
+                local_summary = torch.sum(weights.unsqueeze(-1) * patch_tokens, dim=1)
+                mix_logit = mix_logit + self.quality_sample_gate(
+                    torch.cat([z_global, local_summary], dim=-1)
+                ).squeeze(-1)
+            mix = torch.sigmoid(mix_logit)
             s_quality = mix * s_patch + (1.0 - mix) * s_global
         s_quality_visual = s_quality
         quality_distribution_out = {}

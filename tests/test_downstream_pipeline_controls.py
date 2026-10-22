@@ -28,6 +28,7 @@ class ToyScores(nn.Module):
         q = torch.sigmoid(self.weight * image.mean((1, 2, 3)))
         a = q * .8
         return dict(s_quality=q, s_align=a, s_final=(q+a)/2,
+                    s_quality_global=q, s_quality_patch=q, quality_mix=q.new_tensor(.5),
                     s_align_global=a, s_align_patch=a, s_quality_global_adapter=q,
                     s_quality_global_shared=q, quality_adapter_gate=q.new_tensor(0.),
                     fusion_w_img=q.new_tensor(.5), align_gate=q.new_full(q.shape, .5),

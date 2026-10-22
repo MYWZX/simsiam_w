@@ -156,6 +156,10 @@ def parse_args():
         ),
     )
     p.add_argument(
+        "--quality-sample-gate", action="store_true",
+        help="Use image-conditioned Quality patch/global mixing; zero-initialized correction to baseline beta.",
+    )
+    p.add_argument(
         "--quality-adapter-lr-mult",
         type=float,
         default=None,
@@ -392,7 +396,7 @@ def build_optimizer(cfg: Dict, model: nn.Module):
 
     quality_prefixes = (
         "local_patch_proj", "nss_proj", "nss_gate", "text_gate",
-        "patch_quality_head", "global_quality_head", "quality_mix_logit",
+        "patch_quality_head", "global_quality_head", "quality_mix_logit", "quality_sample_gate",
         "quality_distribution_head",
         "quality_adapter_head", "quality_adapter_gate_logit",
     )
@@ -1572,6 +1576,7 @@ def train_one_epoch(model, loader, optimizer, scaler, device, cfg, epoch, prompt
 @torch.no_grad()
 def evaluate(model, loader, device, cfg, split="val"):
     model.eval()
+    quality_global, quality_patch, quality_targets, quality_betas = [], [], [], []
     losses = AverageMeter()
     qloss = AverageMeter()
     aloss = AverageMeter()
@@ -1621,6 +1626,11 @@ def evaluate(model, loader, device, cfg, split="val"):
         ag.update(float(out["align_gate"].mean().item()), bs)
         if not bool(cfg.get("train", {}).get("two_output_only", False)):
             extend_valid(all_f, all_ft, out["s_final"], score, fmask)
+        valid = qmask.view(-1) > 0
+        quality_global.extend(out["s_quality_global"].view(-1)[valid].detach().cpu().tolist())
+        quality_patch.extend(out["s_quality_patch"].view(-1)[valid].detach().cpu().tolist())
+        quality_targets.extend(quality.view(-1)[valid].detach().cpu().tolist())
+        quality_betas.extend(out["quality_mix"].expand_as(quality.view(-1))[valid].cpu().tolist())
         extend_valid(all_q, all_qt, out["s_quality"], quality, qmask)
         if "quality_text_score" in out:
             extend_valid(all_qvisual, all_qvisual_target, out["s_quality_visual"], quality, qmask)
@@ -1646,6 +1656,20 @@ def evaluate(model, loader, device, cfg, split="val"):
     m = {} if two_output_only else compute_regression_metrics(all_ft, all_f)
     if two_output_only:
         m["final_output_disabled"] = 1.0
+    for branch, predictions in [("global", quality_global), ("patch", quality_patch)]:
+        for key, value in compute_regression_metrics(quality_targets, predictions).items():
+            m[f"{split}_quality_{branch}_{key}"] = value
+    if quality_betas:
+        m[f"{split}_quality_mix_mean"] = float(np.mean(quality_betas))
+        m[f"{split}_quality_mix_std"] = float(np.std(quality_betas))
+        m[f"{split}_quality_mix_min"] = float(np.min(quality_betas))
+        m[f"{split}_quality_mix_max"] = float(np.max(quality_betas))
+    if len(quality_targets) >= 2:
+        eg = np.asarray(quality_global) - np.asarray(quality_targets)
+        ep = np.asarray(quality_patch) - np.asarray(quality_targets)
+        # Undefined correlation is omitted rather than reported as zero.
+        if np.std(eg) > 0 and np.std(ep) > 0:
+            m[f"{split}_quality_branch_error_PLCC"] = float(np.corrcoef(eg, ep)[0, 1])
     qm = compute_regression_metrics(all_qt, all_q)
     am = compute_regression_metrics(all_at, all_a)
     agm = compute_regression_metrics(all_agt, all_ag)
@@ -1899,6 +1923,8 @@ def main():
         # ablation remains auditable and cannot silently reuse the enabled path.
         cfg.setdefault("model", {}).setdefault("quality_adapter", {})["enabled"] = False
         print("[INFO] Persistent quality adapter disabled for this downstream ablation.")
+    if args.quality_sample_gate:
+        cfg.setdefault("model", {}).setdefault("quality_sample_gate", {})["enabled"] = True
     configure_quality_adapter_lr(cfg, args)
     configure_downstream_pcgrad(cfg, args)
     if args.mirror_augmentation or args.mirror_augmentation_probability is not None:
