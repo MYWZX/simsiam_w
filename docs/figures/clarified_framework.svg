@@ -1,0 +1,411 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1280" viewBox="0 0 1920 1280">
+<defs><marker id="arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0 0 L7 3.5 L0 7" fill="#394d66"/></marker></defs>
+<rect width="1920" height="1280" fill="white"/>
+<rect x="10" y="10" width="1900" height="344" rx="8" fill="white" stroke="#8c9db0" stroke-width="1.4"/>
+<text x="25" y="42" font-family="Georgia,serif" font-size="27" font-weight="700" text-anchor="start" fill="#15283d">(a) Quality-aware multimodal pretraining</text>
+<rect x="35" y="145" width="120" height="90" rx="5" fill="#d6eafa" stroke="#728499" stroke-width="1.4"/>
+<path d="M35 200 l28 -30 25 28 25 -35 42 37" fill="#85b0b1"/>
+<path d="M35 205 h120 v30 h-120Z" fill="#b3dbdf"/>
+<path d="M71 215 h48 l-8 10 h-32Z" fill="#d17a53"/>
+<text x="95" y="132" font-family="Arial,sans-serif" font-size="17" font-weight="700" text-anchor="middle" fill="#15283d">One image</text>
+<rect x="205" y="98" width="139" height="43" rx="5" fill="#bcd8f4" stroke="#728499" stroke-width="1.4"/>
+<text x="274.5" y="125.45" font-family="Arial,sans-serif" font-size="17" font-weight="400" text-anchor="middle" fill="#15283d">SafeAug ×2</text>
+<rect x="205" y="256" width="139" height="43" rx="5" fill="#bcd8f4" stroke="#728499" stroke-width="1.4"/>
+<text x="274.5" y="283.45" font-family="Arial,sans-serif" font-size="17" font-weight="400" text-anchor="middle" fill="#15283d">Clean</text>
+<polyline points="155,175 181,175 181,120 205,120" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<polyline points="155,198 181,198 181,277 205,277" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<path d="M382 86 L524 100 V141 L382 155 Z" fill="#bcd8f4" stroke="#4e6985" stroke-width="1.5"/>
+<text x="453.0" y="125.5" font-family="Arial,sans-serif" font-size="18" font-weight="700" text-anchor="middle" fill="#15283d">Shared V / R / F</text>
+<path d="M382 242 L524 256 V297 L382 311 Z" fill="#bcd8f4" stroke="#4e6985" stroke-width="1.5"/>
+<text x="453.0" y="281.5" font-family="Arial,sans-serif" font-size="18" font-weight="700" text-anchor="middle" fill="#15283d">Same V / R / F</text>
+<polyline points="344,120 382,120" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<polyline points="344,277 382,277" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<text x="450" y="188" font-family="Arial,sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="#15283d">Shared weights; separate forwards</text>
+<text x="450" y="208" font-family="Arial,sans-serif" font-size="12" font-weight="400" text-anchor="middle" fill="#15283d">Source checkpoint: ResNet layer4</text>
+<path d="M565 94 l10 -8 h35 v20 l-10 8 z" fill="#bcd8f4" stroke="#7291ac" stroke-width="1"/>
+<rect x="565" y="94" width="35" height="20" fill="#bcd8f4" stroke="#7291ac" stroke-width="1"/>
+<path d="M573.75 94 v20" stroke="white" stroke-width=".7"/>
+<path d="M582.5 94 v20" stroke="white" stroke-width=".7"/>
+<path d="M591.25 94 v20" stroke="white" stroke-width=".7"/>
+<text x="582.5" y="82" font-family="Arial,sans-serif" font-size="17" font-weight="700" text-anchor="middle" fill="#15283d">z₁</text>
+<path d="M565 142 l10 -8 h35 v20 l-10 8 z" fill="#bcd8f4" stroke="#7291ac" stroke-width="1"/>
+<rect x="565" y="142" width="35" height="20" fill="#bcd8f4" stroke="#7291ac" stroke-width="1"/>
+<path d="M573.75 142 v20" stroke="white" stroke-width=".7"/>
+<path d="M582.5 142 v20" stroke="white" stroke-width=".7"/>
+<path d="M591.25 142 v20" stroke="white" stroke-width=".7"/>
+<text x="582.5" y="130" font-family="Arial,sans-serif" font-size="17" font-weight="700" text-anchor="middle" fill="#15283d">z₂</text>
+<path d="M565 267 l10 -8 h35 v20 l-10 8 z" fill="#bcd8f4" stroke="#7291ac" stroke-width="1"/>
+<rect x="565" y="267" width="35" height="20" fill="#bcd8f4" stroke="#7291ac" stroke-width="1"/>
+<path d="M573.75 267 v20" stroke="white" stroke-width=".7"/>
+<path d="M582.5 267 v20" stroke="white" stroke-width=".7"/>
+<path d="M591.25 267 v20" stroke="white" stroke-width=".7"/>
+<text x="582.5" y="255" font-family="Arial,sans-serif" font-size="17" font-weight="700" text-anchor="middle" fill="#15283d">z_c</text>
+<polyline points="524,120 546,120 546,104 565,104" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<polyline points="546,120 546,152 565,152" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<polyline points="524,277 565,277" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="666" y="143" width="122" height="87" rx="5" fill="#b8e5df" stroke="#728499" stroke-width="1.4"/>
+<text x="727.0" y="181.15" font-family="Arial,sans-serif" font-size="19" font-weight="400" text-anchor="middle" fill="#15283d">Quality</text>
+<text x="727.0" y="205.15" font-family="Arial,sans-serif" font-size="19" font-weight="400" text-anchor="middle" fill="#15283d">projector P_Q</text>
+<polyline points="610,104 640,104 640,164 666,164" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<polyline points="610,152 652,152 652,182 666,182" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<polyline points="610,277 639,277 639,210 666,210" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="870" y="76" width="143" height="56" rx="5" fill="#e2d4f3" stroke="#728499" stroke-width="1.4"/>
+<text x="941.5" y="109.25" font-family="Arial,sans-serif" font-size="15" font-weight="400" text-anchor="middle" fill="#15283d">D_Q: q₁,q₂ → p₁,p₂</text>
+<polyline points="788,165 824,165 824,104 870,104" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="1060" y="67" width="340" height="81" rx="5" fill="#e2d4f3" stroke="#728499" stroke-width="1.4"/>
+<text x="1230.0" y="102.15" font-family="Arial,sans-serif" font-size="19" font-weight="400" text-anchor="middle" fill="#15283d">Symmetric SimSiam</text>
+<text x="1230.0" y="126.15" font-family="Arial,sans-serif" font-size="19" font-weight="400" text-anchor="middle" fill="#15283d">p₁ vs sg(q₂); p₂ vs sg(q₁)</text>
+<polyline points="1013,104 1060,104" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="870" y="186" width="530" height="71" rx="5" fill="#e2d4f3" stroke="#728499" stroke-width="1.4"/>
+<text x="1135.0" y="216.45" font-family="Arial,sans-serif" font-size="17" font-weight="400" text-anchor="middle" fill="#15283d">q_c → component anchors + ordinal</text>
+<text x="1135.0" y="238.45" font-family="Arial,sans-serif" font-size="17" font-weight="400" text-anchor="middle" fill="#15283d">q_c → QUALITY five-level CE (λ = 0.005)</text>
+<polyline points="788,208 870,208" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="715" y="284" width="377" height="46" rx="5" fill="#f7d8b5" stroke="#728499" stroke-width="1.4"/>
+<text x="903.5" y="312.6" font-family="Arial,sans-serif" font-size="16" font-weight="400" text-anchor="middle" fill="#15283d">Clean score heads → supervised labels</text>
+<polyline points="610,277 681,277 681,307 715,307" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="1450" y="67" width="435" height="220" rx="7" fill="#f8f5fc" stroke="#a38bbe" stroke-width="1.4"/>
+<text x="1667" y="94" font-family="Arial,sans-serif" font-size="20" font-weight="700" text-anchor="middle" fill="#15283d">Separate semantic relations</text>
+<text x="1667" y="132" font-family="Arial,sans-serif" font-size="16" font-weight="400" text-anchor="middle" fill="#15283d">Clean aligned image / region features</text>
+<text x="1667" y="153" font-family="Arial,sans-serif" font-size="16" font-weight="400" text-anchor="middle" fill="#15283d">→ P_I / D_I</text>
+<text x="1667" y="190" font-family="Arial,sans-serif" font-size="15" font-weight="400" text-anchor="middle" fill="#15283d">Prompt / Answer / phrases</text>
+<text x="1667" y="210" font-family="Arial,sans-serif" font-size="15" font-weight="400" text-anchor="middle" fill="#15283d">→ frozen text + route adapters → P_T / D_T</text>
+<text x="1667" y="252" font-family="Arial,sans-serif" font-size="18" font-weight="700" text-anchor="middle" fill="#15283d">Image–text relation objectives</text>
+<text x="1667" y="276" font-family="Arial,sans-serif" font-size="12" font-weight="400" text-anchor="middle" fill="#15283d">Relation-dependent internal routes omitted</text>
+<text x="1210" y="343" font-family="Arial,sans-serif" font-size="16" font-weight="700" text-anchor="middle" fill="#7950a3">P_Q weights initialize downstream Quality Adapter</text>
+<text x="25" y="396" font-family="Georgia,serif" font-size="27" font-weight="700" text-anchor="start" fill="#15283d">(b) Downstream quality and text–image alignment · ResNet layer3</text>
+<rect x="15" y="424" width="660" height="674" rx="9" fill="#f4f7fb" stroke="#cbd7e4" stroke-width="1.4"/>
+<text x="345" y="453" font-family="Arial,sans-serif" font-size="20" font-weight="700" text-anchor="middle" fill="#15283d">Shared encoders and feature construction</text>
+<rect x="32" y="621" width="120" height="90" rx="5" fill="#d6eafa" stroke="#728499" stroke-width="1.4"/>
+<path d="M32 676 l28 -30 25 28 25 -35 42 37" fill="#85b0b1"/>
+<path d="M32 681 h120 v30 h-120Z" fill="#b3dbdf"/>
+<path d="M68 691 h48 l-8 10 h-32Z" fill="#d17a53"/>
+<text x="92" y="606" font-family="Arial,sans-serif" font-size="15" font-weight="700" text-anchor="middle" fill="#15283d">224 × 224 image</text>
+<path d="M188 492 L316 506 V565 L188 579 Z" fill="#bcd8f4" stroke="#4e6985" stroke-width="1.5"/>
+<text x="252.0" y="529.5" font-family="Arial,sans-serif" font-size="18" font-weight="700" text-anchor="middle" fill="#15283d">CLIP visual</text>
+<text x="252.0" y="552.5" font-family="Arial,sans-serif" font-size="18" font-weight="700" text-anchor="middle" fill="#15283d">ViT-L/14</text>
+<path d="M188 748 L316 762 V821 L188 835 Z" fill="#b8e5df" stroke="#4e6985" stroke-width="1.5"/>
+<text x="252.0" y="785.5" font-family="Arial,sans-serif" font-size="18" font-weight="700" text-anchor="middle" fill="#15283d">ResNet-50</text>
+<text x="252.0" y="808.5" font-family="Arial,sans-serif" font-size="18" font-weight="700" text-anchor="middle" fill="#15283d">layer3</text>
+<polyline points="152,649 170,649 170,535 188,535" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<polyline points="152,677 170,677 170,791 188,791" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<path d="M349 525 l10 -8 h41 v19 l-10 8 z" fill="#bcd8f4" stroke="#7291ac" stroke-width="1"/>
+<rect x="349" y="525" width="41" height="19" fill="#bcd8f4" stroke="#7291ac" stroke-width="1"/>
+<path d="M359.25 525 v19" stroke="white" stroke-width=".7"/>
+<path d="M369.5 525 v19" stroke="white" stroke-width=".7"/>
+<path d="M379.75 525 v19" stroke="white" stroke-width=".7"/>
+<text x="371" y="506" font-family="Arial,sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="#15283d">768-D</text>
+<polyline points="316,535 349,535" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="345.0" y="765.0" width="10.1" height="7.9" fill="#d8efed"/>
+<rect x="355.6" y="765.0" width="10.1" height="7.9" fill="#a5d5d0"/>
+<rect x="366.2" y="765.0" width="10.1" height="7.9" fill="#73b7bb"/>
+<rect x="376.8" y="765.0" width="10.1" height="7.9" fill="#368f9e"/>
+<rect x="387.4" y="765.0" width="10.1" height="7.9" fill="#d8efed"/>
+<rect x="345.0" y="773.4" width="10.1" height="7.9" fill="#368f9e"/>
+<rect x="355.6" y="773.4" width="10.1" height="7.9" fill="#d8efed"/>
+<rect x="366.2" y="773.4" width="10.1" height="7.9" fill="#a5d5d0"/>
+<rect x="376.8" y="773.4" width="10.1" height="7.9" fill="#73b7bb"/>
+<rect x="387.4" y="773.4" width="10.1" height="7.9" fill="#368f9e"/>
+<rect x="345.0" y="781.8" width="10.1" height="7.9" fill="#73b7bb"/>
+<rect x="355.6" y="781.8" width="10.1" height="7.9" fill="#368f9e"/>
+<rect x="366.2" y="781.8" width="10.1" height="7.9" fill="#d8efed"/>
+<rect x="376.8" y="781.8" width="10.1" height="7.9" fill="#a5d5d0"/>
+<rect x="387.4" y="781.8" width="10.1" height="7.9" fill="#73b7bb"/>
+<rect x="345.0" y="790.2" width="10.1" height="7.9" fill="#a5d5d0"/>
+<rect x="355.6" y="790.2" width="10.1" height="7.9" fill="#73b7bb"/>
+<rect x="366.2" y="790.2" width="10.1" height="7.9" fill="#368f9e"/>
+<rect x="376.8" y="790.2" width="10.1" height="7.9" fill="#d8efed"/>
+<rect x="387.4" y="790.2" width="10.1" height="7.9" fill="#a5d5d0"/>
+<rect x="345.0" y="798.6" width="10.1" height="7.9" fill="#d8efed"/>
+<rect x="355.6" y="798.6" width="10.1" height="7.9" fill="#a5d5d0"/>
+<rect x="366.2" y="798.6" width="10.1" height="7.9" fill="#73b7bb"/>
+<rect x="376.8" y="798.6" width="10.1" height="7.9" fill="#368f9e"/>
+<rect x="387.4" y="798.6" width="10.1" height="7.9" fill="#d8efed"/>
+<text x="373" y="829" font-family="Arial,sans-serif" font-size="12" font-weight="400" text-anchor="middle" fill="#15283d">1024 × 14 × 14</text>
+<polyline points="316,791 342,791" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="410" y="768" width="60" height="37" rx="5" fill="#b8e5df" stroke="#728499" stroke-width="1.4"/>
+<text x="440.0" y="791.4" font-family="Arial,sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="#15283d">1×1</text>
+<polyline points="399,786 410,786" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<text x="451" y="847" font-family="Arial,sans-serif" font-size="12" font-weight="400" text-anchor="middle" fill="#15283d">ResNet.proj: 1024→256</text>
+<rect x="488" y="500" width="162" height="335" rx="6" fill="white" stroke="#657d99" stroke-width="1.4"/>
+<text x="569" y="525" font-family="Arial,sans-serif" font-size="21" font-weight="700" text-anchor="middle" fill="#15283d">Fusion</text>
+<rect x="500" y="548" width="138" height="37" rx="5" fill="#bcd8f4" stroke="#728499" stroke-width="1.4"/>
+<text x="569.0" y="571.4" font-family="Arial,sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="#15283d">768→256</text>
+<polyline points="391,535 478,535 478,565 500,565" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<path d="M512 609 l10 -8 h35 v20 l-10 8 z" fill="#bcd8f4" stroke="#7291ac" stroke-width="1"/>
+<rect x="512" y="609" width="35" height="20" fill="#bcd8f4" stroke="#7291ac" stroke-width="1"/>
+<path d="M520.75 609 v20" stroke="white" stroke-width=".7"/>
+<path d="M529.5 609 v20" stroke="white" stroke-width=".7"/>
+<path d="M538.25 609 v20" stroke="white" stroke-width=".7"/>
+<text x="529.5" y="597" font-family="Arial,sans-serif" font-size="17" font-weight="700" text-anchor="middle" fill="#15283d">query Q</text>
+<polyline points="569,585 569,597 530,597 530,609" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="574.0" y="628.0" width="10.7" height="9.3" fill="#d8e8f6"/>
+<rect x="585.2" y="628.0" width="10.7" height="9.3" fill="#9abddc"/>
+<rect x="596.4" y="628.0" width="10.7" height="9.3" fill="#b8a4d0"/>
+<rect x="607.6" y="628.0" width="10.7" height="9.3" fill="#e6c69d"/>
+<rect x="618.8" y="628.0" width="10.7" height="9.3" fill="#d8e8f6"/>
+<rect x="574.0" y="637.8" width="10.7" height="9.3" fill="#e6c69d"/>
+<rect x="585.2" y="637.8" width="10.7" height="9.3" fill="#d8e8f6"/>
+<rect x="596.4" y="637.8" width="10.7" height="9.3" fill="#9abddc"/>
+<rect x="607.6" y="637.8" width="10.7" height="9.3" fill="#b8a4d0"/>
+<rect x="618.8" y="637.8" width="10.7" height="9.3" fill="#e6c69d"/>
+<rect x="574.0" y="647.6" width="10.7" height="9.3" fill="#b8a4d0"/>
+<rect x="585.2" y="647.6" width="10.7" height="9.3" fill="#e6c69d"/>
+<rect x="596.4" y="647.6" width="10.7" height="9.3" fill="#d8e8f6"/>
+<rect x="607.6" y="647.6" width="10.7" height="9.3" fill="#9abddc"/>
+<rect x="618.8" y="647.6" width="10.7" height="9.3" fill="#b8a4d0"/>
+<rect x="574.0" y="657.4" width="10.7" height="9.3" fill="#9abddc"/>
+<rect x="585.2" y="657.4" width="10.7" height="9.3" fill="#b8a4d0"/>
+<rect x="596.4" y="657.4" width="10.7" height="9.3" fill="#e6c69d"/>
+<rect x="607.6" y="657.4" width="10.7" height="9.3" fill="#d8e8f6"/>
+<rect x="618.8" y="657.4" width="10.7" height="9.3" fill="#9abddc"/>
+<rect x="574.0" y="667.2" width="10.7" height="9.3" fill="#d8e8f6"/>
+<rect x="585.2" y="667.2" width="10.7" height="9.3" fill="#9abddc"/>
+<rect x="596.4" y="667.2" width="10.7" height="9.3" fill="#b8a4d0"/>
+<rect x="607.6" y="667.2" width="10.7" height="9.3" fill="#e6c69d"/>
+<rect x="618.8" y="667.2" width="10.7" height="9.3" fill="#d8e8f6"/>
+<polyline points="547,619 560,619 560,644 574,644" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="500" y="708" width="138" height="34" rx="5" fill="#b8e5df" stroke="#728499" stroke-width="1.4"/>
+<text x="569.0" y="729.55" font-family="Arial,sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="#15283d">local_proj 1×1</text>
+<polyline points="470,786 480,786 480,725 500,725" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<polyline points="566,708 566,664 574,664" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<text x="570" y="768" font-family="Arial,sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="#15283d">Local K / V</text>
+<text x="570" y="797" font-family="Arial,sans-serif" font-size="11" font-weight="400" text-anchor="middle" fill="#15283d">Residual + LN + FFN</text>
+<text x="569" y="822" font-family="Arial,sans-serif" font-size="14" font-weight="700" text-anchor="middle" fill="#15283d">z: 256-D</text>
+<rect x="324" y="927" width="188" height="51" rx="5" fill="#b8e5df" stroke="#728499" stroke-width="1.4"/>
+<text x="418.0" y="948.05" font-family="Arial,sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="#15283d">Shared local projection L</text>
+<text x="418.0" y="966.05" font-family="Arial,sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="#15283d">256→256; independent of Fusion</text>
+<polyline points="470,786 479,786 479,900 419,900 419,927" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<path d="M551 942 l10 -8 h45 v20 l-10 8 z" fill="#b8e5df" stroke="#7291ac" stroke-width="1"/>
+<rect x="551" y="942" width="45" height="20" fill="#b8e5df" stroke="#7291ac" stroke-width="1"/>
+<path d="M562.25 942 v20" stroke="white" stroke-width=".7"/>
+<path d="M573.5 942 v20" stroke="white" stroke-width=".7"/>
+<path d="M584.75 942 v20" stroke="white" stroke-width=".7"/>
+<text x="573.5" y="930" font-family="Arial,sans-serif" font-size="17" font-weight="700" text-anchor="middle" fill="#15283d">P₀</text>
+<polyline points="512,952 551,952" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<text x="574" y="983" font-family="Arial,sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="#15283d">196 × 256</text>
+<text x="345" y="1053" font-family="Arial,sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="#15283d">Same-named ports reuse the same feature tensors.</text>
+<text x="345" y="1076" font-family="Arial,sans-serif" font-size="12" font-weight="400" text-anchor="middle" fill="#15283d">Visual encoders trainable; no text input to visual Quality gate.</text>
+<rect x="699" y="424" width="1200" height="340" rx="9" fill="#eff9f6" stroke="#b7ded4" stroke-width="1.4"/>
+<text x="719" y="453" font-family="Arial,sans-serif" font-size="22" font-weight="700" text-anchor="start" fill="#187a73">Perceptual quality branch</text>
+<path d="M720 493 l10 -8 h35 v20 l-10 8 z" fill="#bcd8f4" stroke="#7291ac" stroke-width="1"/>
+<rect x="720" y="493" width="35" height="20" fill="#bcd8f4" stroke="#7291ac" stroke-width="1"/>
+<path d="M728.75 493 v20" stroke="white" stroke-width=".7"/>
+<path d="M737.5 493 v20" stroke="white" stroke-width=".7"/>
+<path d="M746.25 493 v20" stroke="white" stroke-width=".7"/>
+<text x="737.5" y="481" font-family="Arial,sans-serif" font-size="17" font-weight="700" text-anchor="middle" fill="#15283d">z</text>
+<rect x="780" y="469" width="174" height="61" rx="5" fill="#b8e5df" stroke="#728499" stroke-width="1.4"/>
+<text x="867.0" y="494.45" font-family="Arial,sans-serif" font-size="17" font-weight="400" text-anchor="middle" fill="#15283d">Quality Adapter</text>
+<text x="867.0" y="516.45" font-family="Arial,sans-serif" font-size="17" font-weight="400" text-anchor="middle" fill="#15283d">initialized from P_Q</text>
+<polyline points="765,503 780,503" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<path d="M976 492 l10 -8 h25 v20 l-10 8 z" fill="#b8e5df" stroke="#7291ac" stroke-width="1"/>
+<rect x="976" y="492" width="25" height="20" fill="#b8e5df" stroke="#7291ac" stroke-width="1"/>
+<path d="M982.25 492 v20" stroke="white" stroke-width=".7"/>
+<path d="M988.5 492 v20" stroke="white" stroke-width=".7"/>
+<path d="M994.75 492 v20" stroke="white" stroke-width=".7"/>
+<text x="988.5" y="480" font-family="Arial,sans-serif" font-size="17" font-weight="700" text-anchor="middle" fill="#15283d">a</text>
+<polyline points="954,503 976,503" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="1040" y="468" width="333" height="68" rx="5" fill="#e2d4f3" stroke="#728499" stroke-width="1.4"/>
+<text x="1206.5" y="496.95" font-family="Arial,sans-serif" font-size="17" font-weight="400" text-anchor="middle" fill="#15283d">Residual fusion</text>
+<text x="1206.5" y="518.95" font-family="Arial,sans-serif" font-size="17" font-weight="400" text-anchor="middle" fill="#15283d">r = z + α sg(‖z‖) normalize(a)</text>
+<polyline points="1011,503 1040,503" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<path d="M1140 563 l10 -8 h31 v20 l-10 8 z" fill="#bcd8f4" stroke="#7291ac" stroke-width="1"/>
+<rect x="1140" y="563" width="31" height="20" fill="#bcd8f4" stroke="#7291ac" stroke-width="1"/>
+<path d="M1147.75 563 v20" stroke="white" stroke-width=".7"/>
+<path d="M1155.5 563 v20" stroke="white" stroke-width=".7"/>
+<path d="M1163.25 563 v20" stroke="white" stroke-width=".7"/>
+<text x="1155.5" y="551" font-family="Arial,sans-serif" font-size="17" font-weight="700" text-anchor="middle" fill="#15283d">same z</text>
+<polyline points="1181,573 1208,573 1208,536" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="1400" y="479" width="123" height="48" rx="5" fill="#bcd8f4" stroke="#728499" stroke-width="1.4"/>
+<text x="1461.5" y="508.95" font-family="Arial,sans-serif" font-size="17" font-weight="400" text-anchor="middle" fill="#15283d">Global head</text>
+<polyline points="1373,503 1400,503" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<path d="M1544 493 l10 -8 h21 v20 l-10 8 z" fill="#bcd8f4" stroke="#7291ac" stroke-width="1"/>
+<rect x="1544" y="493" width="21" height="20" fill="#bcd8f4" stroke="#7291ac" stroke-width="1"/>
+<path d="M1549.25 493 v20" stroke="white" stroke-width=".7"/>
+<path d="M1554.5 493 v20" stroke="white" stroke-width=".7"/>
+<path d="M1559.75 493 v20" stroke="white" stroke-width=".7"/>
+<text x="1554.5" y="481" font-family="Arial,sans-serif" font-size="17" font-weight="700" text-anchor="middle" fill="#15283d">Q_g</text>
+<polyline points="1523,503 1544,503" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<circle cx="1680" cy="572" r="17" fill="white" stroke="#53687e" stroke-width="1.6"/>
+<text x="1680" y="578" font-family="Arial,sans-serif" font-size="20" font-weight="700" text-anchor="middle" fill="#15283d">β</text>
+<polyline points="1575,503 1630,503 1630,562 1664,562" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="1741" y="548" width="137" height="57" rx="5" fill="#b8e5df" stroke="#728499" stroke-width="1.4"/>
+<text x="1809.5" y="583.5" font-family="Arial,sans-serif" font-size="20" font-weight="400" text-anchor="middle" fill="#15283d">Quality Q</text>
+<polyline points="1697,572 1741,572" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<text x="1732" y="625" font-family="Arial,sans-serif" font-size="17" font-weight="400" text-anchor="middle" fill="#15283d">Q = (1−β)Q_g + βQ_l</text>
+<text x="1732" y="649" font-family="Arial,sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="#15283d">β: learned scalar</text>
+<rect x="767" y="604" width="620" height="135" rx="6" fill="white" stroke="#89bcb1" stroke-width="1.4"/>
+<text x="1077" y="628" font-family="Arial,sans-serif" font-size="18" font-weight="700" text-anchor="middle" fill="#15283d">NSS-guided local quality</text>
+<path d="M717 668 l10 -8 h26 v20 l-10 8 z" fill="#b8e5df" stroke="#7291ac" stroke-width="1"/>
+<rect x="717" y="668" width="26" height="20" fill="#b8e5df" stroke="#7291ac" stroke-width="1"/>
+<path d="M723.5 668 v20" stroke="white" stroke-width=".7"/>
+<path d="M730.0 668 v20" stroke="white" stroke-width=".7"/>
+<path d="M736.5 668 v20" stroke="white" stroke-width=".7"/>
+<text x="730.0" y="656" font-family="Arial,sans-serif" font-size="17" font-weight="700" text-anchor="middle" fill="#15283d">P₀</text>
+<rect x="790" y="681" width="142" height="33" rx="5" fill="#b8e5df" stroke="#728499" stroke-width="1.4"/>
+<text x="861.0" y="702.4" font-family="Arial,sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="#15283d">Pq = P₀ + N(n)</text>
+<polyline points="753,678 773,678 773,697 790,697" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="790" y="640" width="142" height="29" rx="5" fill="#bcd8f4" stroke="#728499" stroke-width="1.4"/>
+<text x="861.0" y="659.05" font-family="Arial,sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="#15283d">n = NSS(image)</text>
+<polyline points="860,669 860,681" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="971" y="638" width="191" height="33" rx="5" fill="#b8e5df" stroke="#728499" stroke-width="1.4"/>
+<text x="1066.5" y="659.4" font-family="Arial,sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="#15283d">Patch head → scores sᵢ</text>
+<rect x="971" y="694" width="191" height="33" rx="5" fill="#b8e5df" stroke="#728499" stroke-width="1.4"/>
+<text x="1066.5" y="715.05" font-family="Arial,sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="#15283d">Gate[Pq,n] → softmax wᵢ</text>
+<polyline points="932,689 952,689 952,654 971,654" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<polyline points="932,704 971,710" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<polyline points="932,654 941,654 941,723 971,723" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<circle cx="1210" cy="683" r="17" fill="white" stroke="#53687e" stroke-width="1.6"/>
+<text x="1210" y="689" font-family="Arial,sans-serif" font-size="20" font-weight="700" text-anchor="middle" fill="#15283d">Σ</text>
+<polyline points="1162,654 1182,654 1182,674 1194,674" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<polyline points="1162,710 1182,710 1182,692 1194,692" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<text x="1292" y="675" font-family="Arial,sans-serif" font-size="16" font-weight="400" text-anchor="middle" fill="#15283d">Q_l = Σ wᵢsᵢ</text>
+<polyline points="1227,683 1240,683" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<polyline points="1387,683 1399,683 1399,655 1630,655 1630,583 1664,583" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="1412" y="678" width="466" height="70" rx="5" fill="#f6f1fb" stroke="#ac8bc7" stroke-width="1.4" stroke-dasharray="5 4"/>
+<text x="1645" y="698" font-family="Arial,sans-serif" font-size="15" font-weight="700" text-anchor="middle" fill="#7950a3">Quality five-level CE · λ=.005 · blend=0</text>
+<path d="M1427 721 l10 -8 h24 v20 l-10 8 z" fill="#b8e5df" stroke="#7291ac" stroke-width="1"/>
+<rect x="1427" y="721" width="24" height="20" fill="#b8e5df" stroke="#7291ac" stroke-width="1"/>
+<path d="M1433.0 721 v20" stroke="white" stroke-width=".7"/>
+<path d="M1439.0 721 v20" stroke="white" stroke-width=".7"/>
+<path d="M1445.0 721 v20" stroke="white" stroke-width=".7"/>
+<text x="1439.0" y="709" font-family="Arial,sans-serif" font-size="17" font-weight="700" text-anchor="middle" fill="#15283d">same a</text>
+<polyline points="1461,731 1490,731" fill="none" stroke="#7950a3" stroke-width="1.7" stroke-dasharray="6 4" marker-end="url(#arrow)"/>
+<text x="1670" y="732" font-family="Arial,sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="#15283d">map to text space ↔ 5 quality references</text>
+<rect x="699" y="791" width="1200" height="307" rx="9" fill="#fff8ed" stroke="#ead1aa" stroke-width="1.4"/>
+<text x="719" y="820" font-family="Arial,sans-serif" font-size="22" font-weight="700" text-anchor="start" fill="#a56220">Text–image alignment branch</text>
+<path d="M720 865 l10 -8 h35 v20 l-10 8 z" fill="#bcd8f4" stroke="#7291ac" stroke-width="1"/>
+<rect x="720" y="865" width="35" height="20" fill="#bcd8f4" stroke="#7291ac" stroke-width="1"/>
+<path d="M728.75 865 v20" stroke="white" stroke-width=".7"/>
+<path d="M737.5 865 v20" stroke="white" stroke-width=".7"/>
+<path d="M746.25 865 v20" stroke="white" stroke-width=".7"/>
+<text x="737.5" y="853" font-family="Arial,sans-serif" font-size="17" font-weight="700" text-anchor="middle" fill="#15283d">z</text>
+<rect x="780" y="844" width="160" height="50" rx="5" fill="#f7d8b5" stroke="#728499" stroke-width="1.4"/>
+<text x="860.0" y="874.6" font-family="Arial,sans-serif" font-size="16" font-weight="400" text-anchor="middle" fill="#15283d">Image adapter A_G</text>
+<polyline points="765,875 780,875" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<path d="M964 864 l10 -8 h27 v20 l-10 8 z" fill="#bcd8f4" stroke="#7291ac" stroke-width="1"/>
+<rect x="964" y="864" width="27" height="20" fill="#bcd8f4" stroke="#7291ac" stroke-width="1"/>
+<path d="M970.75 864 v20" stroke="white" stroke-width=".7"/>
+<path d="M977.5 864 v20" stroke="white" stroke-width=".7"/>
+<path d="M984.25 864 v20" stroke="white" stroke-width=".7"/>
+<text x="977.5" y="852" font-family="Arial,sans-serif" font-size="17" font-weight="700" text-anchor="middle" fill="#15283d">v</text>
+<polyline points="940,875 964,875" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="1082" y="839" width="252" height="54" rx="5" fill="#f7d8b5" stroke="#728499" stroke-width="1.4"/>
+<text x="1208.0" y="861.1" font-family="Arial,sans-serif" font-size="16" font-weight="400" text-anchor="middle" fill="#15283d">Global pair head</text>
+<text x="1208.0" y="882.1" font-family="Arial,sans-serif" font-size="16" font-weight="400" text-anchor="middle" fill="#15283d">[v, u, |v−u|]</text>
+<polyline points="1001,875 1082,875" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<path d="M1090 922 l10 -8 h27 v20 l-10 8 z" fill="#e2d4f3" stroke="#7291ac" stroke-width="1"/>
+<rect x="1090" y="922" width="27" height="20" fill="#e2d4f3" stroke="#7291ac" stroke-width="1"/>
+<path d="M1096.75 922 v20" stroke="white" stroke-width=".7"/>
+<path d="M1103.5 922 v20" stroke="white" stroke-width=".7"/>
+<path d="M1110.25 922 v20" stroke="white" stroke-width=".7"/>
+<text x="1103.5" y="910" font-family="Arial,sans-serif" font-size="17" font-weight="700" text-anchor="middle" fill="#15283d">same u</text>
+<polyline points="1127,932 1208,932 1208,893" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<path d="M1362 856 l10 -8 h24 v20 l-10 8 z" fill="#bcd8f4" stroke="#7291ac" stroke-width="1"/>
+<rect x="1362" y="856" width="24" height="20" fill="#bcd8f4" stroke="#7291ac" stroke-width="1"/>
+<path d="M1368.0 856 v20" stroke="white" stroke-width=".7"/>
+<path d="M1374.0 856 v20" stroke="white" stroke-width=".7"/>
+<path d="M1380.0 856 v20" stroke="white" stroke-width=".7"/>
+<text x="1374.0" y="844" font-family="Arial,sans-serif" font-size="17" font-weight="700" text-anchor="middle" fill="#15283d">A_g</text>
+<polyline points="1334,866 1362,866" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="1615" y="882" width="122" height="76" rx="5" fill="#f7d8b5" stroke="#728499" stroke-width="1.4"/>
+<text x="1676.0" y="915.25" font-family="Arial,sans-serif" font-size="15" font-weight="400" text-anchor="middle" fill="#15283d">Gate γ</text>
+<text x="1676.0" y="935.25" font-family="Arial,sans-serif" font-size="15" font-weight="400" text-anchor="middle" fill="#15283d">[v,u,A_g,A_l]</text>
+<polyline points="1396,866 1570,866 1570,899 1615,899" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<path d="M1558 830 l10 -8 h24 v20 l-10 8 z" fill="#e2d4f3" stroke="#7291ac" stroke-width="1"/>
+<rect x="1558" y="830" width="24" height="20" fill="#e2d4f3" stroke="#7291ac" stroke-width="1"/>
+<path d="M1564.0 830 v20" stroke="white" stroke-width=".7"/>
+<path d="M1570.0 830 v20" stroke="white" stroke-width=".7"/>
+<path d="M1576.0 830 v20" stroke="white" stroke-width=".7"/>
+<text x="1570.0" y="818" font-family="Arial,sans-serif" font-size="17" font-weight="700" text-anchor="middle" fill="#15283d">v, u</text>
+<polyline points="1592,840 1676,840 1676,882" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="1770" y="894" width="109" height="56" rx="5" fill="#f7d8b5" stroke="#728499" stroke-width="1.4"/>
+<text x="1824.5" y="927.95" font-family="Arial,sans-serif" font-size="17" font-weight="400" text-anchor="middle" fill="#15283d">Alignment A</text>
+<polyline points="1737,920 1770,920" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<text x="1737" y="1010" font-family="Arial,sans-serif" font-size="17" font-weight="400" text-anchor="middle" fill="#15283d">A = γA_g + (1−γ)A_l</text>
+<text x="1737" y="1033" font-family="Arial,sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="#15283d">γ: sample-wise gate</text>
+<path d="M720 1003 l10 -8 h29 v20 l-10 8 z" fill="#b8e5df" stroke="#7291ac" stroke-width="1"/>
+<rect x="720" y="1003" width="29" height="20" fill="#b8e5df" stroke="#7291ac" stroke-width="1"/>
+<path d="M727.25 1003 v20" stroke="white" stroke-width=".7"/>
+<path d="M734.5 1003 v20" stroke="white" stroke-width=".7"/>
+<path d="M741.75 1003 v20" stroke="white" stroke-width=".7"/>
+<text x="734.5" y="991" font-family="Arial,sans-serif" font-size="17" font-weight="700" text-anchor="middle" fill="#15283d">P₀</text>
+<rect x="780" y="979" width="160" height="50" rx="5" fill="#b8e5df" stroke="#728499" stroke-width="1.4"/>
+<text x="860.0" y="1009.6" font-family="Arial,sans-serif" font-size="16" font-weight="400" text-anchor="middle" fill="#15283d">Patch adapter A_P</text>
+<polyline points="759,1013 780,1013" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<path d="M962 992 l10 -8 h36 v20 l-10 8 z" fill="#b8e5df" stroke="#7291ac" stroke-width="1"/>
+<rect x="962" y="992" width="36" height="20" fill="#b8e5df" stroke="#7291ac" stroke-width="1"/>
+<path d="M971.0 992 v20" stroke="white" stroke-width=".7"/>
+<path d="M980.0 992 v20" stroke="white" stroke-width=".7"/>
+<path d="M989.0 992 v20" stroke="white" stroke-width=".7"/>
+<text x="980.0" y="980" font-family="Arial,sans-serif" font-size="17" font-weight="700" text-anchor="middle" fill="#15283d">p=A_P(P₀)</text>
+<polyline points="940,1004 962,1004" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="1052" y="969" width="296" height="81" rx="5" fill="#b8e5df" stroke="#728499" stroke-width="1.4"/>
+<text x="1200.0" y="994.75" font-family="Arial,sans-serif" font-size="15" font-weight="400" text-anchor="middle" fill="#15283d">Local–text matching &amp; pooling</text>
+<text x="1200.0" y="1014.75" font-family="Arial,sans-serif" font-size="15" font-weight="400" text-anchor="middle" fill="#15283d">t = softmax(cos(X_I p, X_T u))</text>
+<text x="1200.0" y="1034.75" font-family="Arial,sans-serif" font-size="15" font-weight="400" text-anchor="middle" fill="#15283d">e = Σ tᵢ pᵢ</text>
+<polyline points="1008,1003 1052,1003" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<path d="M1084 1070 l10 -8 h25 v20 l-10 8 z" fill="#e2d4f3" stroke="#7291ac" stroke-width="1"/>
+<rect x="1084" y="1070" width="25" height="20" fill="#e2d4f3" stroke="#7291ac" stroke-width="1"/>
+<path d="M1090.25 1070 v20" stroke="white" stroke-width=".7"/>
+<path d="M1096.5 1070 v20" stroke="white" stroke-width=".7"/>
+<path d="M1102.75 1070 v20" stroke="white" stroke-width=".7"/>
+<text x="1096.5" y="1058" font-family="Arial,sans-serif" font-size="17" font-weight="700" text-anchor="middle" fill="#15283d">same u</text>
+<polyline points="1119,1080 1200,1080 1200,1050" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<path d="M1380 996 l10 -8 h24 v20 l-10 8 z" fill="#bcd8f4" stroke="#7291ac" stroke-width="1"/>
+<rect x="1380" y="996" width="24" height="20" fill="#bcd8f4" stroke="#7291ac" stroke-width="1"/>
+<path d="M1386.0 996 v20" stroke="white" stroke-width=".7"/>
+<path d="M1392.0 996 v20" stroke="white" stroke-width=".7"/>
+<path d="M1398.0 996 v20" stroke="white" stroke-width=".7"/>
+<text x="1392.0" y="984" font-family="Arial,sans-serif" font-size="17" font-weight="700" text-anchor="middle" fill="#15283d">e</text>
+<polyline points="1348,1006 1380,1006" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="1440" y="979" width="156" height="50" rx="5" fill="#f7d8b5" stroke="#728499" stroke-width="1.4"/>
+<text x="1518.0" y="999.25" font-family="Arial,sans-serif" font-size="15" font-weight="400" text-anchor="middle" fill="#15283d">Local pair head</text>
+<text x="1518.0" y="1019.25" font-family="Arial,sans-serif" font-size="15" font-weight="400" text-anchor="middle" fill="#15283d">[e, u, |e−u|]</text>
+<polyline points="1414,1006 1440,1006" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<path d="M1460 1065 l10 -8 h25 v20 l-10 8 z" fill="#e2d4f3" stroke="#7291ac" stroke-width="1"/>
+<rect x="1460" y="1065" width="25" height="20" fill="#e2d4f3" stroke="#7291ac" stroke-width="1"/>
+<path d="M1466.25 1065 v20" stroke="white" stroke-width=".7"/>
+<path d="M1472.5 1065 v20" stroke="white" stroke-width=".7"/>
+<path d="M1478.75 1065 v20" stroke="white" stroke-width=".7"/>
+<text x="1472.5" y="1053" font-family="Arial,sans-serif" font-size="17" font-weight="700" text-anchor="middle" fill="#15283d">same u</text>
+<polyline points="1495,1075 1518,1075 1518,1029" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<path d="M1625 988 l10 -8 h24 v20 l-10 8 z" fill="#bcd8f4" stroke="#7291ac" stroke-width="1"/>
+<rect x="1625" y="988" width="24" height="20" fill="#bcd8f4" stroke="#7291ac" stroke-width="1"/>
+<path d="M1631.0 988 v20" stroke="white" stroke-width=".7"/>
+<path d="M1637.0 988 v20" stroke="white" stroke-width=".7"/>
+<path d="M1643.0 988 v20" stroke="white" stroke-width=".7"/>
+<text x="1637.0" y="976" font-family="Arial,sans-serif" font-size="17" font-weight="700" text-anchor="middle" fill="#15283d">A_l</text>
+<polyline points="1596,1004 1625,1004" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<polyline points="1659,998 1693,998 1693,958" fill="none" stroke="#394d66" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="15" y="1120" width="1884" height="118" rx="8" fill="#f7f2fc" stroke="#cdbde0" stroke-width="1.4"/>
+<text x="35" y="1145" font-family="Arial,sans-serif" font-size="18" font-weight="700" text-anchor="start" fill="#7950a3">Actual generation Prompt → text representation u (not the five quality phrases)</text>
+<rect x="35" y="1170" width="288" height="43" rx="5" fill="#e2d4f3" stroke="#728499" stroke-width="1.4"/>
+<text x="179.0" y="1197.8" font-family="Arial,sans-serif" font-size="18" font-weight="400" text-anchor="middle" fill="#15283d">“a red boat on a lake”</text>
+<text x="343" y="1199" font-family="Arial,sans-serif" font-size="22" font-weight="700" text-anchor="middle" fill="#15283d">+</text>
+<rect x="374" y="1182" width="15" height="23" rx="2" fill="#e2d4f3" stroke="#a280c1" stroke-width="1.4"/>
+<rect x="396" y="1182" width="15" height="23" rx="2" fill="#e2d4f3" stroke="#a280c1" stroke-width="1.4"/>
+<rect x="418" y="1182" width="15" height="23" rx="2" fill="#e2d4f3" stroke="#a280c1" stroke-width="1.4"/>
+<rect x="440" y="1182" width="15" height="23" rx="2" fill="#e2d4f3" stroke="#a280c1" stroke-width="1.4"/>
+<text x="414" y="1228" font-family="Arial,sans-serif" font-size="12" font-weight="400" text-anchor="middle" fill="#15283d">learnable shared contexts</text>
+<polyline points="467,1193 503,1193" fill="none" stroke="#7950a3" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="503" y="1168" width="230" height="48" rx="5" fill="#e2d4f3" stroke="#728499" stroke-width="1.4"/>
+<text x="618.0" y="1197.95" font-family="Arial,sans-serif" font-size="17" font-weight="400" text-anchor="middle" fill="#15283d">Frozen CLIP text encoder</text>
+<text x="619" y="1229" font-family="Arial,sans-serif" font-size="11" font-weight="400" text-anchor="middle" fill="#15283d">Text backbone frozen; contexts trainable</text>
+<polyline points="733,1192 778,1192" fill="none" stroke="#7950a3" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="778" y="1168" width="183" height="48" rx="5" fill="#e2d4f3" stroke="#728499" stroke-width="1.4"/>
+<text x="869.5" y="1197.95" font-family="Arial,sans-serif" font-size="17" font-weight="400" text-anchor="middle" fill="#15283d">U: Linear 768→256</text>
+<polyline points="961,1192 1003,1192" fill="none" stroke="#7950a3" stroke-width="1.7" marker-end="url(#arrow)"/>
+<rect x="1003" y="1168" width="179" height="48" rx="5" fill="#e2d4f3" stroke="#728499" stroke-width="1.4"/>
+<text x="1092.5" y="1197.95" font-family="Arial,sans-serif" font-size="17" font-weight="400" text-anchor="middle" fill="#15283d">Text adapter A_T</text>
+<polyline points="1182,1192 1230,1192" fill="none" stroke="#7950a3" stroke-width="1.7" marker-end="url(#arrow)"/>
+<path d="M1230 1182 l10 -8 h42 v20 l-10 8 z" fill="#e2d4f3" stroke="#7291ac" stroke-width="1"/>
+<rect x="1230" y="1182" width="42" height="20" fill="#e2d4f3" stroke="#7291ac" stroke-width="1"/>
+<path d="M1240.5 1182 v20" stroke="white" stroke-width=".7"/>
+<path d="M1251.0 1182 v20" stroke="white" stroke-width=".7"/>
+<path d="M1261.5 1182 v20" stroke="white" stroke-width=".7"/>
+<text x="1251.0" y="1170" font-family="Arial,sans-serif" font-size="17" font-weight="700" text-anchor="middle" fill="#15283d">u: 256-D</text>
+<text x="1560" y="1183" font-family="Arial,sans-serif" font-size="16" font-weight="400" text-anchor="middle" fill="#15283d">u reused by global pair, local matching,</text>
+<text x="1560" y="1206" font-family="Arial,sans-serif" font-size="16" font-weight="400" text-anchor="middle" fill="#15283d">local pair head and Alignment gate.</text>
+<text x="1560" y="1228" font-family="Arial,sans-serif" font-size="13" font-weight="700" text-anchor="middle" fill="#7950a3">No five-level Alignment CE in either stage.</text>
+<text x="35" y="1268" font-family="Arial,sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#15283d">Solid: forward / named feature reuse    ·    Dashed auxiliary box: training only    ·    sg: stop-gradient    ·    Class contexts ≠ generation-prompt contexts</text>
+</svg>
