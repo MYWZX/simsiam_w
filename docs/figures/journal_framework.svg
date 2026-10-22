@@ -1,0 +1,139 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1900" height="1280" viewBox="0 0 1900 1280">
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="#40546b"/></marker></defs>
+<rect width="1900" height="1280" fill="white"/>
+<text x="950" y="36" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="29" font-weight="700" fill="#162a43">Quality–Alignment Decoupled Learning for AIGC Image Assessment</text>
+<rect x="20" y="60" width="1860" height="380" rx="13" fill="white" stroke="#345879" stroke-width="2"/>
+<text x="40" y="91" text-anchor="start" font-family="DejaVu Sans,sans-serif" font-size="22" font-weight="700" fill="#345879">a  Quality-aware multimodal pretraining</text>
+<rect x="45" y="123" width="170" height="110" rx="9" fill="#edf3fb" stroke="#567394" stroke-width="1.7"/>
+<text x="130.0" y="160.3" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">SafeAug 1</text>
+<text x="130.0" y="184.3" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">SafeAug 2</text>
+<text x="130.0" y="208.3" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">Clean view</text>
+<rect x="250" y="113" width="280" height="140" rx="9" fill="#edf3fb" stroke="#567394" stroke-width="1.7"/>
+<text x="390.0" y="165.3" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">Shared visual backbone</text>
+<text x="390.0" y="189.3" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">CLIP ViT-L/14 + ResNet-50</text>
+<text x="390.0" y="213.3" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">Semantic–Structure Fusion</text>
+<polyline points="215,178 250,178" fill="none" stroke="#40546b" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="575" y="113" width="330" height="140" rx="9" fill="#e6f5f0" stroke="#567394" stroke-width="1.7"/>
+<text x="740.0" y="165.3" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">Shared quality projector P_Q</text>
+<text x="740.0" y="189.3" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">Quality predictor D_Q</text>
+<text x="740.0" y="213.3" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">I–I symmetric SimSiam</text>
+<polyline points="530,143 575,143" fill="none" stroke="#40546b" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="550" y="128" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="15" font-weight="400" fill="#162a43">z₁, z₂</text>
+<rect x="955" y="113" width="340" height="140" rx="9" fill="#e6f5f0" stroke="#567394" stroke-width="1.7"/>
+<text x="1125.0" y="165.3" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">Clean quality embedding q_c</text>
+<text x="1125.0" y="189.3" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">Component anchors + ordinal</text>
+<text x="1125.0" y="213.3" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">Five-level quality text CE</text>
+<polyline points="530,228 550,228 550,275 735,275 735,253" fill="none" stroke="#40546b" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="675" y="298" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="15" font-weight="400" fill="#162a43">z_c → same P_Q</text>
+<polyline points="905,183 955,183" fill="none" stroke="#40546b" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="930" y="168" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="15" font-weight="400" fill="#162a43">q_c</text>
+<rect x="1350" y="113" width="495" height="140" rx="9" fill="#fff3df" stroke="#567394" stroke-width="1.7"/>
+<text x="1597.5" y="165.3" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">Separate Clean scoring paths</text>
+<text x="1597.5" y="189.3" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">Quality MOS + Artifact / Aesthetics</text>
+<text x="1597.5" y="213.3" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">Global / local Alignment supervision</text>
+<polyline points="530,228 550,228 550,320 1595,320 1595,253" fill="none" stroke="#40546b" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="1500" y="345" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="15" font-weight="400" fill="#162a43">Clean backbone features; not P_Q output</text>
+<rect x="45" y="335" width="485" height="75" rx="9" fill="#f1ebfa" stroke="#567394" stroke-width="1.7"/>
+<text x="287.5" y="366.8" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">Prompt / Answer / region phrases</text>
+<text x="287.5" y="390.8" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">Frozen CLIP text + learnable contexts</text>
+<rect x="575" y="335" width="720" height="75" rx="9" fill="#f1ebfa" stroke="#567394" stroke-width="1.7"/>
+<text x="935.0" y="366.95" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="17" font-weight="400" fill="#162a43">Independent P_I / D_I and P_T / D_T; relation-specific adapters</text>
+<text x="935.0" y="389.95" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="17" font-weight="400" fill="#162a43">Image–Prompt · Image–Answer · Prompt–Answer · region–word</text>
+<polyline points="530,372 575,372" fill="none" stroke="#40546b" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="390,253 390,285 560,285 560,350 575,350" fill="none" stroke="#40546b" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="1580" y="381" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="700" fill="#7548a3">P_Q → Quality Adapter initialization</text>
+<text x="1580" y="408" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="16" font-weight="400" fill="#7548a3">Semantic projectors / predictors discarded</text>
+<rect x="20" y="460" width="1860" height="730" rx="13" fill="white" stroke="#345879" stroke-width="2"/>
+<text x="40" y="491" text-anchor="start" font-family="DejaVu Sans,sans-serif" font-size="22" font-weight="700" fill="#345879">b  Downstream assessment · Large CLIP · ResNet layer3 · two outputs</text>
+<rect x="45" y="545" width="150" height="70" rx="9" fill="#edf3fb" stroke="#567394" stroke-width="1.7"/>
+<text x="120.0" y="574.3" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">Image</text>
+<text x="120.0" y="598.3" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">224 × 224</text>
+<rect x="225" y="525" width="250" height="80" rx="9" fill="#edf3fb" stroke="#567394" stroke-width="1.7"/>
+<text x="350.0" y="559.3" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">CLIP visual ViT-L/14</text>
+<text x="350.0" y="583.3" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">global feature: 768-D</text>
+<rect x="225" y="640" width="250" height="100" rx="9" fill="#edf3fb" stroke="#567394" stroke-width="1.7"/>
+<text x="350.0" y="672.3" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">ResNet-50 layer3</text>
+<text x="350.0" y="696.3" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">1024 × 14 × 14</text>
+<text x="350.0" y="720.3" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">1×1 proj → 256 × 14 × 14</text>
+<polyline points="195,580 210,580 210,565 225,565" fill="none" stroke="#40546b" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="195,580 210,580 210,690 225,690" fill="none" stroke="#40546b" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="225" y="790" width="250" height="95" rx="9" fill="#edf3fb" stroke="#567394" stroke-width="1.7"/>
+<text x="350.0" y="819.8" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">Semantic–Structure Fusion</text>
+<text x="350.0" y="843.8" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">global query / local K,V</text>
+<text x="350.0" y="867.8" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">z: 256-D</text>
+<polyline points="350,605 350,620 500,620 500,810 475,810" fill="none" stroke="#40546b" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="350,740 350,790" fill="none" stroke="#40546b" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="225" y="945" width="250" height="80" rx="9" fill="#edf3fb" stroke="#567394" stroke-width="1.7"/>
+<text x="350.0" y="979.3" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">Shared local projection L</text>
+<text x="350.0" y="1003.3" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">P₀: 196 × 256</text>
+<polyline points="475,690 515,690 515,985 475,985" fill="none" stroke="#40546b" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="45" y="1060" width="430" height="90" rx="9" fill="#f1ebfa" stroke="#567394" stroke-width="1.7"/>
+<text x="260.0" y="1099.3" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">Prompt + shared learnable contexts</text>
+<text x="260.0" y="1123.3" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">Frozen CLIP text encoder → U (768→256)</text>
+<text x="260" y="1170" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="15" font-weight="400" fill="#162a43">Visual / Fusion / local L shared by Q and A</text>
+<rect x="550" y="510" width="1305" height="330" rx="13" fill="white" stroke="#248b7b" stroke-width="2"/>
+<text x="570" y="541" text-anchor="start" font-family="DejaVu Sans,sans-serif" font-size="22" font-weight="700" fill="#248b7b">Perceptual quality</text>
+<rect x="575" y="575" width="130" height="65" rx="9" fill="#e6f5f0" stroke="#567394" stroke-width="1.7"/>
+<text x="640.0" y="613.8" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">z</text>
+<rect x="740" y="555" width="230" height="80" rx="9" fill="#e6f5f0" stroke="#567394" stroke-width="1.7"/>
+<text x="855.0" y="589.3" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">Quality Adapter</text>
+<text x="855.0" y="613.3" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#162a43">from pretrained P_Q</text>
+<polyline points="705,595 720,595 720,595 740,595" fill="none" stroke="#40546b" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="1010" y="555" width="425" height="80" rx="9" fill="#e6f5f0" stroke="#567394" stroke-width="1.7"/>
+<text x="1222.5" y="589.45" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="17" font-weight="400" fill="#162a43">Residual feature → global quality head</text>
+<text x="1222.5" y="612.45" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="17" font-weight="400" fill="#162a43">r = z + α · sg(‖z‖) · normalize(a)</text>
+<polyline points="970,595 1010,595" fill="none" stroke="#40546b" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="990" y="580" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="15" font-weight="400" fill="#162a43">a</text>
+<polyline points="640,640 640,655 1220,655 1220,635" fill="none" stroke="#40546b" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="1030" y="677" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="15" font-weight="400" fill="#162a43">z bypass · α learned, init 0.1</text>
+<rect x="575" y="715" width="395" height="85" rx="9" fill="#e6f5f0" stroke="#567394" stroke-width="1.7"/>
+<text x="772.5" y="740.45" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="17" font-weight="400" fill="#162a43">P₀ + projected NSS(image)</text>
+<text x="772.5" y="763.45" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="17" font-weight="400" fill="#162a43">Patch scores + NSS weighting</text>
+<text x="772.5" y="786.45" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="17" font-weight="400" fill="#162a43">Weighted aggregation → Q_local</text>
+<rect x="1480" y="600" width="345" height="145" rx="9" fill="#e6f5f0" stroke="#567394" stroke-width="1.7"/>
+<text x="1652.5" y="643.95" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="17" font-weight="400" fill="#162a43">Scalar quality fusion</text>
+<text x="1652.5" y="666.95" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="17" font-weight="400" fill="#162a43">Q = (1−β) Q_global + β Q_local</text>
+<text x="1652.5" y="689.95" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="17" font-weight="400" fill="#162a43">β: learned scalar</text>
+<text x="1652.5" y="712.95" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="17" font-weight="400" fill="#162a43">OUTPUT: PERCEPTUAL QUALITY</text>
+<polyline points="1435,595 1460,595 1460,625 1480,625" fill="none" stroke="#40546b" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="1490" y="575" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="15" font-weight="400" fill="#162a43">Q_global</text>
+<polyline points="970,758 1450,758 1450,710 1480,710" fill="none" stroke="#40546b" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="1200" y="746" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="15" font-weight="400" fill="#162a43">Q_local</text>
+<rect x="550" y="865" width="1305" height="300" rx="13" fill="white" stroke="#b77923" stroke-width="2"/>
+<text x="570" y="896" text-anchor="start" font-family="DejaVu Sans,sans-serif" font-size="22" font-weight="700" fill="#b77923">Text–image alignment</text>
+<rect x="575" y="920" width="235" height="80" rx="9" fill="#fff3df" stroke="#567394" stroke-width="1.7"/>
+<text x="692.5" y="954.45" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="17" font-weight="400" fill="#162a43">z → image adapter A_G</text>
+<text x="692.5" y="977.45" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="17" font-weight="400" fill="#162a43">v: 256-D</text>
+<rect x="575" y="1030" width="235" height="80" rx="9" fill="#fff3df" stroke="#567394" stroke-width="1.7"/>
+<text x="692.5" y="1064.45" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="17" font-weight="400" fill="#162a43">U(text) → text adapter A_T</text>
+<text x="692.5" y="1087.45" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="17" font-weight="400" fill="#162a43">u: 256-D</text>
+<rect x="860" y="920" width="330" height="80" rx="9" fill="#fff3df" stroke="#567394" stroke-width="1.7"/>
+<text x="1025.0" y="954.45" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="17" font-weight="400" fill="#162a43">Global pair head</text>
+<text x="1025.0" y="977.45" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="17" font-weight="400" fill="#162a43">[v, u, |v−u|] → A_global</text>
+<polyline points="810,960 860,960" fill="none" stroke="#40546b" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="810,1070 835,1070 835,980 860,980" fill="none" stroke="#40546b" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="860" y="1030" width="450" height="95" rx="9" fill="#fff3df" stroke="#567394" stroke-width="1.7"/>
+<text x="1085.0" y="1060.45" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="17" font-weight="400" fill="#162a43">P₀ → independent patch adapter A_P</text>
+<text x="1085.0" y="1083.45" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="17" font-weight="400" fill="#162a43">X_I / X_T matching(u); attention pooling → e</text>
+<text x="1085.0" y="1106.45" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="17" font-weight="400" fill="#162a43">Local pair head [e, u, |e−u|] → A_local</text>
+<polyline points="810,1085 860,1085" fill="none" stroke="#40546b" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="833" y="1126" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="15" font-weight="400" fill="#162a43">u</text>
+<rect x="1480" y="940" width="345" height="165" rx="9" fill="#fff3df" stroke="#567394" stroke-width="1.7"/>
+<text x="1652.5" y="993.95" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="17" font-weight="400" fill="#162a43">Sample-wise Alignment gate γ</text>
+<text x="1652.5" y="1016.95" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="17" font-weight="400" fill="#162a43">Inputs: v, u, A_global, A_local</text>
+<text x="1652.5" y="1039.95" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="17" font-weight="400" fill="#162a43">A = γ A_global + (1−γ) A_local</text>
+<text x="1652.5" y="1062.95" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="17" font-weight="400" fill="#162a43">OUTPUT: TEXT–IMAGE ALIGNMENT</text>
+<polyline points="1190,960 1480,960" fill="none" stroke="#40546b" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="1330" y="944" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="15" font-weight="400" fill="#162a43">A_global, v, u</text>
+<polyline points="1310,1080 1480,1080" fill="none" stroke="#40546b" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="1388" y="1064" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="15" font-weight="400" fill="#162a43">A_local</text>
+<polyline points="475,850 530,850 530,608 575,608" fill="none" stroke="#40546b" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="545" y="590" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="15" font-weight="400" fill="#162a43">z</text>
+<polyline points="530,850 530,945 575,945" fill="none" stroke="#40546b" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="475,985 540,985 540,780 575,780" fill="none" stroke="#40546b" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="550" y="765" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="15" font-weight="400" fill="#162a43">P₀</text>
+<polyline points="475,1105 530,1105 530,1090 575,1090" fill="none" stroke="#40546b" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="522" y="1138" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="15" font-weight="400" fill="#162a43">U(text)</text>
+<text x="950" y="1220" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="17" font-weight="400" fill="#7548a3">TRAINING ONLY  a → image-to-text map ↔ five text references → CE (λ = 0.005); score blend = 0</text>
+<text x="950" y="1250" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="16" font-weight="400" fill="#162a43">Transfer: compatible backbone, contexts, alignment adapters, quality bank; task heads and layer3 local projection newly initialized.</text>
+</svg>
