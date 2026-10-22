@@ -1,0 +1,1678 @@
+[
+  {
+    "id": "E001",
+    "points": [
+      [
+        182,
+        89
+      ],
+      [
+        199,
+        89
+      ],
+      [
+        199,
+        181
+      ],
+      [
+        215,
+        181
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "SafeAug1 → 共享视觉编码器（单独前向，不与另两张图混合）",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E002",
+    "points": [
+      [
+        182,
+        184
+      ],
+      [
+        199,
+        184
+      ],
+      [
+        199,
+        181
+      ],
+      [
+        215,
+        181
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "SafeAug2 → 同一个视觉编码器（第二次独立前向）",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E003",
+    "points": [
+      [
+        182,
+        279
+      ],
+      [
+        199,
+        279
+      ],
+      [
+        199,
+        181
+      ],
+      [
+        215,
+        181
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "Clean → 同一个视觉编码器（用于有标签监督）",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E004",
+    "points": [
+      [
+        324,
+        137
+      ],
+      [
+        339,
+        137
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "预训练 CLIP → 全局特征 g；768维",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E005",
+    "points": [
+      [
+        402,
+        132
+      ],
+      [
+        413,
+        132
+      ],
+      [
+        413,
+        176
+      ],
+      [
+        421,
+        176
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "全局特征 → Fusion，包含其 semantic_proj",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E006",
+    "points": [
+      [
+        324,
+        245
+      ],
+      [
+        340,
+        245
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "预训练 ResNet layer4 → 原始2048通道局部图",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E007",
+    "points": [
+      [
+        399,
+        245
+      ],
+      [
+        413,
+        245
+      ],
+      [
+        413,
+        212
+      ],
+      [
+        421,
+        212
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "局部图 → Fusion；该概括路径包含 ResNet.proj 2048→256，与 Fusion.local_proj 独立",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E008",
+    "points": [
+      [
+        467,
+        195
+      ],
+      [
+        496,
+        195
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "Fusion → 各视图对应的 z；不是三张图共用一个数值张量",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E009",
+    "points": [
+      [
+        572,
+        97
+      ],
+      [
+        582,
+        97
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "z1 → PQ（同一个质量投影器）",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E010",
+    "points": [
+      [
+        624,
+        97
+      ],
+      [
+        642,
+        97
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "PQ → q1（含L2归一化）",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E011",
+    "points": [
+      [
+        696,
+        97
+      ],
+      [
+        719,
+        97
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "q1 → DQ",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E012",
+    "points": [
+      [
+        761,
+        97
+      ],
+      [
+        777,
+        97
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "DQ → p1（含L2归一化）",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E013",
+    "points": [
+      [
+        572,
+        191
+      ],
+      [
+        582,
+        191
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "z2 → 同一个PQ",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E014",
+    "points": [
+      [
+        624,
+        191
+      ],
+      [
+        642,
+        191
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "PQ → q2（含L2归一化）",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E015",
+    "points": [
+      [
+        696,
+        191
+      ],
+      [
+        719,
+        191
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "q2 → 同一个DQ",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E016",
+    "points": [
+      [
+        761,
+        191
+      ],
+      [
+        777,
+        191
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "DQ → p2（含L2归一化）",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E017",
+    "points": [
+      [
+        572,
+        285
+      ],
+      [
+        582,
+        285
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "zc → 同一个PQ",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E018",
+    "points": [
+      [
+        624,
+        285
+      ],
+      [
+        642,
+        285
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "PQ → qc（含L2归一化）",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E019",
+    "points": [
+      [
+        695,
+        285
+      ],
+      [
+        727,
+        285
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "qc → Component Anchor/Ordinal 与五档CE；不经过DQ",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E020",
+    "points": [
+      [
+        520,
+        200
+      ],
+      [
+        529,
+        200
+      ],
+      [
+        529,
+        97
+      ],
+      [
+        535,
+        97
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "第一视图 z1 的命名路由；不是同一个z复制给全部视图",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E021",
+    "points": [
+      [
+        529,
+        191
+      ],
+      [
+        535,
+        191
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "第二视图 z2 的命名路由",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E022",
+    "points": [
+      [
+        529,
+        200
+      ],
+      [
+        529,
+        285
+      ],
+      [
+        535,
+        285
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "Clean视图 zc 的命名路由",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E023",
+    "points": [
+      [
+        812,
+        95
+      ],
+      [
+        837,
+        119
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "p1 → SimSiam损失；目标为sg(q2)，目标接入在损失框公式中表示",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E024",
+    "points": [
+      [
+        812,
+        189
+      ],
+      [
+        837,
+        176
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "p2 → SimSiam损失；目标为sg(q1)，目标接入在损失框公式中表示",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E025",
+    "points": [
+      [
+        520,
+        210
+      ],
+      [
+        534,
+        210
+      ],
+      [
+        534,
+        375
+      ],
+      [
+        582,
+        375
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "Clean共享特征 → 独立评分路径；质量/一致性及Artifact/Aesthetics监督，不是PQ输出",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E026",
+    "points": [
+      [
+        1072,
+        122
+      ],
+      [
+        1100,
+        122
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "Clean全局/区域对齐特征 → PI；前置AG或区域池化按不同关系走相应路径",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E027",
+    "points": [
+      [
+        1140,
+        122
+      ],
+      [
+        1175,
+        122
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "PI → DI；含投影输出归一化",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E028",
+    "points": [
+      [
+        1088,
+        201
+      ],
+      [
+        1100,
+        201
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "带可学习context的文本tokens → 冻结文本编码器",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E029",
+    "points": [
+      [
+        1206,
+        201
+      ],
+      [
+        1240,
+        201
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "文本编码器 → U及关系特定适配路径 → PT；不是绕过U直接进PT",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E030",
+    "points": [
+      [
+        1280,
+        201
+      ],
+      [
+        1310,
+        201
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "PT → DT；含投影输出归一化",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E031",
+    "points": [
+      [
+        1215,
+        123
+      ],
+      [
+        1369,
+        123
+      ],
+      [
+        1369,
+        145
+      ],
+      [
+        1406,
+        145
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "图像预测/目标表示 → 图文关系目标（图中合并表示）",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E032",
+    "points": [
+      [
+        1350,
+        203
+      ],
+      [
+        1406,
+        203
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "文本预测/目标表示 → 图文关系目标（图中合并表示）",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E033",
+    "points": [
+      [
+        24,
+        427
+      ],
+      [
+        1576,
+        427
+      ]
+    ],
+    "dashed": true,
+    "arrow": false,
+    "meaning": "阶段分隔线，无数据流或梯度含义",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E034",
+    "points": [
+      [
+        119,
+        611
+      ],
+      [
+        133,
+        611
+      ],
+      [
+        133,
+        542
+      ],
+      [
+        148,
+        542
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "下游原图 → CLIP视觉编码器",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E035",
+    "points": [
+      [
+        133,
+        611
+      ],
+      [
+        133,
+        732
+      ],
+      [
+        148,
+        732
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "同一原图 → ResNet-50 layer3",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E036",
+    "points": [
+      [
+        335,
+        542
+      ],
+      [
+        365,
+        542
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "CLIP全局向量768维 → Fusion.semantic_proj（768→256）",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E037",
+    "points": [
+      [
+        344,
+        732
+      ],
+      [
+        365,
+        732
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "ResNet layer3原始1024通道图 → ResNet.proj（1024→256）",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E038",
+    "points": [
+      [
+        546,
+        560
+      ],
+      [
+        556,
+        560
+      ],
+      [
+        556,
+        594
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "Fusion的global query → 注意力",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E039",
+    "points": [
+      [
+        506,
+        697
+      ],
+      [
+        506,
+        636
+      ],
+      [
+        525,
+        636
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "K → 注意力；K来自Fusion.local_proj输出，MHA内部仍有K线性变换",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E040",
+    "points": [
+      [
+        600,
+        697
+      ],
+      [
+        600,
+        673
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "V → 注意力；V来自同一局部特征，MHA内部仍有V线性变换",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E041",
+    "points": [
+      [
+        427,
+        543
+      ],
+      [
+        447,
+        543
+      ],
+      [
+        447,
+        560
+      ],
+      [
+        472,
+        560
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "semantic_proj后的256维全局特征 → Fusion query",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E042",
+    "points": [
+      [
+        427,
+        732
+      ],
+      [
+        449,
+        732
+      ],
+      [
+        449,
+        682
+      ],
+      [
+        474,
+        682
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "ResNet.proj后的局部图 → Fusion独立local_proj（256→256）",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E043",
+    "points": [
+      [
+        516,
+        693
+      ],
+      [
+        516,
+        697
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "Fusion.local_proj输出 → 局部K表示",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E044",
+    "points": [
+      [
+        593,
+        693
+      ],
+      [
+        593,
+        697
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "同一Fusion.local_proj输出 → 局部V表示",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E045",
+    "points": [
+      [
+        396,
+        754
+      ],
+      [
+        396,
+        815
+      ],
+      [
+        356,
+        815
+      ],
+      [
+        356,
+        833
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "ResNet.proj输出 → 独立且Q/Align共享的local_patch_proj L；不是Fusion.local_proj输出",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E046",
+    "points": [
+      [
+        735,
+        571
+      ],
+      [
+        758,
+        571
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "z命名端口 → Quality Adapter",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E047",
+    "points": [
+      [
+        808,
+        578
+      ],
+      [
+        828,
+        578
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "Quality Adapter第一FC → 第二FC；BN/ReLU/Dropout在块内概括",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E048",
+    "points": [
+      [
+        864,
+        578
+      ],
+      [
+        884,
+        578
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "Quality Adapter第二FC → 第三FC；整个Adapter是一个MLP",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E049",
+    "points": [
+      [
+        942,
+        578
+      ],
+      [
+        953,
+        578
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "Quality Adapter输出 → a；按当前配置L2归一化",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E050",
+    "points": [
+      [
+        979,
+        568
+      ],
+      [
+        1013,
+        568
+      ],
+      [
+        1013,
+        582
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "a → 残差加法；缩放alpha和stopgrad(norm(z))由公式表示",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E051",
+    "points": [
+      [
+        784,
+        627
+      ],
+      [
+        984,
+        627
+      ],
+      [
+        984,
+        595
+      ],
+      [
+        1001,
+        595
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "z旁路 → 同一残差加法",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E052",
+    "points": [
+      [
+        1026,
+        595
+      ],
+      [
+        1042,
+        595
+      ],
+      [
+        1042,
+        572
+      ],
+      [
+        1055,
+        572
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "r → 全局质量头；不是a单独作为主评分输入",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E053",
+    "points": [
+      [
+        1183,
+        572
+      ],
+      [
+        1203,
+        572
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "全局质量头 → sigmoid后的Qg",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E054",
+    "points": [
+      [
+        844,
+        727
+      ],
+      [
+        844,
+        728
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "n=NSS(image) → N(n)并加到P0；N在公式块内表示",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E055",
+    "points": [
+      [
+        748,
+        718
+      ],
+      [
+        765,
+        718
+      ],
+      [
+        765,
+        740
+      ],
+      [
+        788,
+        740
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "P0命名端口 → Pq=P0+N(n)",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E056",
+    "points": [
+      [
+        901,
+        736
+      ],
+      [
+        915,
+        736
+      ],
+      [
+        915,
+        726
+      ],
+      [
+        960,
+        726
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "Pq → patch质量头，sigmoid输出各patch分数",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E057",
+    "points": [
+      [
+        901,
+        745
+      ],
+      [
+        927,
+        750
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "Pq → NSS gate",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E058",
+    "points": [
+      [
+        901,
+        720
+      ],
+      [
+        920,
+        720
+      ],
+      [
+        920,
+        758
+      ],
+      [
+        927,
+        758
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "原始n → 同一个NSS gate，与Pq拼接；不经过N(n)后替代原始n",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E059",
+    "points": [
+      [
+        1047,
+        726
+      ],
+      [
+        1109,
+        726
+      ],
+      [
+        1109,
+        739
+      ],
+      [
+        1123,
+        739
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "各patch分数 → 加权和Σ（与权重相乘再求和，不是普通相加）",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E060",
+    "points": [
+      [
+        1082,
+        751
+      ],
+      [
+        1110,
+        751
+      ],
+      [
+        1110,
+        750
+      ],
+      [
+        1123,
+        750
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "NSS gate经softmax的权重 → 同一个加权和Σ",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E061",
+    "points": [
+      [
+        1147,
+        744
+      ],
+      [
+        1150,
+        744
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "加权和 → Ql",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E062",
+    "points": [
+      [
+        1220,
+        575
+      ],
+      [
+        1276,
+        575
+      ],
+      [
+        1276,
+        642
+      ],
+      [
+        1324,
+        642
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "Qg → 质量标量融合",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E063",
+    "points": [
+      [
+        1208,
+        744
+      ],
+      [
+        1276,
+        744
+      ],
+      [
+        1276,
+        656
+      ],
+      [
+        1324,
+        656
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "Ql → 同一个质量标量融合",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E064",
+    "points": [
+      [
+        1353,
+        648
+      ],
+      [
+        1405,
+        648
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "β融合 → 最终质量Q；β对所有样本共享",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E065",
+    "points": [
+      [
+        966,
+        558
+      ],
+      [
+        966,
+        516
+      ],
+      [
+        1101,
+        516
+      ]
+    ],
+    "dashed": true,
+    "arrow": true,
+    "meaning": "a → 五档文本CE辅助分支；实际含image_to_text及独立文本参考，此虚线不是参数迁移",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E066",
+    "points": [
+      [
+        734,
+        866
+      ],
+      [
+        758,
+        866
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "z命名端口 → 图像对齐Adapter AG",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E067",
+    "points": [
+      [
+        896,
+        869
+      ],
+      [
+        918,
+        869
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "AG → 全局对齐图像特征v",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E068",
+    "points": [
+      [
+        936,
+        869
+      ],
+      [
+        975,
+        869
+      ],
+      [
+        975,
+        850
+      ],
+      [
+        1020,
+        850
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "v → 全局Pair Head",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E069",
+    "points": [
+      [
+        164,
+        964
+      ],
+      [
+        180,
+        964
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "Prompt与可学习context → token表示（示意token化/embedding）",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E070",
+    "points": [
+      [
+        246,
+        964
+      ],
+      [
+        266,
+        964
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "这些tokens → 冻结CLIP文本编码器",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E071",
+    "points": [
+      [
+        382,
+        961
+      ],
+      [
+        406,
+        961
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "文本编码器768维输出 → U（768→256）",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E072",
+    "points": [
+      [
+        460,
+        961
+      ],
+      [
+        491,
+        961
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "U输出 → 独立文本对齐Adapter AT",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E073",
+    "points": [
+      [
+        637,
+        961
+      ],
+      [
+        662,
+        961
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "AT → 文本对齐特征u",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E074",
+    "points": [
+      [
+        988,
+        901
+      ],
+      [
+        1005,
+        901
+      ],
+      [
+        1005,
+        873
+      ],
+      [
+        1020,
+        873
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "u命名端口 → 全局Pair Head，与v及绝对差拼接",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E075",
+    "points": [
+      [
+        845,
+        973
+      ],
+      [
+        901,
+        973
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "AP(P0) → XI并归一化后参与相似度计算；XI在分组块中表示",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E076",
+    "points": [
+      [
+        876,
+        1000
+      ],
+      [
+        892,
+        1000
+      ],
+      [
+        892,
+        985
+      ],
+      [
+        901,
+        985
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "u → XT并归一化后参与相似度计算；不是把文本变成图像patch",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E077",
+    "points": [
+      [
+        972,
+        978
+      ],
+      [
+        999,
+        978
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "相似度经patch维softmax → Attention pooling权重",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E078",
+    "points": [
+      [
+        1065,
+        978
+      ],
+      [
+        1092,
+        978
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "Attention pooling结果e → Local Pair Head，另接u并拼绝对差（在头注释内表示）",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E079",
+    "points": [
+      [
+        742,
+        971
+      ],
+      [
+        773,
+        971
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "P0命名端口 → 局部匹配分组内部AP",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E080",
+    "points": [
+      [
+        680,
+        963
+      ],
+      [
+        692,
+        963
+      ],
+      [
+        692,
+        1024
+      ],
+      [
+        873,
+        1024
+      ],
+      [
+        873,
+        1008
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "同一个u → 局部匹配文本输入端口",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E081",
+    "points": [
+      [
+        1317,
+        892
+      ],
+      [
+        1345,
+        892
+      ],
+      [
+        1345,
+        917
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "v、u命名端口 → γ门控网络；与Ag、Al共同作为输入",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E082",
+    "points": [
+      [
+        1195,
+        859
+      ],
+      [
+        1266,
+        859
+      ],
+      [
+        1266,
+        925
+      ],
+      [
+        1330,
+        925
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "全局一致性Ag → 样本门控及融合",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E083",
+    "points": [
+      [
+        1197,
+        978
+      ],
+      [
+        1266,
+        978
+      ],
+      [
+        1266,
+        939
+      ],
+      [
+        1330,
+        939
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "局部一致性Al → 同一个样本门控及融合",
+    "status": "matches code at the documented overview abstraction"
+  },
+  {
+    "id": "E084",
+    "points": [
+      [
+        1360,
+        932
+      ],
+      [
+        1405,
+        932
+      ]
+    ],
+    "dashed": false,
+    "arrow": true,
+    "meaning": "γ融合 → 最终一致性A",
+    "status": "matches code at the documented overview abstraction"
+  }
+]

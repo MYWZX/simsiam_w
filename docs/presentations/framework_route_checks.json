@@ -1,0 +1,32 @@
+{
+  "status": "passed",
+  "checks": [
+    "z enters Quality Adapter",
+    "Global Quality head consumes residual r, not bare a",
+    "NSS computed from image; Pq=P0+N(NSS)",
+    "NSS gate consumes concat(Pq,NSS)",
+    "Quality local scores consume Pq",
+    "Same L called twice with same raw feature map",
+    "z enters image Alignment adapter",
+    "U output enters text Alignment adapter",
+    "Global pair head uses concat(v,u,abs(v-u))",
+    "Image matching projection consumes AP(P0)",
+    "Text matching projection consumes u",
+    "Attention pools AP values, not XI projected vectors",
+    "Local pair head uses concat(e,u,abs(e-u))",
+    "Alignment gate conditions on v,u,Ag,Al",
+    "Scalar beta Quality score fusion",
+    "Sample-wise gamma Alignment score fusion",
+    "Fusion: own local projection, attention, residuals, norms, FFN"
+  ],
+  "scope": "CPU tiny encoders, real model heads and actual SemanticStructureFusion; no GPU, dataset or performance claim",
+  "pretrain_checks": [
+    "One PQ instance called on clean and two SafeAug views",
+    "PQ input is independent clean backbone z",
+    "PQ input is independent view1 backbone z",
+    "PQ input is independent view2 backbone z",
+    "Clean anchors consume normalized PQ output, not DQ",
+    "PQ PI PT independent parameter objects",
+    "PI sees augmented/clean alignment features; PT sees Prompt twice plus Answer"
+  ]
+}

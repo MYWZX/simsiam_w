@@ -1,6 +1,8 @@
 """Build a native-shape, editable PowerPoint. Requires python-pptx and Pillow."""
 from pathlib import Path
 import math
+import json
+EDGES=[]
 from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
@@ -34,8 +36,10 @@ def txt(x,y,w,h,t,size=15,bold=False,color='ink',align='center',slide=None,font=
 def box(x,y,w,h,t,fill='gray',stroke='line',size=14,bold=False):
  o=shape(x,y,w,h,MSO_SHAPE.ROUNDED_RECTANGLE,fill,stroke);txt(x+3,y+2,w-6,h-4,t,size,bold);return o
 def line(points,color='line',dashed=False,arrow=True,slide=None):
+ edge_id=f'E{len(EDGES)+1:03d}'
+ EDGES.append({'id':edge_id,'points':points,'dashed':dashed,'arrow':arrow})
  for i,(a,b) in enumerate(zip(points,points[1:])):
-  o=(slide or S).shapes.add_connector(MSO_CONNECTOR.STRAIGHT,pos(a[0]),pos(a[1]),pos(b[0]),pos(b[1]));o.line.color.rgb=col(color);o.line.width=Pt(1.3)
+  o=(slide or S).shapes.add_connector(MSO_CONNECTOR.STRAIGHT,pos(a[0]),pos(a[1]),pos(b[0]),pos(b[1]));o.line.color.rgb=col(color);o.line.width=Pt(1.3);o.name=f'{edge_id}.{i+1}'
   ln=o._element.spPr.get_or_add_ln()
   if dashed:
    e=OxmlElement('a:prstDash');e.set('val','dash');ln.append(e)
@@ -74,11 +78,11 @@ for y,label in [(58,'SafeAug 1'),(153,'SafeAug 2'),(248,'Clean')]:
  line([(182,y+31),(199,y+31),(199,181),(215,181)])
 panel(215,53,265,276,'Shared visual backbone','line')
 encoder(233,98,91,77,'CLIP\nViT-L/14','blue2');tensor(344,121,58,20);txt(326,91,130,24,'Global · 768-D',12)
-encoder(233,207,91,78,'ResNet-50\nlayer4','teal2');grid(345,223,53,48);txt(321,279,142,23,'7 × 7 × 2048',12)
+encoder(233,207,91,78,'ResNet-50\nlayer4','teal2');grid(345,223,53,48);txt(321,279,142,23,'7 × 7 × 2048',11);txt(321,302,142,17,'then R.proj: 2048→256',8)
 box(421,159,46,70,'F\nu\ns\ni\no\nn','gray',size=11)
 line([(324,137),(339,137)]);line([(402,132),(413,132),(413,176),(421,176)])
 line([(324,245),(340,245)]);line([(399,245),(413,245),(413,212),(421,212)])
-line([(467,195),(496,195)]);tensor(500,180,18,44);txt(490,145,44,25,'z',15,True)
+line([(467,195),(496,195)]);tensor(500,180,18,44);txt(490,145,44,25,'z',15,True);txt(478,225,60,36,'per-view\noutputs',8)
 # Quality projection, all PQ shared, predictors SafeAug only.
 txt(542,40,385,25,'Shared P_Q / D_Q across augmented views',12,True,'purple')
 for y,label in [(78,'z₁'),(172,'z₂'),(266,'z_c')]:
@@ -89,18 +93,18 @@ for y,label in [(78,'z₁'),(172,'z₂'),(266,'z_c')]:
   box(727,y-9,243,60,'Component anchors + ordinal\nFive-level quality text CE','purple2','purple',13)
   line([(695,y+19),(727,y+19)])
 # Feature bus explicitly z1/z2/zc, not cross-stage sharing.
-line([(520,200),(529,200),(529,97),(535,97)]);line([(529,200),(535,191)]);line([(529,200),(529,285),(535,285)])
-box(837,90,133,120,'Symmetric\nSimSiam\n\nsg targets','gray',size=14)
+line([(520,200),(529,200),(529,97),(535,97)]);line([(529,191),(535,191)]);line([(529,200),(529,285),(535,285)])
+box(837,90,133,120,'Symmetric SimSiam\np₁ ↔ sg(q₂)\np₂ ↔ sg(q₁)','gray',size=14)
 line([(812,95),(837,119)]);line([(812,189),(837,176)])
-box(582,351,178,48,'Separate MOS heads','orange2','orange',13,True)
+box(582,351,178,48,'Clean score heads','orange2','orange',13,True)
 line([(520,210),(534,210),(534,375),(582,375)])
-txt(767,351,203,48,'Quality / Artifact / Aesthetics\nClean backbone supervision',12,align='left')
+txt(767,351,203,48,'Quality / Alignment\nArtifact / Aesthetics',12,align='left')
 # Compact independent semantic relation panel.
 panel(1005,52,571,277,'Separate image–text relation space','purple')
-tensor(1026,106,45,33);mlp(1100,103,'P_I','blue2',40,40);mlp(1175,103,'D_I','orange2',40,40)
+txt(1019,85,201,18,'Clean aligned image / region features',9);tensor(1026,106,45,33);mlp(1100,103,'P_I','blue2',40,40);mlp(1175,103,'D_I','orange2',40,40)
 line([(1072,122),(1100,122)]);line([(1140,122),(1175,122)])
 tokens(1026,192);encoder(1100,174,106,62,'Text encoder\nFrozen','purple2');mlp(1240,183,'P_T','purple2',40,40);mlp(1310,183,'D_T','orange2',40,40)
-line([(1088,201),(1100,201)]);line([(1206,201),(1240,201)]);line([(1280,201),(1310,201)])
+line([(1088,201),(1100,201)]);line([(1206,201),(1240,201)]);txt(1200,157,165,18,'via U + relation-specific adapters',8);line([(1280,201),(1310,201)])
 txt(1018,246,348,48,'Prompt / Answer / region phrases\nTrainable contexts; relation-specific adapters',12)
 grid(1411,124,103,90,6,['F0ECFA','D3C7EE','B5A7E0','7C70BA','BCD9F2'])
 line([(1215,123),(1369,123),(1369,145),(1406,145)]);line([(1350,203),(1406,203)])
@@ -118,18 +122,18 @@ box(365,521,62,44,'768→256','blue2','blue',11);line([(335,542),(365,542)])
 box(365,710,62,44,'1024→256','teal2','teal',10);line([(344,732),(365,732)])
 panel(454,496,217,323,'Semantic–Structure Fusion','line')
 tensor(476,551,70,18);txt(471,526,114,23,'Global query Q',12)
-grid(476,697,65,60);grid(568,697,65,60);txt(474,764,161,24,'Local keys / values',12)
+grid(476,697,65,60);grid(568,697,65,60);txt(474,756,161,14,'K                         V',8)
 grid(529,599,93,69,6,['E5EFF9','AACBE8','8EADD4','DDDDDC','E7CA97'])
 line([(546,560),(556,560),(556,594)]);line([(506,697),(506,636),(525,636)]);line([(600,697),(600,673)])
-line([(427,543),(447,543),(447,560),(472,560)]);line([(427,732),(449,732),(449,726),(472,726)])
-txt(474,791,177,24,'z: 256-D · shared by Q / A',12,True)
+line([(427,543),(447,543),(447,560),(472,560)]);box(474,671,159,22,'Fusion.local_proj: 1×1','teal2','teal',9);line([(427,732),(449,732),(449,682),(474,682)]);line([(516,693),(516,697)]);line([(593,693),(593,697)])
+txt(469,774,190,15,'Residual + LayerNorm + FFN',8);txt(474,795,177,18,'z: 256-D · shared by Q / A',10,True)
 box(281,833,149,50,'Shared local projection L\nP₀: 196 × 256','teal2','teal',11)
 line([(396,754),(396,815),(356,815),(356,833)])
 # QUALITY branch
 panel(699,493,877,281,'Quality branch (Q)','teal','F1FAF8')
 tensor(715,553,16,35);txt(705,525,36,20,'z',12,True)
 panel(758,533,184,70,'Quality Adapter','teal')
-for x in [775,830,885]:mlp(x,566,'MLP','teal2',34,24)
+for x in [775,830,885]:mlp(x,566,'FC','teal2',34,24)
 line([(735,571),(758,571)]);line([(808,578),(828,578)]);line([(864,578),(884,578)])
 tensor(955,560,24,15,fill='teal');txt(951,535,34,20,'a',13,True)
 line([(942,578),(953,578)]);circ(1001,582,'+')
@@ -143,17 +147,24 @@ line([(1183,572),(1203,572)])
 txt(798,659,426,29,'r = z + α · sg(‖z‖) · normalize(a)',14,font='Cambria')
 # Quality local is one grouped block with correct parallel visual scores/weights.
 tensor(720,704,28,27,fill='teal');txt(708,681,50,21,'P₀',12,True)
-panel(774,695,450,67,'NSS-guided local quality','teal')
-# keep information in compact parallel text rows rather than incorrect serial NSS paths
-box(788,728,113,24,'Pq = P₀ + N(NSS)','teal2','teal',10)
-grid(921,733,71,13,6,['F7DB9E','C7E8E2','9FC4E9','D0BBE0']);grid(1024,733,70,13,6,['DDE7F5','D1B4DC','EACB8C','8FBCE3'])
-txt(912,716,88,17,'Patch scores',9);txt(1015,716,88,17,'NSS weights',9)
-circ(1113,725,'Σ',d=24);line([(1095,740),(1113,740)]);line([(992,740),(1104,740),(1104,732),(1113,732)]);line([(1095,740),(1107,740),(1107,747),(1113,747)])
-txt(1143,726,60,25,'Q_l',13,True);line([(1138,738),(1145,738)])
-line([(748,718),(761,718),(761,739),(788,739)])
+panel(774,685,450,80,'NSS-guided local quality','teal')
+box(788,728,113,24,'Pq = P₀ + N(n)','teal2','teal',10)
+box(788,712,113,15,'n = NSS(image)','gray','line',8)
+line([(844,727),(844,728)])
+line([(748,718),(765,718),(765,740),(788,740)])
+grid(962,719,85,14,6,['F7DB9E','C7E8E2','9FC4E9','D0BBE0'])
+txt(927,704,154,15,'sᵢ = sigmoid(Hp(Pqᵢ))',8)
+box(927,741,155,19,'wᵢ = softmax(G[Pqᵢ,nᵢ])','gray','teal',8)
+line([(901,736),(915,736),(915,726),(960,726)])
+line([(901,745),(927,750)])
+line([(901,720),(920,720),(920,758),(927,758)])
+circ(1123,732,'Σ',d=24)
+line([(1047,726),(1109,726),(1109,739),(1123,739)])
+line([(1082,751),(1110,751),(1110,750),(1123,750)])
+txt(1149,731,59,25,'Q_l',13,True);line([(1147,744),(1150,744)])
 # Fusion separate actual inputs
 circ(1324,634,'β',d=29);line([(1220,575),(1276,575),(1276,642),(1324,642)])
-line([(1224,738),(1276,738),(1276,656),(1324,656)])
+line([(1208,744),(1276,744),(1276,656),(1324,656)])
 box(1405,627,147,60,'Perceptual\nQuality Q','teal2','teal',17,True);line([(1353,648),(1405,648)])
 txt(1279,689,285,28,'Q = (1−β)Q_g + βQ_l',14,font='Cambria');txt(1308,719,226,22,'β: learned scalar',11)
 # Auxiliary from a only, training-only separate note.
@@ -191,6 +202,7 @@ txt(914,1000,275,14,'A_P · X_I / X_T · [e, u, |e−u|]',8)
 # u enters local group independently as named port. No false text-to-image-grid edge.
 line([(680,963),(692,963),(692,1024),(873,1024),(873,1008)],color='purple')
 # global and local predictions into sample-conditioned alignment gate
+tensor(1298,883,17,18);txt(1286,863,46,18,'v, u',10,True);line([(1317,892),(1345,892),(1345,917)])
 circ(1330,917,'γ',d=30)
 line([(1195,859),(1266,859),(1266,925),(1330,925)])
 line([(1197,978),(1266,978),(1266,939),(1330,939)])
@@ -198,10 +210,11 @@ txt(1203,835,52,20,'A_g',12,True);txt(1203,983,52,20,'A_l',12,True)
 box(1405,904,147,61,'Text–Image\nAlignment A','orange2','orange',16,True);line([(1360,932),(1405,932)])
 txt(1285,970,280,26,'A = γ A_g + (1−γ) A_l',14,font='Cambria');txt(1301,1000,252,20,'γ: sample-wise, conditioned on v, u',10)
 # page footnotes
-txt(20,1039,1550,23,'Same z / P₀ / u ports denote the same feature tensors.   sg: stop-gradient.   Visual encoders trainable; text backbone frozen.   Source layer4 → downstream layer3: local projection reset.',10,align='left')
+txt(20,1039,1550,23,'Same z / P₀ / u / v ports denote the same feature tensors.   sg: stop-gradient.   Visual encoders trainable; text backbone frozen.   Source layer4 → downstream layer3: local projection reset.',10,align='left')
 S.notes_slide.notes_text_frame.text='Editable reconstruction of the paper-style framework. All diagram text, tensors, heatmaps, modules and connectors are native PowerPoint objects. Reused named ports avoid crossed lines. Representation transfer resets task heads and downstream local projection. The matching group is schematic: XI/XT similarities pool AP(P0); u is not a local image token. NSS is computed from the image, not from P0. Detailed source: docs/figures/model_forward_and_sharing.md.'
 # Reference page, explicitly a raster, so editable page cannot be confused with a screenshot.
 ref=R.slides.add_slide(R.slide_layouts[6]);ref.shapes.add_picture(str(ROOT/'docs/figures/paper_framework_v2.png'),0,0,width=R.slide_width,height=R.slide_height)
+txt(25,1028,1550,30,'VISUAL REFERENCE ONLY — known connection errors; use slide 1 for the corrected framework.',13,True,'orange',slide=ref)
 ref.notes_slide.notes_text_frame.text='Raster visual reference only. This original generated design has known connectivity errors. Use slide 1 for editable corrections; do not use this raster as the exact implementation diagram.'
 # Editing guide
 G=R.slides.add_slide(R.slide_layouts[6]);txt(70,60,1450,70,'编辑说明 / Editing guide',34,True,slide=G,align='left')
@@ -218,6 +231,13 @@ items=[
 '未纳入实验中的逐图质量门控，也未把学习率消融宣称为已确定主方法。'
 ]
 for i,t in enumerate(items):txt(75,165+i*76,1435,65,t,23,slide=G,align='left')
-OUT.mkdir(parents=True,exist_ok=True);R.save(OUT/'paper_framework_editable.pptx')
+OUT.mkdir(parents=True,exist_ok=True)
+meanings=json.loads((OUT/'framework_edge_meanings.json').read_text())
+assert set(meanings)=={e['id'] for e in EDGES}, 'Update edge audit after topology changes'
+for e in EDGES:
+ e['meaning']=meanings[e['id']]
+ e['status']='matches code at the documented overview abstraction'
+(OUT/'framework_edge_manifest.json').write_text(json.dumps(EDGES,indent=2,ensure_ascii=False)+'\n')
+R.save(OUT/'paper_framework_editable.pptx')
 print('Saved',OUT/'paper_framework_editable.pptx')
 print('Native diagram objects:',len(S.shapes),'including',sum(len(g.shapes) for g in S.shapes if hasattr(g,'shapes')),'group children')

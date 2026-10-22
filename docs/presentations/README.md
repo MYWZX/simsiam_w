@@ -17,3 +17,11 @@
 已检查：PPTX 压缩包完整，python-pptx 可重新读取，第一页面无整页图片，LibreOffice 能打开并导出三页 PDF，并检查第 1 页渲染结果。未在微软 PowerPoint 客户端测试，字体在不同设备上可能替换。
 
 再生成：安装 `python-pptx` 与 `Pillow` 后，在仓库根目录运行 `python docs/presentations/build_editable_framework.py`。模型依据及迁移细节见 [技术说明](../figures/model_forward_and_sharing.md)。
+
+## 逐模块与逐线核对
+
+[完整讲解与84条逻辑连线清单](framework_line_audit.md)。连接线在选择窗格以E001.1、E001.2等命名；同编号不同后缀为同一折线的物理线段。E033仅为阶段分隔线。
+
+新版修正了局部质量重复边/遗漏输入、Fusion独立局部投影、γ的v/u条件输入和Adapter的FC标注。主图仍是模块级概览，投影归一化、局部匹配值向量、目标端stop-gradient等由公式和配套说明展开。原PNG参考页保留已知问题，已加醒目标注。
+
+实际CPU路径核对见 [结果](framework_route_checks.json)：17项下游/Fusion与7项预训练结构/张量检查。编码器用小模型，不是数据集/GPU训练验证。运行仓库根目录下的 `python docs/presentations/check_framework_routes.py`、`python docs/presentations/check_pretrain_routes.py` 可复核（使用项目依赖，两个脚本按顺序运行）。
