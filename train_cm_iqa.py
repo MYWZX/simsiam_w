@@ -160,6 +160,10 @@ def parse_args():
         help="Use image-conditioned Quality patch/global mixing; zero-initialized correction to baseline beta.",
     )
     p.add_argument(
+        "--visual-backbone-lr-mult", type=float, default=None,
+        help="Override only CLIP visual and ResNet layerwise LR multipliers relative to train.lr.",
+    )
+    p.add_argument(
         "--quality-adapter-lr-mult",
         type=float,
         default=None,
@@ -241,6 +245,24 @@ def configure_quality_adapter_experiment(cfg: Dict, args: argparse.Namespace) ->
         f"initialization={'random' if cfg.get('train', {}).get('skip_pretrained_quality_adapter', False) else 'pretrained'}; "
         "all other checkpoint loading, targets and losses unchanged."
     )
+
+
+def configure_visual_backbone_lr(cfg: Dict, args: argparse.Namespace) -> None:
+    """Set both visual encoder LRs; preserve Fusion, text and task groups."""
+    if args.visual_backbone_lr_mult is None:
+        return
+    multiplier = float(args.visual_backbone_lr_mult)
+    if not math.isfinite(multiplier) or multiplier <= 0:
+        raise ValueError("Visual backbone LR multiplier must be finite and positive.")
+    tcfg = cfg.get("train", {})
+    lrcfg = tcfg.get("layerwise_lr", {})
+    if not bool(lrcfg.get("enabled", False)):
+        raise ValueError("--visual-backbone-lr-mult requires train.layerwise_lr.enabled=true.")
+    lrcfg["global_encoder_mult"] = multiplier
+    lrcfg["local_encoder_mult"] = multiplier
+    print(f"[INFO] Visual backbone LR override: multiplier={multiplier:g}, "
+          f"initial_lr={float(tcfg.get('lr', 2e-5)) * multiplier:.2e}; "
+          "Fusion, text and task-group LRs unchanged.")
 
 
 def configure_quality_adapter_lr(cfg: Dict, args: argparse.Namespace) -> None:
@@ -1925,6 +1947,7 @@ def main():
         print("[INFO] Persistent quality adapter disabled for this downstream ablation.")
     if args.quality_sample_gate:
         cfg.setdefault("model", {}).setdefault("quality_sample_gate", {})["enabled"] = True
+    configure_visual_backbone_lr(cfg, args)
     configure_quality_adapter_lr(cfg, args)
     configure_downstream_pcgrad(cfg, args)
     if args.mirror_augmentation or args.mirror_augmentation_probability is not None:
