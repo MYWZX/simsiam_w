@@ -106,6 +106,14 @@ def parse_args():
         help="Use Prompt token-to-visual-patch cross-attention in the Align branch.",
     )
     p.add_argument(
+        "--quality-global-feature", choices=("z", "g"), default=None,
+        help="Quality global input: fused z or existing projected CLIP g; Align always keeps z.",
+    )
+    p.add_argument(
+        "--quality-no-local-branch", action="store_true",
+        help="Strict global-only Quality: skip/freeze NSS and patch scoring; retain Fusion and Align.",
+    )
+    p.add_argument(
         "--quality-global-only", action="store_true",
         help="Use only the global Quality score, bypassing explicit patch-score fusion; keep ResNet/Fusion and Align.",
     )
@@ -1650,7 +1658,8 @@ def evaluate(model, loader, device, cfg, split="val"):
             extend_valid(all_f, all_ft, out["s_final"], score, fmask)
         valid = qmask.view(-1) > 0
         quality_global.extend(out["s_quality_global"].view(-1)[valid].detach().cpu().tolist())
-        quality_patch.extend(out["s_quality_patch"].view(-1)[valid].detach().cpu().tolist())
+        if out["s_quality_patch"] is not None:
+            quality_patch.extend(out["s_quality_patch"].view(-1)[valid].detach().cpu().tolist())
         quality_targets.extend(quality.view(-1)[valid].detach().cpu().tolist())
         quality_betas.extend(out["quality_mix"].expand_as(quality.view(-1))[valid].cpu().tolist())
         extend_valid(all_q, all_qt, out["s_quality"], quality, qmask)
@@ -1678,7 +1687,11 @@ def evaluate(model, loader, device, cfg, split="val"):
     m = {} if two_output_only else compute_regression_metrics(all_ft, all_f)
     if two_output_only:
         m["final_output_disabled"] = 1.0
+    m[f"{split}_quality_local_enabled"] = float(not getattr(_unwrap_model(model), "quality_no_local_branch", False))
+    m[f"{split}_quality_global_uses_g"] = float(getattr(_unwrap_model(model), "quality_global_feature", "z") == "g")
     for branch, predictions in [("global", quality_global), ("patch", quality_patch)]:
+        if branch == "patch" and not m[f"{split}_quality_local_enabled"]:
+            continue
         for key, value in compute_regression_metrics(quality_targets, predictions).items():
             m[f"{split}_quality_{branch}_{key}"] = value
     if quality_betas:
@@ -1686,7 +1699,7 @@ def evaluate(model, loader, device, cfg, split="val"):
         m[f"{split}_quality_mix_std"] = float(np.std(quality_betas))
         m[f"{split}_quality_mix_min"] = float(np.min(quality_betas))
         m[f"{split}_quality_mix_max"] = float(np.max(quality_betas))
-    if len(quality_targets) >= 2:
+    if len(quality_targets) >= 2 and len(quality_patch) == len(quality_targets):
         eg = np.asarray(quality_global) - np.asarray(quality_targets)
         ep = np.asarray(quality_patch) - np.asarray(quality_targets)
         # Undefined correlation is omitted rather than reported as zero.
@@ -1932,7 +1945,13 @@ def main():
         atcfg.setdefault("num_heads", cfg.get("model", {}).get("fusion", {}).get("num_heads", 4))
         atcfg.setdefault("residual_scale", 1.0)
         print("[INFO] Align Prompt-token cross-attention enabled.")
-    if args.quality_global_only:
+    if args.quality_global_feature is not None:
+        cfg.setdefault("model", {})["quality_global_feature"] = args.quality_global_feature
+        print(f"[INFO] Quality global feature={args.quality_global_feature}; Align continues to use z.")
+    if args.quality_no_local_branch:
+        cfg.setdefault("model", {})["quality_no_local_branch"] = True
+        print("[INFO] Strict Quality global-only: local Quality forward disabled; Fusion/Align retained.")
+    if args.quality_global_only or args.quality_no_local_branch:
         cfg.setdefault("model", {})["quality_global_only"] = True
         if float(cfg["model"].get("quality_text_bank", {}).get("score_blend", 0.0)) != 0.0:
             raise ValueError("--quality-global-only requires --quality-text-blend 0.")

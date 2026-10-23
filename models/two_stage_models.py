@@ -571,7 +571,11 @@ class CrossModalIQAFullModel(nn.Module):
         )
         # Ablation removes only the explicit local-score contribution. The
         # fused global representation still contains ResNet/Fusion information.
-        self.quality_global_only = bool(mcfg.get("quality_global_only", False))
+        self.quality_global_feature = str(mcfg.get("quality_global_feature", "z"))
+        if self.quality_global_feature not in {"z", "g"}:
+            raise ValueError("quality_global_feature must be z or g")
+        self.quality_no_local_branch = bool(mcfg.get("quality_no_local_branch", False))
+        self.quality_global_only = bool(mcfg.get("quality_global_only", False)) or self.quality_no_local_branch
         self.patch_quality_head = nn.Sequential(nn.Linear(fused_dim, gate_hidden), nn.GELU(), nn.Dropout(dropout), nn.Linear(gate_hidden, 1))
         qlcfg = mcfg.get("quality_local_attention", {})
         self.use_quality_local_attention = bool(qlcfg.get("enabled", False))
@@ -898,6 +902,15 @@ class CrossModalIQAFullModel(nn.Module):
         else:
             self.align_text_bank = None
 
+        if self.quality_global_feature == "g" and self.use_quality_local_attention:
+            raise ValueError("quality_global_feature=g requires extra quality_local_attention disabled")
+        if self.quality_no_local_branch:
+            if self.use_quality_auxiliary_heads or self.use_quality_local_attention:
+                raise ValueError("quality_no_local_branch is incompatible with local auxiliary heads/attention")
+            for module in (self.nss_proj, self.nss_gate, self.text_gate, self.patch_quality_head):
+                module.requires_grad_(False)
+            self.quality_mix_logit.requires_grad_(False)
+
     def _freeze_quality_adapter_bn_running_stats(self):
         # eval() changes BatchNorm's source of statistics, not requires_grad.
         # Keep affine parameters and other Adapter layers (including Dropout)
@@ -1003,68 +1016,70 @@ class CrossModalIQAFullModel(nn.Module):
         text_fused: Optional[torch.Tensor],
         local_crops: Optional[torch.Tensor] = None,
     ) -> Dict[str, torch.Tensor]:
-        """Predict visual quality from local texture patches without global-local cross-attention.
+        """Score the caller-selected global feature and optional local evidence.
 
-        This is the rollback version that previously performed better.
-
-        Steps:
-          1. ResNet local feature map -> patch tokens.
-          2. Compute local NSS descriptors and inject them into patch tokens.
-          3. NSS gate + Text gate produce patch weights.
-          4. Patch scores are weighted pooled and mixed with global score.
-
-        Note:
-          We intentionally do NOT use Global-Local Cross-Attention here, because
-          experiments showed that the cross-attention quality branch reduced the
-          final/align performance.
+        The caller supplies fused z or projected global g. Legacy
+        quality_global_only bypasses local score mixing; the stricter
+        quality_no_local_branch skips NSS/patch computation entirely.
         """
-        patch_tokens = self._make_patch_tokens(f_loc)
-        b, n, e = patch_tokens.shape
         h, w = f_loc.shape[-2:]
-
-        # NSS features use the same whole image or native-resolution crops as
-        # the ResNet tokens, so every descriptor stays spatially aligned.
-        nss = self._compute_local_nss_features(image, f_loc, local_crops)
-        patch_tokens = patch_tokens + self.nss_proj(nss)
-
-        quality_attention_score = None
-        quality_attention_weights = None
-        if self.quality_local_attention is not None:
-            # Use the global image representation as a query over local
-            # patches. This learns which high-resolution regions matter for
-            # quality instead of averaging all crop tokens equally.
-            local_query, quality_attention_weights = self.quality_local_attention(
-                z_global.unsqueeze(1), patch_tokens, patch_tokens,
-                need_weights=True,
-            )
-            local_query = self.quality_local_attention_norm(
-                z_global.unsqueeze(1) + local_query
-            ).squeeze(1)
-            quality_attention_score = torch.sigmoid(
-                self.quality_attention_head(local_query).squeeze(-1)
-            )
-
-        # NSS gate: which patches are quality/statistics-sensitive?
-        nss_logits = self.nss_gate(torch.cat([patch_tokens, nss], dim=-1)).squeeze(-1)
-
-        # Text gate: which patches are relevant to the global prompt semantics?
-        if text_fused is None:
-            text_logits = torch.zeros_like(nss_logits)
-        else:
-            t = text_fused.unsqueeze(1).expand(-1, n, -1)
-            text_logits = self.text_gate(torch.cat([patch_tokens, t], dim=-1)).squeeze(-1)
-
-        weights = torch.softmax(nss_logits + text_logits, dim=1)
-        patch_scores = torch.sigmoid(self.patch_quality_head(patch_tokens).squeeze(-1))
-        s_patch = torch.sum(weights * patch_scores, dim=1)
-        if quality_attention_score is not None:
-            attention_mix = torch.sigmoid(self.quality_attention_mix_logit)
-            s_patch = (
-                (1.0 - attention_mix) * s_patch
-                + attention_mix * quality_attention_score
-            )
-        else:
+        if self.quality_no_local_branch:
+            # No local Quality forward or dummy scores. Align calls the shared
+            # L independently and still uses the real ResNet/Fusion features.
+            patch_tokens = None
+            weights = None
+            s_patch = None
+            quality_attention_score = None
+            quality_attention_weights = None
             attention_mix = z_global.new_tensor(0.0)
+        else:
+            patch_tokens = self._make_patch_tokens(f_loc)
+            b, n, e = patch_tokens.shape
+            h, w = f_loc.shape[-2:]
+
+            # NSS features use the same whole image or native-resolution crops as
+            # the ResNet tokens, so every descriptor stays spatially aligned.
+            nss = self._compute_local_nss_features(image, f_loc, local_crops)
+            patch_tokens = patch_tokens + self.nss_proj(nss)
+
+            quality_attention_score = None
+            quality_attention_weights = None
+            if self.quality_local_attention is not None:
+                # Use the global image representation as a query over local
+                # patches. This learns which high-resolution regions matter for
+                # quality instead of averaging all crop tokens equally.
+                local_query, quality_attention_weights = self.quality_local_attention(
+                    z_global.unsqueeze(1), patch_tokens, patch_tokens,
+                    need_weights=True,
+                )
+                local_query = self.quality_local_attention_norm(
+                    z_global.unsqueeze(1) + local_query
+                ).squeeze(1)
+                quality_attention_score = torch.sigmoid(
+                    self.quality_attention_head(local_query).squeeze(-1)
+                )
+
+            # NSS gate: which patches are quality/statistics-sensitive?
+            nss_logits = self.nss_gate(torch.cat([patch_tokens, nss], dim=-1)).squeeze(-1)
+
+            # Text gate: which patches are relevant to the global prompt semantics?
+            if text_fused is None:
+                text_logits = torch.zeros_like(nss_logits)
+            else:
+                t = text_fused.unsqueeze(1).expand(-1, n, -1)
+                text_logits = self.text_gate(torch.cat([patch_tokens, t], dim=-1)).squeeze(-1)
+
+            weights = torch.softmax(nss_logits + text_logits, dim=1)
+            patch_scores = torch.sigmoid(self.patch_quality_head(patch_tokens).squeeze(-1))
+            s_patch = torch.sum(weights * patch_scores, dim=1)
+            if quality_attention_score is not None:
+                attention_mix = torch.sigmoid(self.quality_attention_mix_logit)
+                s_patch = (
+                    (1.0 - attention_mix) * s_patch
+                    + attention_mix * quality_attention_score
+                )
+            else:
+                attention_mix = z_global.new_tensor(0.0)
 
         # The optional quality adapter receives the learned SimSiam projector
         # weights. ``replace`` preserves the previous behavior. The safer
@@ -1156,6 +1171,7 @@ class CrossModalIQAFullModel(nn.Module):
             **quality_distribution_out,
             **quality_text_out,
             "s_quality_patch": s_patch,
+            "quality_local_enabled": not self.quality_no_local_branch,
             "s_quality_global": s_global,
             "s_quality_global_shared": s_global_shared,
             "s_quality_global_adapter": s_global_adapter,
@@ -1326,9 +1342,14 @@ class CrossModalIQAFullModel(nn.Module):
         quality_text_fused = (
             text_fused if self.quality_branch_use_text_gate else None
         )
+        quality_global = quality_img["z"]
+        if self.quality_global_feature == "g":
+            # g is the existing pre-attention 256-D global projection. Linear
+            # has no stochastic state; reusing it adds no new parameters.
+            quality_global = self.backbone.fusion.semantic_proj(quality_img["f_sem"])
         q_out = self._quality_from_patches(
             image,
-            quality_img["z"],
+            quality_global,
             quality_img["f_loc"],
             quality_text_fused,
             local_crops=local_crops,
