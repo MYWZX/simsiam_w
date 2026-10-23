@@ -208,6 +208,8 @@ def _extract_representation_state(state: Dict[str, torch.Tensor]) -> Dict[str, t
         "iqa.backbone.fusion.",
         "iqa.backbone.text_encoder.context_vectors",
         "iqa.text_to_fused.",
+        "iqa.shared_image_projector.",
+        "iqa.shared_text_projector.",
         "iqa.quality_adapter.",
         "iqa.quality_text_bank.",
         "iqa.align_text_bank.",
@@ -221,6 +223,8 @@ def _extract_representation_state(state: Dict[str, torch.Tensor]) -> Dict[str, t
         "backbone.fusion.",
         "backbone.text_encoder.context_vectors",
         "text_to_fused.",
+        "shared_image_projector.",
+        "shared_text_projector.",
         "quality_adapter.",
         "quality_text_bank.",
         "align_text_bank.",
@@ -321,6 +325,8 @@ def build_optimizer(cfg: Dict, model: torch.nn.Module):
         "align_vmamba",
     )
     simsiam_prefixes = (
+        "shared_image_projector",
+        "shared_text_projector",
         "image_projector",
         "text_projector",
         "image_predictor",

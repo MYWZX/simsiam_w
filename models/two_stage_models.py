@@ -558,6 +558,14 @@ class CrossModalIQAFullModel(nn.Module):
         # Shared text projection to fused dimension.
         self.text_to_fused = nn.Linear(text_dim, fused_dim)
 
+        self.shared_simsiam_projection = bool(mcfg.get("shared_simsiam_projection", False))
+        if self.shared_simsiam_projection:
+            scfg = mcfg.get("simsiam", {})
+            if int(scfg.get("proj_dim", fused_dim)) != fused_dim:
+                raise ValueError("Shared PI/PT output must equal fusion.embed_dim")
+            self.shared_image_projector = MLP(fused_dim, int(scfg.get("proj_hidden_dim", 512)), fused_dim, dropout=dropout, last_bn=True)
+            self.shared_text_projector = MLP(fused_dim, int(scfg.get("proj_hidden_dim", 512)), fused_dim, dropout=dropout, last_bn=True)
+
         # Quality branch: local texture map -> patch tokens.
         self.local_patch_proj = nn.Conv2d(local_dim, fused_dim, kernel_size=1)
         self.nss_proj = nn.Sequential(nn.Linear(nss_dim, gate_hidden), nn.GELU(), nn.Linear(gate_hidden, fused_dim))
@@ -1204,6 +1212,18 @@ class CrossModalIQAFullModel(nn.Module):
                 )
         return result
 
+    def project_shared_image(self, features: torch.Tensor) -> torch.Tensor:
+        # One PI for BxE global vectors and BxNxE patch tokens. BatchNorm sees
+        # flattened tokens, never the token-count axis as its channel dimension.
+        shape = features.shape
+        projected = self.shared_image_projector(features.reshape(-1, shape[-1]))
+        return F.normalize(projected.reshape(shape), dim=-1)
+
+    def project_align_text(self, features: torch.Tensor) -> torch.Tensor:
+        if self.shared_simsiam_projection:
+            features = F.normalize(self.shared_text_projector(features), dim=-1)
+        return self.align_text_adapter(features)
+
     def _align_from_global_and_patch(
         self,
         z_global: torch.Tensor,
@@ -1213,8 +1233,11 @@ class CrossModalIQAFullModel(nn.Module):
         text_tokens: Optional[torch.Tensor] = None,
         text_token_ids: Optional[torch.Tensor] = None,
     ) -> Dict[str, torch.Tensor]:
+        if self.shared_simsiam_projection:
+            z_global = self.project_shared_image(z_global)
+            patch_tokens = self.project_shared_image(patch_tokens)
         z_align = self.align_global_adapter(z_global)
-        text_align = self.align_text_adapter(text_fused)
+        text_align = self.project_align_text(text_fused)
         patch_align = self.align_patch_adapter(patch_tokens)
 
         align_cross_attention_weights = None
@@ -1322,6 +1345,7 @@ class CrossModalIQAFullModel(nn.Module):
         image: torch.Tensor,
         prompts: Optional[Sequence[str]] = None,
         local_crops: Optional[torch.Tensor] = None,
+        quality_mos_projector: Optional[nn.Module] = None,
     ) -> Dict[str, torch.Tensor]:
         # Keep high-resolution local crops isolated to the Quality branch.
         # Align continues to use the base-resolution shared visual path.
@@ -1350,6 +1374,10 @@ class CrossModalIQAFullModel(nn.Module):
             # g is the existing pre-attention 256-D global projection. Linear
             # has no stochastic state; reusing it adds no new parameters.
             quality_global = self.backbone.fusion.semantic_proj(quality_img["f_sem"])
+        if quality_mos_projector is not None:
+            if self.use_quality_adapter:
+                raise ValueError("Pretraining MOS-via-PQ requires the IQA Quality Adapter disabled")
+            quality_global = F.normalize(quality_mos_projector(quality_global), dim=-1)
         q_out = self._quality_from_patches(
             image,
             quality_global,
@@ -1437,10 +1465,20 @@ class CrossModalIQAJointPretrain(nn.Module):
         fused_dim = self.iqa.backbone.fused_dim
 
         # The original image/text heads form the semantic SimSiam space. An
-        # optional second image-only head forms a quality-specific SimSiam
-        # space. Both are disposable: only ``iqa`` is loaded downstream.
-        self.image_projector = MLP(fused_dim, proj_hidden, proj_dim, dropout=dropout, last_bn=True)
-        self.text_projector = MLP(fused_dim, proj_hidden, proj_dim, dropout=dropout, last_bn=True)
+        # optional second image-only head forms a quality-specific space.
+        # The opt-in shared PI/PT live under iqa and survive transfer. PQ is
+        # independent in every mode and initializes the Quality Adapter.
+        self.shared_simsiam_projection = self.iqa.shared_simsiam_projection
+        self.quality_mos_via_pq = bool(cfg.get("train", {}).get("quality_mos_via_pq", False))
+        if self.quality_mos_via_pq and self.shared_simsiam_projection:
+            raise ValueError("MOS-via-PQ and shared PI/PT are independent ablations")
+        if self.quality_mos_via_pq and (self.iqa.use_quality_adapter or self.iqa.quality_global_feature != "z"):
+            raise ValueError("MOS-via-PQ requires Clean z and the IQA Quality Adapter disabled")
+        if self.quality_mos_via_pq and str(cfg.get("train", {}).get("human_supervision_view")) not in {"three_view", "separate_clean"}:
+            raise ValueError("MOS-via-PQ requires Clean three-view supervision")
+        if not self.shared_simsiam_projection:
+            self.image_projector = MLP(fused_dim, proj_hidden, proj_dim, dropout=dropout, last_bn=True)
+            self.text_projector = MLP(fused_dim, proj_hidden, proj_dim, dropout=dropout, last_bn=True)
         self.image_predictor = nn.Sequential(
             nn.Linear(proj_dim, pred_hidden),
             nn.BatchNorm1d(pred_hidden),
@@ -1469,13 +1507,21 @@ class CrossModalIQAJointPretrain(nn.Module):
         else:
             self.quality_image_projector = None
             self.quality_image_predictor = None
+        if (self.quality_mos_via_pq or self.shared_simsiam_projection) and not self.separate_quality_projection:
+            raise ValueError("Projection ablations require an independent Clean PQ")
 
     def _project_image(self, feature: torch.Tensor) -> Dict[str, torch.Tensor]:
+        if self.shared_simsiam_projection:
+            z = self.iqa.project_shared_image(feature)
+            return {"z_proj": z, "p": F.normalize(self.image_predictor(z), dim=-1)}
         z = F.normalize(self.image_projector(feature), dim=-1)
         return {"z_proj": z, "p": F.normalize(self.image_predictor(z), dim=-1)}
 
-    def _project_text(self, feature: torch.Tensor) -> Dict[str, torch.Tensor]:
-        z = F.normalize(self.text_projector(feature), dim=-1)
+    def _project_text(self, feature: torch.Tensor, already_projected: bool = False) -> Dict[str, torch.Tensor]:
+        if self.shared_simsiam_projection:
+            z = F.normalize(feature, dim=-1) if already_projected else F.normalize(self.iqa.shared_text_projector(feature), dim=-1)
+        else:
+            z = F.normalize(self.text_projector(feature), dim=-1)
         return {"z_proj": z, "p": F.normalize(self.text_predictor(z), dim=-1)}
 
     def _project_quality_image(self, feature: torch.Tensor) -> Dict[str, torch.Tensor]:
@@ -1495,6 +1541,9 @@ class CrossModalIQAJointPretrain(nn.Module):
         downstream alignment head. With the adapter disabled this is exactly
         the legacy path, so old configurations remain unchanged.
         """
+        if self.shared_simsiam_projection:
+            z = F.normalize(self.iqa.align_global_adapter(self.iqa.project_shared_image(feature)), dim=-1)
+            return {"z_proj": z, "p": F.normalize(self.image_predictor(z), dim=-1)}
         align_feature = self.iqa.align_global_adapter(feature)
         return self._project_image(align_feature)
 
@@ -1507,14 +1556,18 @@ class CrossModalIQAJointPretrain(nn.Module):
         weights = region_weights.to(patch_features).clamp(0.0, 1.0)
         pooled = (patch_features * weights.unsqueeze(-1)).sum(dim=1)
         pooled = pooled / weights.sum(dim=1, keepdim=True).clamp_min(1e-6)
+        # Inputs are already AP(PI(P0)) in shared mode. Do not run PI twice.
+        if self.shared_simsiam_projection:
+            z = F.normalize(self.iqa.align_global_adapter(pooled), dim=-1)
+            return {"z_proj": z, "p": F.normalize(self.image_predictor(z), dim=-1)}
         # Region-level image/text relations belong to the alignment branch.
         return self._project_align_image(pooled)
 
     def project_aux_texts(self, texts: Sequence[str], device: torch.device) -> Dict[str, torch.Tensor]:
         """Project aligned/misaligned prompt phrases with the frozen CLIP path."""
         text_feat = self.iqa.backbone.text_encoder.encode_cached(texts, device)
-        text_fused = self.iqa.align_text_adapter(self.iqa.text_to_fused(text_feat))
-        return self._project_text(text_fused)
+        text_fused = self.iqa.project_align_text(self.iqa.text_to_fused(text_feat))
+        return self._project_text(text_fused, already_projected=True)
 
     def _forward_three_views(
         self,
@@ -1525,7 +1578,10 @@ class CrossModalIQAJointPretrain(nn.Module):
         answers: Sequence[str],
     ) -> Dict[str, torch.Tensor]:
         """Route two SafeAug views to SimSiam and all labels to one clean view."""
-        score_clean = self.iqa.forward_single(image_clean, prompts=prompts)
+        score_clean = self.iqa.forward_single(
+            image_clean, prompts=prompts,
+            quality_mos_projector=self.quality_image_projector if self.quality_mos_via_pq else None,
+        )
         img1 = self.iqa.backbone.encode_image(image1)
         img2 = self.iqa.backbone.encode_image(image2)
 
@@ -1540,17 +1596,26 @@ class CrossModalIQAJointPretrain(nn.Module):
         # no separate quality projector is configured.
         quality_clean_p = (
             clean_p
-            if not self.separate_quality_projection
+            if (not self.separate_quality_projection or self.quality_mos_via_pq)
             else self._project_quality_image(score_clean["z"])
         )
-        if self.separate_quality_projection:
+        if self.quality_mos_via_pq:
+            # Reuse the exact PQ Clean tensor scored by all quality MOS heads.
+            # No second PQ/BN/Dropout call for the anchor/CE targets.
+            q = score_clean["z_quality_global"]
+            quality_clean_p = {"z_proj": q, "p": F.normalize(self.quality_image_predictor(q), dim=-1)}
+        if self.shared_simsiam_projection:
+            # Only I-I moves from PQ to PI. Clean quality anchors/CE retain PQ.
+            quality_img1_p = self._project_image(img1["z"])
+            quality_img2_p = self._project_image(img2["z"])
+        elif self.separate_quality_projection:
             quality_img1_p = self._project_quality_image(img1["z"])
             quality_img2_p = self._project_quality_image(img2["z"])
         else:
             quality_img1_p = img1_p
             quality_img2_p = img2_p
-        prompt_p = self._project_text(score_clean["align_text_feature"])
-        align_prompt_p = self._project_text(score_clean["align_text_feature"])
+        prompt_p = self._project_text(score_clean["align_text_feature"], already_projected=True)
+        align_prompt_p = self._project_text(score_clean["align_text_feature"], already_projected=True)
         answer_p = self._project_text(answer_fused)
 
         out = {
@@ -1606,6 +1671,8 @@ class CrossModalIQAJointPretrain(nn.Module):
             return self._forward_three_views(
                 image1, image2, image_clean, prompts, answers
             )
+        if self.quality_mos_via_pq:
+            raise ValueError("MOS-via-PQ requires image_clean on every forward")
         # The first call computes prompt features and all persistent IQA heads.
         score1 = self.iqa.forward_single(image1, prompts=prompts)
 
@@ -1644,14 +1711,17 @@ class CrossModalIQAJointPretrain(nn.Module):
         # Semantic projections are paired with Prompt/Answer. Quality
         # projections are paired only with quality-safe views and quality
         # relations. Both receive gradients through the same image encoder.
-        if self.separate_quality_projection:
+        if self.shared_simsiam_projection:
+            quality_img1_p = self._project_image(score1["z"])
+            quality_img2_p = self._project_image(img2["z"])
+        elif self.separate_quality_projection:
             quality_img1_p = self._project_quality_image(score1["z"])
             quality_img2_p = self._project_quality_image(img2["z"])
         else:
             quality_img1_p = img1_p
             quality_img2_p = img2_p
-        prompt_p = self._project_text(score1["align_text_feature"])
-        align_prompt_p = self._project_text(score1["align_text_feature"])
+        prompt_p = self._project_text(score1["align_text_feature"], already_projected=True)
+        align_prompt_p = self._project_text(score1["align_text_feature"], already_projected=True)
         answer_p = self._project_text(answer_fused)
 
         out = {
@@ -1724,7 +1794,9 @@ def load_pretrained_backbone(
     checkpoints store the persistent downstream model under ``iqa.*``; those
     keys can be loaded fully or selectively. SimSiam-only projector/predictor
     keys are ignored, except that an enabled downstream ``quality_adapter``
-    imports ``quality_image_projector``. The predictor remains disposable.
+    imports ``quality_image_projector``. Opt-in shared PI/PT are persistent
+    iqa modules and require a complete, matching transfer. Predictors remain
+    disposable.
 
     skip_quality_adapter leaves the existing Adapter at its seeded initialization,
     including BN buffers, without disabling or replacing the module.
@@ -1755,6 +1827,8 @@ def load_pretrained_backbone(
         "align_text_adapter.",
         "align_patch_adapter.",
         "align_vmamba.",
+        "shared_image_projector.",
+        "shared_text_projector.",
     )
     backbone_prefixes = representation_prefixes[:3]
 
@@ -1790,6 +1864,9 @@ def load_pretrained_backbone(
             "checkpoints cannot be interchanged. Use matching layer3_4 pretraining "
             "and downstream; --reinit-local-projection does not convert architectures."
         )
+    source_shared = any(k.removeprefix("module.").removeprefix("iqa.").startswith("shared_image_projector.") for k in state)
+    if source_shared != bool(getattr(model, "shared_simsiam_projection", False)):
+        raise RuntimeError("Shared PI/PT architecture mismatch: use matching pretraining and downstream configs")
     loadable = {}
     source_local_projection = {}
     local_projection_prefix = "backbone.local_encoder.proj."
@@ -1877,6 +1954,11 @@ def load_pretrained_backbone(
             raise RuntimeError(f"Incomplete local trunk transfer: {sorted(missing_trunk)}")
         print("[INFO] Explicit layer4 -> layer3 transfer: local trunk restored; "
               "local_encoder.proj weight AND bias kept at seeded initialization.")
+    if getattr(model, "shared_simsiam_projection", False):
+        required = {k for k in target if k.startswith(("shared_image_projector.", "shared_text_projector."))}
+        missing = required.difference(loadable)
+        if missing:
+            raise RuntimeError(f"Incomplete shared PI/PT transfer: {sorted(missing)}")
     context = target.get("backbone.text_encoder.context_vectors")
     if context is not None and load_scope != "backbone" and (
         "backbone.text_encoder.context_vectors" not in loadable
