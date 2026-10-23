@@ -12,6 +12,14 @@ from .backbones import GlobalVisualEncoder, ResNet50LocalEncoder, maybe_freeze
 from .fusion import SemanticStructureFusion, AlignOnlyVMambaFusion
 
 
+# Persistent dual-quality encoders, feature pooling and its supervision gate.
+# Dataset-specific regression heads and score-mixing beta are deliberately reset.
+DUAL_QUALITY_TRANSFER_PREFIXES = (
+    "dual_quality_signature", "quality_adapter.", "quality_local_encoder.",
+    "local_patch_proj.", "nss_proj.", "nss_gate.", "quality_feature_mix_logit",
+)
+
+
 class MLP(nn.Module):
     def __init__(self, in_dim: int, hidden_dim: int, out_dim: int, dropout: float = 0.0, last_bn: bool = False):
         super().__init__()
@@ -579,6 +587,7 @@ class CrossModalIQAFullModel(nn.Module):
         )
         # Ablation removes only the explicit local-score contribution. The
         # fused global representation still contains ResNet/Fusion information.
+        self.dual_quality_representation = bool(mcfg.get("dual_quality_representation", {}).get("enabled", False))
         self.align_global_feature = str(mcfg.get("align_global_feature", "z"))
         if self.align_global_feature not in {"z", "g"}:
             raise ValueError("align_global_feature must be z or g")
@@ -922,6 +931,25 @@ class CrossModalIQAFullModel(nn.Module):
                 module.requires_grad_(False)
             self.quality_mix_logit.requires_grad_(False)
 
+        if self.dual_quality_representation:
+            dcfg = mcfg["dual_quality_representation"]
+            if (self.quality_global_feature != "g" or not self.use_quality_adapter
+                    or self.quality_adapter_mode != "replace" or not self.normalize_quality_adapter):
+                raise ValueError("Dual quality requires g -> normalized Quality Adapter in replace mode")
+            if (self.quality_global_only or self.quality_branch_use_text_gate
+                    or self.use_quality_local_attention or self.quality_sample_gate is not None
+                    or self.shared_simsiam_projection):
+                raise ValueError("Dual quality requires both visual-only branches and no extra attention/sample gate/shared PI")
+            initial = float(dcfg.get("feature_local_init", 0.5))
+            if not math.isfinite(initial) or not 0.0 < initial < 1.0:
+                raise ValueError("feature_local_init must be finite and in (0,1)")
+            self.quality_local_encoder = ResidualAdapter(
+                fused_dim, int(dcfg.get("hidden_dim", 256)),
+                dropout=float(dcfg.get("dropout", 0.1)), residual_scale=0.1,
+            )
+            self.quality_feature_mix_logit = nn.Parameter(torch.tensor(math.log(initial / (1.0 - initial))))
+            self.register_buffer("dual_quality_signature", torch.tensor(1, dtype=torch.int64))
+
     def _freeze_quality_adapter_bn_running_stats(self):
         # eval() changes BatchNorm's source of statistics, not requires_grad.
         # Keep affine parameters and other Adapter layers (including Dropout)
@@ -1052,6 +1080,8 @@ class CrossModalIQAFullModel(nn.Module):
             # the ResNet tokens, so every descriptor stays spatially aligned.
             nss = self._compute_local_nss_features(image, f_loc, local_crops)
             patch_tokens = patch_tokens + self.nss_proj(nss)
+            if self.dual_quality_representation:
+                patch_tokens = F.normalize(self.quality_local_encoder(patch_tokens), dim=-1, eps=1e-6)
 
             quality_attention_score = None
             quality_attention_weights = None
@@ -1081,8 +1111,12 @@ class CrossModalIQAFullModel(nn.Module):
                 text_logits = self.text_gate(torch.cat([patch_tokens, t], dim=-1)).squeeze(-1)
 
             weights = torch.softmax(nss_logits + text_logits, dim=1)
-            patch_scores = torch.sigmoid(self.patch_quality_head(patch_tokens).squeeze(-1))
-            s_patch = torch.sum(weights * patch_scores, dim=1)
+            if self.dual_quality_representation:
+                quality_local_feature = F.normalize(torch.sum(weights.unsqueeze(-1) * patch_tokens, dim=1), dim=-1, eps=1e-6)
+                s_patch = torch.sigmoid(self.patch_quality_head(quality_local_feature).squeeze(-1))
+            else:
+                patch_scores = torch.sigmoid(self.patch_quality_head(patch_tokens).squeeze(-1))
+                s_patch = torch.sum(weights * patch_scores, dim=1)
             if quality_attention_score is not None:
                 attention_mix = torch.sigmoid(self.quality_attention_mix_logit)
                 s_patch = (
@@ -1102,7 +1136,7 @@ class CrossModalIQAFullModel(nn.Module):
             adapter_input = z_global.detach() if self.detach_quality_adapter_input else z_global
             z_quality_global = self.quality_adapter(adapter_input)
             if self.normalize_quality_adapter:
-                z_quality_global = F.normalize(z_quality_global, dim=-1)
+                z_quality_global = F.normalize(z_quality_global, dim=-1, eps=1e-6 if self.dual_quality_representation else 1e-12)
 
             if self.quality_adapter_mode == "parallel_score":
                 s_global_shared = torch.sigmoid(
@@ -1156,6 +1190,12 @@ class CrossModalIQAFullModel(nn.Module):
                 ).squeeze(-1)
             mix = torch.sigmoid(mix_logit)
             s_quality = mix * s_patch + (1.0 - mix) * s_global
+        quality_representation = z_quality_global
+        if self.dual_quality_representation:
+            feature_mix = torch.sigmoid(self.quality_feature_mix_logit)
+            quality_representation = F.normalize(
+                (1.0 - feature_mix) * z_quality_global + feature_mix * quality_local_feature, dim=-1, eps=1e-6,
+            )
         s_quality_visual = s_quality
         quality_distribution_out = {}
         if self.quality_distribution_head is not None:
@@ -1169,7 +1209,7 @@ class CrossModalIQAFullModel(nn.Module):
             }
         quality_text_out = {}
         if self.quality_text_bank is not None:
-            quality_text_out = self.quality_text_bank(z_quality_global)
+            quality_text_out = self.quality_text_bank(quality_representation)
             if self.quality_text_blend > 0.0:
                 s_quality = (
                     (1.0 - self.quality_text_blend) * s_quality_visual
@@ -1196,8 +1236,13 @@ class CrossModalIQAFullModel(nn.Module):
             "patch_hw": (h, w),
             "z_quality_global": z_quality_global,
         }
+        if self.dual_quality_representation:
+            result.update({"quality_representation": quality_representation,
+                           "quality_local_feature": quality_local_feature,
+                           "quality_feature_mix": feature_mix.detach()})
         if self.use_quality_auxiliary_heads:
-            patch_evidence = torch.sum(weights.unsqueeze(-1) * patch_tokens, dim=1)
+            patch_evidence = (quality_local_feature if self.dual_quality_representation
+                              else torch.sum(weights.unsqueeze(-1) * patch_tokens, dim=1))
             quality_context = torch.cat(
                 [
                     z_quality_global,
@@ -1468,6 +1513,11 @@ class CrossModalIQAJointPretrain(nn.Module):
         # optional second image-only head forms a quality-specific space.
         # The opt-in shared PI/PT live under iqa and survive transfer. PQ is
         # independent in every mode and initializes the Quality Adapter.
+        self.dual_quality_representation = self.iqa.dual_quality_representation
+        if self.dual_quality_representation and proj_dim != fused_dim:
+            raise ValueError("Dual-quality SimSiam dimension must match the persistent PQ/QA output")
+        if self.dual_quality_representation and str(cfg.get("train", {}).get("human_supervision_view")) not in {"three_view", "separate_clean"}:
+            raise ValueError("Dual-quality pretraining requires a separate Clean View")
         self.shared_simsiam_projection = self.iqa.shared_simsiam_projection
         self.quality_mos_via_pq = bool(cfg.get("train", {}).get("quality_mos_via_pq", False))
         if self.quality_mos_via_pq and self.shared_simsiam_projection:
@@ -1495,7 +1545,7 @@ class CrossModalIQAJointPretrain(nn.Module):
             pcfg.get("separate_quality_projection", False)
         )
         if self.separate_quality_projection:
-            self.quality_image_projector = MLP(
+            self.quality_image_projector = None if self.dual_quality_representation else MLP(
                 fused_dim, proj_hidden, proj_dim, dropout=dropout, last_bn=True
             )
             self.quality_image_predictor = nn.Sequential(
@@ -1507,7 +1557,7 @@ class CrossModalIQAJointPretrain(nn.Module):
         else:
             self.quality_image_projector = None
             self.quality_image_predictor = None
-        if (self.quality_mos_via_pq or self.shared_simsiam_projection) and not self.separate_quality_projection:
+        if (self.quality_mos_via_pq or self.shared_simsiam_projection or self.dual_quality_representation) and not self.separate_quality_projection:
             raise ValueError("Projection ablations require an independent Clean PQ")
 
     def _project_image(self, feature: torch.Tensor) -> Dict[str, torch.Tensor]:
@@ -1528,11 +1578,17 @@ class CrossModalIQAJointPretrain(nn.Module):
         """Project images into the optional quality-only SimSiam space."""
         if not self.separate_quality_projection:
             return self._project_image(feature)
-        z = F.normalize(self.quality_image_projector(feature), dim=-1)
+        projector = self.iqa.quality_adapter if self.dual_quality_representation else self.quality_image_projector
+        z = F.normalize(projector(feature), dim=-1, eps=1e-6 if self.dual_quality_representation else 1e-12)
         return {
             "z_proj": z,
             "p": F.normalize(self.quality_image_predictor(z), dim=-1),
         }
+
+    def _quality_view_feature(self, image_features: Dict[str, torch.Tensor]) -> torch.Tensor:
+        if self.dual_quality_representation:
+            return self.iqa.backbone.fusion.semantic_proj(image_features["f_sem"])
+        return image_features["z"]
 
     def _project_align_image(self, feature: torch.Tensor) -> Dict[str, torch.Tensor]:
         """Project an image through the private alignment representation.
@@ -1596,9 +1652,12 @@ class CrossModalIQAJointPretrain(nn.Module):
         # no separate quality projector is configured.
         quality_clean_p = (
             clean_p
-            if (not self.separate_quality_projection or self.quality_mos_via_pq)
+            if (not self.separate_quality_projection or self.quality_mos_via_pq or self.dual_quality_representation)
             else self._project_quality_image(score_clean["z"])
         )
+        if self.dual_quality_representation:
+            q = score_clean["quality_representation"]
+            quality_clean_p = {"z_proj": q, "p": F.normalize(self.quality_image_predictor(q), dim=-1)}
         if self.quality_mos_via_pq:
             # Reuse the exact PQ Clean tensor scored by all quality MOS heads.
             # No second PQ/BN/Dropout call for the anchor/CE targets.
@@ -1609,8 +1668,8 @@ class CrossModalIQAJointPretrain(nn.Module):
             quality_img1_p = self._project_image(img1["z"])
             quality_img2_p = self._project_image(img2["z"])
         elif self.separate_quality_projection:
-            quality_img1_p = self._project_quality_image(img1["z"])
-            quality_img2_p = self._project_quality_image(img2["z"])
+            quality_img1_p = self._project_quality_image(self._quality_view_feature(img1))
+            quality_img2_p = self._project_quality_image(self._quality_view_feature(img2))
         else:
             quality_img1_p = img1_p
             quality_img2_p = img2_p
@@ -1651,7 +1710,13 @@ class CrossModalIQAJointPretrain(nn.Module):
             out["align_text_logits"] = score_clean["align_text_logits"]
             out["align_text_score"] = score_clean["align_text_score"]
         if self.iqa.quality_text_bank is not None:
-            out.update(self.iqa.quality_text_bank(out["quality_clean_z"]))
+            if self.dual_quality_representation:
+                out.update({k: score_clean[k] for k in ("quality_text_logits", "quality_text_score")})
+            else:
+                out.update(self.iqa.quality_text_bank(out["quality_clean_z"]))
+        if self.dual_quality_representation:
+            out["quality_global_clean_z"] = score_clean["z_quality_global"]
+            out["quality_local_clean_z"] = score_clean["quality_local_feature"]
         for component in self.iqa.quality_auxiliary_components:
             key = f"quality_aux_{component}_pred"
             if key in score_clean:
@@ -1671,8 +1736,8 @@ class CrossModalIQAJointPretrain(nn.Module):
             return self._forward_three_views(
                 image1, image2, image_clean, prompts, answers
             )
-        if self.quality_mos_via_pq:
-            raise ValueError("MOS-via-PQ requires image_clean on every forward")
+        if self.quality_mos_via_pq or self.dual_quality_representation:
+            raise ValueError("MOS-via-PQ/dual quality requires image_clean on every forward")
         # The first call computes prompt features and all persistent IQA heads.
         score1 = self.iqa.forward_single(image1, prompts=prompts)
 
@@ -1716,7 +1781,7 @@ class CrossModalIQAJointPretrain(nn.Module):
             quality_img2_p = self._project_image(img2["z"])
         elif self.separate_quality_projection:
             quality_img1_p = self._project_quality_image(score1["z"])
-            quality_img2_p = self._project_quality_image(img2["z"])
+            quality_img2_p = self._project_quality_image(self._quality_view_feature(img2))
         else:
             quality_img1_p = img1_p
             quality_img2_p = img2_p
@@ -1830,6 +1895,11 @@ def load_pretrained_backbone(
         "shared_image_projector.",
         "shared_text_projector.",
     )
+    dual_quality = bool(getattr(model, "dual_quality_representation", False))
+    if dual_quality:
+        representation_prefixes += DUAL_QUALITY_TRANSFER_PREFIXES
+        if skip_quality_adapter or reinit_local_projection or load_scope == "backbone":
+            raise ValueError("Dual quality requires complete matched-stage representation transfer; no reinit/skip/backbone-only loading")
     backbone_prefixes = representation_prefixes[:3]
 
     # ckpt = torch.load(checkpoint_path, map_location="cpu")
@@ -1867,6 +1937,9 @@ def load_pretrained_backbone(
     source_shared = any(k.removeprefix("module.").removeprefix("iqa.").startswith("shared_image_projector.") for k in state)
     if source_shared != bool(getattr(model, "shared_simsiam_projection", False)):
         raise RuntimeError("Shared PI/PT architecture mismatch: use matching pretraining and downstream configs")
+    source_dual = any(k.removeprefix("module.").removeprefix("iqa.").startswith(("dual_quality_signature", "quality_local_encoder.")) for k in state)
+    if source_dual != dual_quality:
+        raise RuntimeError("Dual-quality architecture mismatch: use matching dual-quality pretraining and downstream")
     loadable = {}
     source_local_projection = {}
     local_projection_prefix = "backbone.local_encoder.proj."
@@ -1959,6 +2032,13 @@ def load_pretrained_backbone(
         missing = required.difference(loadable)
         if missing:
             raise RuntimeError(f"Incomplete shared PI/PT transfer: {sorted(missing)}")
+    if dual_quality:
+        required = {k for k in target if k.startswith(DUAL_QUALITY_TRANSFER_PREFIXES + ("backbone.local_encoder.",))}
+        missing = required.difference(loadable)
+        if missing:
+            raise RuntimeError(f"Incomplete dual-quality representation transfer: {sorted(missing)}")
+        if int(loadable["dual_quality_signature"].item()) != 1:
+            raise RuntimeError("Unsupported dual-quality representation version")
     context = target.get("backbone.text_encoder.context_vectors")
     if context is not None and load_scope != "backbone" and (
         "backbone.text_encoder.context_vectors" not in loadable

@@ -34,6 +34,7 @@ from utils.pcgrad import PCGRAD_DIAGNOSTIC_KEYS, global_shared_pcgrad_backward
 from utils.selection_policies import configure_selection_comparison, SelectionComparison
 from utils.run_metadata import checkpoint_fingerprint, collect_run_metadata, write_run_metadata
 
+from utils.quality_representation import dual_quality_diagnostics
 from utils.clip_experiments import configure_clip_large, calibrate_quality_centers, configure_local_feature_stage, local_stage_diagnostics
 
 
@@ -429,6 +430,7 @@ def build_optimizer(cfg: Dict, model: nn.Module):
     }
 
     quality_prefixes = (
+        "quality_local_encoder", "quality_feature_mix_logit",
         "local_patch_proj", "nss_proj", "nss_gate", "text_gate",
         "patch_quality_head", "global_quality_head", "quality_mix_logit", "quality_sample_gate",
         "quality_distribution_head",
@@ -1751,6 +1753,7 @@ def evaluate(model, loader, device, cfg, split="val"):
     for k, v in apm.items():
         m[f"{split}_align_patch_{k}"] = v
     m.update({f"{split}_{key}": value for key, value in local_stage_diagnostics(model).items()})
+    m.update({f"{split}_{key}": value for key, value in dual_quality_diagnostics(model).items()})
     return m
 
 

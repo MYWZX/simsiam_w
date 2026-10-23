@@ -18,12 +18,13 @@ from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from datasets import build_dataloaders
-from models.two_stage_models import CrossModalIQAJointPretrain, CrossModalSimSiamPretrain, simsiam_pair_loss
+from models.two_stage_models import DUAL_QUALITY_TRANSFER_PREFIXES, CrossModalIQAJointPretrain, CrossModalSimSiamPretrain, simsiam_pair_loss
 from utils.train_utils import AverageMeter, ensure_dir, load_yaml, set_seed
 from utils.experiment_logger import CSVExperimentLogger, dump_config_snapshot, make_run_id, resolve_results_csv
 from utils.losses import masked_pairwise_label_ranking_loss, masked_soft_spearman_loss, masked_hard_pairwise_label_ranking_loss
 
 
+from utils.quality_representation import dual_quality_diagnostics
 from utils.clip_experiments import configure_clip_large, configure_local_feature_stage, local_stage_diagnostics
 
 
@@ -234,6 +235,8 @@ def _extract_representation_state(state: Dict[str, torch.Tensor]) -> Dict[str, t
         "align_patch_adapter.",
         "align_vmamba.",
     )
+    if "iqa.dual_quality_signature" in state:
+        prefixes += tuple("iqa." + prefix for prefix in DUAL_QUALITY_TRANSFER_PREFIXES)
     compact = {key: value for key, value in state.items() if key.startswith(prefixes)}
     if not compact:
         raise RuntimeError("No downstream representation weights found in pretraining state.")
@@ -298,6 +301,8 @@ def build_optimizer(cfg: Dict, model: torch.nn.Module):
     }
 
     iqa_head_prefixes = (
+        "quality_local_encoder",
+        "quality_feature_mix_logit",
         "local_patch_proj",
         "nss_proj",
         "nss_gate",
@@ -2212,6 +2217,7 @@ def train_one_epoch(model, loader, optimizer, scaler, device, cfg, epoch: int):
     _add_mean_residual_correlations(ret, mean_residual_storage)
     _add_quality_auxiliary_correlations(ret, quality_aux_storage)
     ret.update(local_stage_diagnostics(model))
+    ret.update(dual_quality_diagnostics(model))
     return ret
 
 
@@ -2529,6 +2535,7 @@ def evaluate(model, loader, device, cfg):
             relation_cfg,
         ))
     ret.update(local_stage_diagnostics(model))
+    ret.update(dual_quality_diagnostics(model))
     return ret
 
 
