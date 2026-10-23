@@ -1745,6 +1745,24 @@ def load_pretrained_backbone(
         )
         for key in state
     )
+    # A multiscale checkpoint is a different architecture: never silently
+    # discard its projections/gate or leave a new multiscale branch random.
+    local_prefix = "backbone.local_encoder."
+    multiscale_prefixes = tuple(local_prefix + suffix for suffix in ("proj3.", "proj4.", "stage_mix_logit"))
+    source_local_keys = set()
+    for key in state:
+        normalized = key[7:] if key.startswith("module.") else key
+        normalized = normalized[4:] if normalized.startswith("iqa.") else normalized
+        if normalized.startswith(local_prefix):
+            source_local_keys.add(normalized)
+    target_multiscale = any(key.startswith(multiscale_prefixes) for key in target)
+    source_multiscale = any(key.startswith(multiscale_prefixes) for key in source_local_keys)
+    if source_multiscale != target_multiscale:
+        raise RuntimeError(
+            "Local feature stage checkpoint mismatch: layer3_4 and single-stage "
+            "checkpoints cannot be interchanged. Use matching layer3_4 pretraining "
+            "and downstream; --reinit-local-projection does not convert architectures."
+        )
     loadable = {}
     source_local_projection = {}
     local_projection_prefix = "backbone.local_encoder.proj."
@@ -1798,8 +1816,14 @@ def load_pretrained_backbone(
                     "Use a matching --local-feature-stage; layer4-to-layer3 transfer "
                     "requires explicit --reinit-local-projection."
                 )
+        if target_multiscale and target_key.startswith(local_prefix) and target_key in target and target[target_key].shape != v.shape:
+            raise RuntimeError(f"Multiscale local checkpoint shape mismatch at {target_key}")
         if target_key in target and target[target_key].shape == v.shape:
             loadable[target_key] = v
+    if target_multiscale:
+        missing_local = {key for key in target if key.startswith(local_prefix)}.difference(loadable)
+        if missing_local:
+            raise RuntimeError(f"Incomplete multiscale local checkpoint: {sorted(missing_local)}")
     projection_keys = {key for key in target if key.startswith(local_projection_prefix)}
     if projection_keys:
         missing_projection = projection_keys.difference(source_local_projection)

@@ -34,7 +34,7 @@ from utils.pcgrad import PCGRAD_DIAGNOSTIC_KEYS, global_shared_pcgrad_backward
 from utils.selection_policies import configure_selection_comparison, SelectionComparison
 from utils.run_metadata import checkpoint_fingerprint, collect_run_metadata, write_run_metadata
 
-from utils.clip_experiments import configure_clip_large, calibrate_quality_centers, configure_local_feature_stage
+from utils.clip_experiments import configure_clip_large, calibrate_quality_centers, configure_local_feature_stage, local_stage_diagnostics
 
 
 from utils.downstream_controls import configure_downstream_controls, distinct_prompt_mask, audit_fusion_gradients, validate_local_crops
@@ -42,7 +42,7 @@ from utils.downstream_controls import configure_downstream_controls, distinct_pr
 
 def parse_args():
     p = argparse.ArgumentParser()
-    p.add_argument("--local-feature-stage", choices=("layer3", "layer4"), default=None, help="Select ResNet stage; default layer4 (7x7), layer3 produces 14x14 at 224 input.")
+    p.add_argument("--local-feature-stage", choices=("layer3", "layer4", "layer3_4"), default=None, help="Select ResNet layer3, layer4, or layer3_4 fusion; default follows YAML (legacy layer4).")
     p.add_argument("--reinit-local-projection", action="store_true", help="Explicitly reset only local projection weight/bias for layer4 checkpoint -> layer3 downstream transfer.")
     p.add_argument("--compare-selection-policies", action="store_true", help="Compare Quality and joint validation selection on one fixed 60-epoch trajectory, no early stopping or disk weights.")
     p.add_argument("--quality-safe-input", action="store_true", help="Use whole-image resize only for training on all downstream datasets; no crop, flip or color jitter.")
@@ -1732,6 +1732,7 @@ def evaluate(model, loader, device, cfg, split="val"):
         m[f"{split}_align_global_{k}"] = v
     for k, v in apm.items():
         m[f"{split}_align_patch_{k}"] = v
+    m.update({f"{split}_{key}": value for key, value in local_stage_diagnostics(model).items()})
     return m
 
 

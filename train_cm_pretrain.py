@@ -24,7 +24,7 @@ from utils.experiment_logger import CSVExperimentLogger, dump_config_snapshot, m
 from utils.losses import masked_pairwise_label_ranking_loss, masked_soft_spearman_loss, masked_hard_pairwise_label_ranking_loss
 
 
-from utils.clip_experiments import configure_clip_large, configure_local_feature_stage
+from utils.clip_experiments import configure_clip_large, configure_local_feature_stage, local_stage_diagnostics
 
 
 from utils.pretrain_resume import atomic_save, legacy_resume_records
@@ -32,7 +32,7 @@ from utils.pretrain_resume import atomic_save, legacy_resume_records
 
 def parse_args():
     p = argparse.ArgumentParser()
-    p.add_argument("--local-feature-stage", choices=("layer3", "layer4"), default=None, help="Select ResNet output stage for new pretraining; otherwise use YAML (legacy default: layer4).")
+    p.add_argument("--local-feature-stage", choices=("layer3", "layer4", "layer3_4"), default=None, help="Select ResNet output stage for new pretraining; otherwise use YAML (legacy default: layer4).")
     p.add_argument("--disable-pretrain-pcgrad", action="store_true", help="Explicitly disable pretraining PCGrad for a NEW controlled pretraining run.")
     p.add_argument("--resume", type=str, default=None, help="Restore a complete pretraining checkpoint and continue at epoch+1.")
     p.add_argument("--max-runtime-hours", type=float, default=None, help="Soft runtime budget: stop between epochs, leaving a complete resumable checkpoint.")
@@ -2205,6 +2205,7 @@ def train_one_epoch(model, loader, optimizer, scaler, device, cfg, epoch: int):
     _add_component_anchor_correlations(ret, component_anchor_storage)
     _add_mean_residual_correlations(ret, mean_residual_storage)
     _add_quality_auxiliary_correlations(ret, quality_aux_storage)
+    ret.update(local_stage_diagnostics(model))
     return ret
 
 
@@ -2521,6 +2522,7 @@ def evaluate(model, loader, device, cfg):
             all_relation_align,
             relation_cfg,
         ))
+    ret.update(local_stage_diagnostics(model))
     return ret
 
 

@@ -223,25 +223,38 @@ class ResNet50LocalEncoder(nn.Module):
         feature_stage: str = "layer4",
     ):
         super().__init__()
-        if feature_stage not in {"layer3", "layer4"}:
-            raise ValueError("local_encoder.feature_stage must be layer3 or layer4.")
+        if feature_stage not in {"layer3", "layer4", "layer3_4"}:
+            raise ValueError("local_encoder.feature_stage must be layer3, layer4 or layer3_4.")
         self.feature_stage = feature_stage
         timm = _require_timm()
         self.backbone = timm.create_model(
             model_name,
             pretrained=pretrained,
             features_only=True,
-            out_indices=({"layer3": 3, "layer4": 4}[feature_stage],),
+            out_indices=((3, 4) if feature_stage == "layer3_4" else ({"layer3": 3, "layer4": 4}[feature_stage],)),
         )
         feat_info = self.backbone.feature_info
-        last_ch = feat_info.channels()[-1]
-        self.proj = nn.Conv2d(last_ch, output_dim, kernel_size=1)
+        if feature_stage == "layer3_4":
+            channels = feat_info.channels()
+            self.proj3 = nn.Conv2d(channels[0], output_dim, kernel_size=1)
+            self.proj4 = nn.Conv2d(channels[1], output_dim, kernel_size=1)
+            self.stage_mix_logit = nn.Parameter(torch.zeros(()))
+        else:
+            # Preserve existing single-stage state_dict names and initialization.
+            self.proj = nn.Conv2d(feat_info.channels()[-1], output_dim, kernel_size=1)
         self.output_dim = output_dim
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         feats = self.backbone(x)
-        x = feats[-1]
-        return self.proj(x)
+        if self.feature_stage == "layer3_4":
+            p3 = self.proj3(feats[0])
+            p4 = self.proj4(feats[1])
+            p4 = torch.nn.functional.interpolate(
+                p4, size=p3.shape[-2:], mode="bilinear", align_corners=False,
+            )
+            weight3 = torch.sigmoid(self.stage_mix_logit)
+            return weight3 * p3 + (1.0 - weight3) * p4
+        return self.proj(feats[-1])
 
 
 def maybe_freeze(module: nn.Module, freeze: bool) -> None:
