@@ -2,15 +2,15 @@
 
 ## 固定对照与输入定义
 
-以下6条命令/启动器使用当前保留的统一基线：原PCGrad开启的layer4来源checkpoint→layer3下游，显式重置1024→256局部投影；Large、seed/split42、context4、residual_feature/alpha0.1、Quality CE0.005/blend0、安全输入、无perturbation/旧negative、原骨干倍率0.02、Adapter原LR、无逐图Quality门控。只改变下游Quality路径，不重新预训练。
+以下6条命令/启动器使用当前保留的统一基线：原PCGrad开启的layer4来源checkpoint→layer3下游，显式重置1024→256局部投影；Large、seed/split42、context4、residual_feature/alpha0.1、Quality CE0.005/blend0、安全输入、无perturbation/旧negative、原骨干倍率0.02、Adapter原LR、无逐图Quality门控。A同时改变Quality和Align全局输入，B只改变Quality路径，不重新预训练。
 
 基线来源：outputs/richhf18k_quality_classprompt_cliplarge_seed42/best_component_anchor_pretrain.pth。不要把本默认启动器与刚完成的layer3来源或尚在准备的layer3_4来源混着比较。原始保留基线和这两组应使用同一来源；新来源需要独立输出目录及相应匹配阶段。
 
 `g`是现有Fusion.semantic_proj(CLIP全局特征)，Large为768→256，位于MHA、LayerNorm、FFN之前。它复用已有线性权重，不新增投影、不增加归一化。`z`是融合局部信息并经过残差/LN/FFN后的256维表示。
 
-## A：g替代Quality全局路径的z，保留局部质量评分
+## A：g替代Quality和Align全局路径的z，保留局部质量评分
 
-开关：`--quality-global-feature g`。
+开关：`--quality-global-feature g --align-global-feature g`。
 
 ```text
 CLIP → 现有semantic_proj → g → QA → a
@@ -21,7 +21,7 @@ Q=(1-beta)Qg+beta Ql
 
 替换覆盖QA输入、残差旁路、范数尺度和全局诊断；没有通过残差偷偷保留z。五档CE仍消费QA输出a。Quality总损失仍通过保留的局部分支到达ResNet，但不通过Fusion.attn/local_proj/FFN/norms；semantic_proj仍接收Quality梯度。
 
-**Fusion仍为Align计算z**，不能称为全模型删除跨注意力。Quality全局路径同时绕过MHA及其后LN/FFN，所以此实验回答“g替换z”的效果，不是单独删除MHA而保留其后层的纯注意力消融。图中g通常有不同于z的尺度分布，本轮按用户要求直接使用g，不额外插入LN。
+**Align全局路径同样改为g→A_G→v**，全局pair head及逐图门控使用这个v；局部图文匹配、文本分支和Quality局部分支保留。共享编码器仍会计算z供诊断及兼容接口使用，但本组Quality/Align评分不依赖z，两个任务的损失均不回传Fusion跨注意力、局部投影、LN或FFN。Quality全局路径同时绕过MHA及其后LN/FFN，所以此实验回答“g替换z”的效果，不是单独删除MHA而保留其后层的纯注意力消融。图中g通常有不同于z的尺度分布，本轮按用户要求直接使用g，不额外插入LN。
 
 ## B：保留z，严格移除Quality局部分支
 
@@ -42,7 +42,7 @@ L/local_patch_proj仍为Align使用，不能冻结它；ResNet与Fusion仍由z�
 
 两组均保留当前`residual_feature`，不是同时切换成adapter-only/replace。第二组是“直接用全局路径预测质量、不与Ql混合”，其全局头仍接收残差r。Quality五档CE保持开启、blend0；不添加或移除其他辅助目标。两个开关可组合形成第三个控制，但本次命令不组合这两项。
 
-Align在相同权重和eval模式下输出保持一致；微调后共享参数变化会影响Align，不能保证训练后分数不变。未开启实验时旧主路径不变。
+A的Align全局分数及门控会改变；相同权重和eval模式下局部图文分数保持一致。B的Align路径不变。微调后共享参数变化仍会影响Align。未开启实验时旧主路径不变。
 
 ## 同步与六条可执行命令
 
@@ -77,13 +77,13 @@ HF_HUB_OFFLINE=1 /home/sll/anaconda3/envs/WZX-AI/bin/python train_cm_iqa.py \
   --config configs/agiqa1k_cm_iqa_decoupled_quality_align.yaml \
   --clip-large --seed 42 --text-context-tokens 4 \
   --local-feature-stage layer3 --reinit-local-projection \
-  --quality-global-feature g \
+  --quality-global-feature g --align-global-feature g \
   --quality-text-blend 0 --quality-text-lambda 0.005 \
   --quality-adapter-mode residual_feature --quality-adapter-residual-init 0.1 \
   --quality-safe-input --disable-perturbation --disable-legacy-negative --audit-loss-gradients \
   --pretrained-checkpoint outputs/richhf18k_quality_classprompt_cliplarge_seed42/best_component_anchor_pretrain.pth \
-  --output-dir outputs/agiqa1k_quality_cliplarge_layer3_safeinput_noneg_qualityg_seed42 \
-  --results-csv outputs/all_results_agiqa1k_quality_cliplarge_layer3_safeinput_noneg_qualityg_seed42.csv
+  --output-dir outputs/agiqa1k_quality_cliplarge_layer3_safeinput_noneg_qualityaligng_seed42 \
+  --results-csv outputs/all_results_agiqa1k_quality_cliplarge_layer3_safeinput_noneg_qualityaligng_seed42.csv
 ```
 
 ## AGIQA-3K
@@ -93,14 +93,14 @@ HF_HUB_OFFLINE=1 /home/sll/anaconda3/envs/WZX-AI/bin/python train_cm_iqa.py \
   --config configs/agiqa3k_cm_iqa_decoupled_quality_align.yaml \
   --clip-large --seed 42 --text-context-tokens 4 \
   --local-feature-stage layer3 --reinit-local-projection \
-  --quality-global-feature g \
+  --quality-global-feature g --align-global-feature g \
   --quality-text-blend 0 --quality-text-lambda 0.005 \
   --quality-adapter-mode residual_feature --quality-adapter-residual-init 0.1 \
   --quality-safe-input --disable-perturbation --disable-legacy-negative --audit-loss-gradients \
   --compare-selection-policies \
   --pretrained-checkpoint outputs/richhf18k_quality_classprompt_cliplarge_seed42/best_component_anchor_pretrain.pth \
-  --output-dir outputs/agiqa3k_quality_cliplarge_layer3_safeinput_noneg_dualselect_qualityg_seed42 \
-  --results-csv outputs/all_results_agiqa3k_quality_cliplarge_layer3_safeinput_noneg_dualselect_qualityg_seed42.csv
+  --output-dir outputs/agiqa3k_quality_cliplarge_layer3_safeinput_noneg_dualselect_qualityaligng_seed42 \
+  --results-csv outputs/all_results_agiqa3k_quality_cliplarge_layer3_safeinput_noneg_dualselect_qualityaligng_seed42.csv
 ```
 
 ## AIGCIQA2023
@@ -110,14 +110,14 @@ HF_HUB_OFFLINE=1 /home/sll/anaconda3/envs/WZX-AI/bin/python train_cm_iqa.py \
   --config configs/aigciqa2023_cm_iqa_decoupled_quality_align.yaml \
   --clip-large --seed 42 --text-context-tokens 4 \
   --local-feature-stage layer3 --reinit-local-projection \
-  --quality-global-feature g \
+  --quality-global-feature g --align-global-feature g \
   --quality-text-blend 0 --quality-text-lambda 0.005 \
   --quality-adapter-mode residual_feature --quality-adapter-residual-init 0.1 \
   --quality-safe-input --disable-perturbation --disable-legacy-negative --audit-loss-gradients \
   --compare-selection-policies \
   --pretrained-checkpoint outputs/richhf18k_quality_classprompt_cliplarge_seed42/best_component_anchor_pretrain.pth \
-  --output-dir outputs/aigciqa2023_quality_cliplarge_layer3_safeinput_noneg_dualselect_qualityg_seed42 \
-  --results-csv outputs/all_results_aigciqa2023_quality_cliplarge_layer3_safeinput_noneg_dualselect_qualityg_seed42.csv
+  --output-dir outputs/aigciqa2023_quality_cliplarge_layer3_safeinput_noneg_dualselect_qualityaligng_seed42 \
+  --results-csv outputs/all_results_aigciqa2023_quality_cliplarge_layer3_safeinput_noneg_dualselect_qualityaligng_seed42.csv
 ```
 
 
@@ -176,23 +176,25 @@ HF_HUB_OFFLINE=1 /home/sll/anaconda3/envs/WZX-AI/bin/python train_cm_iqa.py \
 
 ## 检查项
 
-- 配置快照：A为model.quality_global_feature=g，Quality局部仍开启；B为quality_global_feature=z、quality_no_local_branch=true、quality_global_only=true。
-- 验证指标：quality_global_uses_g为A=1/B=0；quality_local_enabled为A=1/B=0；B没有quality_patch_*和quality_branch_error_PLCC，quality_mix为0。
+- 配置快照：A为model.quality_global_feature=g、model.align_global_feature=g，Quality局部仍开启；B为quality_global_feature=z、quality_no_local_branch=true、quality_global_only=true。
+- 验证指标：quality_global_uses_g和align_global_uses_g均为A=1/B=0；quality_local_enabled为A=1/B=0；B没有quality_patch_*和quality_branch_error_PLCC，quality_mix为0。
 - 来源checkpoint/数据划分/学习率一致，保留所有下降项；不按测试成绩在每数据集切换方法。
 - CPU小模型使用真实Fusion及Quality/Align头，检查g的QA/残差输入、梯度依赖、局部模块调用次数、Align eval一致性、严格分支冻结、CE梯度及诊断；不宣称真实数据或GPU训练完成。
 
-完整回归：128项测试通过。六条启动命令还经过实际main配置快照流程，确认科学配置只改变各自Quality路由开关，未构建数据集或启动训练。
+完整回归129项测试通过；额外检查了双g模式的Align局部分数保持一致、Quality/Align均不向Fusion跨注意力回传梯度。
+
+A的新结果名称含qualityaligng，与旧的仅Quality替换实验qualityg分开，避免混用结果。CPU验证不代表真实数据或GPU训练完成。
 
 ## 完成后打包两组结果
 
 ```bash
 tar -czf cliplarge_quality_route_ablations_results.tar.gz \
-  outputs/agiqa1k_quality_cliplarge_layer3_safeinput_noneg_qualityg_seed42 \
-  outputs/all_results_agiqa1k_quality_cliplarge_layer3_safeinput_noneg_qualityg_seed42.csv \
-  outputs/agiqa3k_quality_cliplarge_layer3_safeinput_noneg_dualselect_qualityg_seed42 \
-  outputs/all_results_agiqa3k_quality_cliplarge_layer3_safeinput_noneg_dualselect_qualityg_seed42.csv \
-  outputs/aigciqa2023_quality_cliplarge_layer3_safeinput_noneg_dualselect_qualityg_seed42 \
-  outputs/all_results_aigciqa2023_quality_cliplarge_layer3_safeinput_noneg_dualselect_qualityg_seed42.csv \
+  outputs/agiqa1k_quality_cliplarge_layer3_safeinput_noneg_qualityaligng_seed42 \
+  outputs/all_results_agiqa1k_quality_cliplarge_layer3_safeinput_noneg_qualityaligng_seed42.csv \
+  outputs/agiqa3k_quality_cliplarge_layer3_safeinput_noneg_dualselect_qualityaligng_seed42 \
+  outputs/all_results_agiqa3k_quality_cliplarge_layer3_safeinput_noneg_dualselect_qualityaligng_seed42.csv \
+  outputs/aigciqa2023_quality_cliplarge_layer3_safeinput_noneg_dualselect_qualityaligng_seed42 \
+  outputs/all_results_aigciqa2023_quality_cliplarge_layer3_safeinput_noneg_dualselect_qualityaligng_seed42.csv \
   outputs/agiqa1k_quality_cliplarge_layer3_safeinput_noneg_zglobalonly_seed42 \
   outputs/all_results_agiqa1k_quality_cliplarge_layer3_safeinput_noneg_zglobalonly_seed42.csv \
   outputs/agiqa3k_quality_cliplarge_layer3_safeinput_noneg_dualselect_zglobalonly_seed42 \

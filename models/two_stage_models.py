@@ -571,6 +571,9 @@ class CrossModalIQAFullModel(nn.Module):
         )
         # Ablation removes only the explicit local-score contribution. The
         # fused global representation still contains ResNet/Fusion information.
+        self.align_global_feature = str(mcfg.get("align_global_feature", "z"))
+        if self.align_global_feature not in {"z", "g"}:
+            raise ValueError("align_global_feature must be z or g")
         self.quality_global_feature = str(mcfg.get("quality_global_feature", "z"))
         if self.quality_global_feature not in {"z", "g"}:
             raise ValueError("quality_global_feature must be z or g")
@@ -1363,8 +1366,11 @@ class CrossModalIQAFullModel(nn.Module):
             return out
 
         align_patch_tokens = self._make_patch_tokens(img["f_loc"])
+        align_global = img["z"]
+        if self.align_global_feature == "g":
+            align_global = self.backbone.fusion.semantic_proj(img["f_sem"])
         a_out = self._align_from_global_and_patch(
-            img["z"], align_patch_tokens, text_fused,
+            align_global, align_patch_tokens, text_fused,
             patch_hw=(img["f_loc"].shape[-2], img["f_loc"].shape[-1]),
             text_tokens=text_tokens,
             text_token_ids=text_token_ids,

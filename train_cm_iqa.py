@@ -106,8 +106,12 @@ def parse_args():
         help="Use Prompt token-to-visual-patch cross-attention in the Align branch.",
     )
     p.add_argument(
+        "--align-global-feature", choices=("z", "g"), default=None,
+        help="Align global adapter input: fused z (default) or projected CLIP g.",
+    )
+    p.add_argument(
         "--quality-global-feature", choices=("z", "g"), default=None,
-        help="Quality global input: fused z or existing projected CLIP g; Align always keeps z.",
+        help="Quality global input: fused z or existing projected CLIP g; Align source is controlled separately.",
     )
     p.add_argument(
         "--quality-no-local-branch", action="store_true",
@@ -1688,6 +1692,7 @@ def evaluate(model, loader, device, cfg, split="val"):
     if two_output_only:
         m["final_output_disabled"] = 1.0
     m[f"{split}_quality_local_enabled"] = float(not getattr(_unwrap_model(model), "quality_no_local_branch", False))
+    m[f"{split}_align_global_uses_g"] = float(getattr(_unwrap_model(model), "align_global_feature", "z") == "g")
     m[f"{split}_quality_global_uses_g"] = float(getattr(_unwrap_model(model), "quality_global_feature", "z") == "g")
     for branch, predictions in [("global", quality_global), ("patch", quality_patch)]:
         if branch == "patch" and not m[f"{split}_quality_local_enabled"]:
@@ -1945,9 +1950,12 @@ def main():
         atcfg.setdefault("num_heads", cfg.get("model", {}).get("fusion", {}).get("num_heads", 4))
         atcfg.setdefault("residual_scale", 1.0)
         print("[INFO] Align Prompt-token cross-attention enabled.")
+    if args.align_global_feature is not None:
+        cfg.setdefault("model", {})["align_global_feature"] = args.align_global_feature
+        print(f"[INFO] Align global feature={args.align_global_feature}")
     if args.quality_global_feature is not None:
         cfg.setdefault("model", {})["quality_global_feature"] = args.quality_global_feature
-        print(f"[INFO] Quality global feature={args.quality_global_feature}; Align continues to use z.")
+        print(f"[INFO] Quality global feature={args.quality_global_feature}")
     if args.quality_no_local_branch:
         cfg.setdefault("model", {})["quality_no_local_branch"] = True
         print("[INFO] Strict Quality global-only: local Quality forward disabled; Fusion/Align retained.")

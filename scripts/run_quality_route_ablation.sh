@@ -13,7 +13,7 @@ if [[ -n "$dry_run" && "$dry_run" != --dry-run ]]; then
   exit 2
 fi
 case "$mode" in
-  g_local) route_flags=(--quality-global-feature g); run_tag=qualityg ;;
+  g_local) route_flags=(--quality-global-feature g --align-global-feature g); run_tag=qualityaligng ;;
   z_global) route_flags=(--quality-global-feature z --quality-no-local-branch); run_tag=zglobalonly ;;
   *) printf 'Unknown ablation: %s\n' "$mode" >&2; exit 2 ;;
 esac

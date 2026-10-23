@@ -28,16 +28,16 @@ class Bank(nn.Module):
         logits=self.image_to_text(x)
         return {'quality_text_logits':logits,'quality_text_score':logits.softmax(-1)@self.centers}
 
-def config(feature='z',no_local=False):
+def config(feature='z',no_local=False,align_feature='z'):
     return {'dataset':{'input_size':16},'model':{
         'global_encoder':{'pretrained':False,'output_dim':8},'local_encoder':{'pretrained':False,'output_dim':4},
         'fusion':{'embed_dim':8,'num_heads':2,'dropout':0.},'heads':{'mlp_hidden_dim':16,'dropout':0.},
-        'quality_global_feature':feature,'quality_no_local_branch':no_local,'quality_branch_use_text_gate':False,
+        'align_global_feature':align_feature,'quality_global_feature':feature,'quality_no_local_branch':no_local,'quality_branch_use_text_gate':False,
         'quality_adapter':{'enabled':True,'hidden_dim':16,'output_dim':8,'dropout':0.,'last_bn':True,'mode':'residual_feature','residual_init':.1}},
         'train':{'two_output_only':True,'lambda_quality':1.,'lambda_align':1.,'lambda_quality_text_ce':.005,'lambda_neg':0.}}
 
-def build(feature='z',no_local=False):
-    cfg=config(feature,no_local)
+def build(feature='z',no_local=False,align_feature='z'):
+    cfg=config(feature,no_local,align_feature)
     with patch('models.two_stage_models.GlobalVisualEncoder',Global),patch('models.two_stage_models.ResNet50LocalEncoder',Local),patch('models.two_stage_models.FrozenCLIPTextEncoder',Text):
         return CrossModalIQAFullModel(cfg).eval(),cfg
 
@@ -67,6 +67,32 @@ class QualityRouteTests(unittest.TestCase):
         self.assertGreater(g.abs().sum().item(),0.)
         g=grads(b['s_quality'].sum(),[model.backbone.local_encoder.proj.weight])[0]
         self.assertGreater(g.abs().sum().item(),0.)
+
+    def test_both_g_routes_bypass_fusion_but_keep_local_alignment(self):
+        torch.manual_seed(42);base,_=build()
+        torch.manual_seed(42);model,cfg=build('g',align_feature='g')
+        for key,value in base.state_dict().items():
+            torch.testing.assert_close(value,model.state_dict()[key],rtol=0,atol=0)
+        captured=[]
+        hook=model.align_global_adapter.register_forward_pre_hook(lambda m,ins:captured.append(ins[0]))
+        x=torch.randn(3,3,16,16)
+        a=base.forward_single(x,['cat']*3);b=model.forward_single(x,['cat']*3)
+        hook.remove()
+        expected=model.backbone.fusion.semantic_proj(model.backbone.global_encoder(x))
+        torch.testing.assert_close(captured[0],expected)
+        torch.testing.assert_close(a['s_align_patch'],b['s_align_patch'])
+        with patch.object(model,'_align_from_global_and_patch',wraps=model._align_from_global_and_patch) as call:
+            model.forward_single(x,['cat']*3)
+            torch.testing.assert_close(call.call_args.args[0],expected)
+        fusion_params=[p for n,p in model.backbone.fusion.named_parameters() if not n.startswith('semantic_proj')]
+        for score in ['s_quality','s_align']:
+            self.assertTrue(all(g is None or g.abs().sum()==0 for g in grads(b[score].sum(),fusion_params)))
+            active=grads(b[score].sum(),[model.backbone.fusion.semantic_proj.weight,model.backbone.local_encoder.proj.weight])
+            self.assertTrue(all(g is not None and g.abs().sum()>0 for g in active))
+        torch.testing.assert_close(a['s_quality_patch'],b['s_quality_patch'])
+        self.assertFalse(torch.allclose(a['s_align'],b['s_align']))
+        batch={'image':x,'prompt':['cat']*3,'score':torch.tensor([.2,.5,.8]),'quality_score':torch.tensor([.2,.5,.8]),'align_score':torch.tensor([.3,.6,.7])}
+        self.assertEqual(evaluate(model,[batch],'cpu',cfg)['val_align_global_uses_g'],1.)
 
     def test_strict_no_local_skips_computation_and_keeps_cross_attention(self):
         torch.manual_seed(42);base,_=build()
@@ -104,9 +130,9 @@ class QualityRouteTests(unittest.TestCase):
             self.assertGreater(model.quality_adapter.net[0].weight.grad.abs().sum().item(),0.)
 
     def test_cli_and_configuration_validation(self):
-        with patch('sys.argv',['train_cm_iqa.py','--config','unused.yaml','--quality-global-feature','g','--quality-no-local-branch']):
-            args=parse_args();self.assertEqual(args.quality_global_feature,'g');self.assertTrue(args.quality_no_local_branch)
-        for cfg in [config('bad'),config('g'),config(no_local=True)]:
+        with patch('sys.argv',['train_cm_iqa.py','--config','unused.yaml','--quality-global-feature','g','--align-global-feature','g','--quality-no-local-branch']):
+            args=parse_args();self.assertEqual(args.align_global_feature,'g');self.assertEqual(args.quality_global_feature,'g');self.assertTrue(args.quality_no_local_branch)
+        for cfg in [config('bad'),config('g'),config(no_local=True),config(align_feature='bad')]:
             if cfg['model']['quality_global_feature']=='g':cfg['model']['quality_local_attention']={'enabled':True,'num_heads':2}
             elif cfg['model']['quality_no_local_branch']:cfg['model']['quality_auxiliary_heads']={'enabled':True,'components':['artifact']}
             with patch('models.two_stage_models.GlobalVisualEncoder',Global),patch('models.two_stage_models.ResNet50LocalEncoder',Local),patch('models.two_stage_models.FrozenCLIPTextEncoder',Text):
