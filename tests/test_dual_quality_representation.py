@@ -168,12 +168,12 @@ class DualQualityTests(unittest.TestCase):
             self.assertEqual(c['train']['lambda_quality_text_ce'],.005)
             self.assertFalse(c['train'].get('reinit_local_projection',False))
 
-    def test_invalid_global_only_or_residual_modes_are_rejected(self):
+    def test_invalid_global_only_or_parallel_modes_are_rejected(self):
         cases=[('quality_global_feature','z'),('quality_no_local_branch',True),('quality_branch_use_text_gate',True),('shared_simsiam_projection',True)]
         for key,value in cases:
             c=config();c['model'][key]=value
             with self.subTest(key=key),self.assertRaises(ValueError):make(c)
-        c=config();c['model']['quality_adapter']['mode']='residual_feature'
-        with self.assertRaisesRegex(ValueError,'replace mode'):make(c)
+        c=config();c['model']['quality_adapter']['mode']='parallel_score'
+        with self.assertRaisesRegex(ValueError,'replace or residual_feature mode'):make(c)
 
 if __name__=='__main__':unittest.main()

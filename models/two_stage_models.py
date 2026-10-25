@@ -17,6 +17,7 @@ from .fusion import SemanticStructureFusion, AlignOnlyVMambaFusion
 DUAL_QUALITY_TRANSFER_PREFIXES = (
     "dual_quality_signature", "quality_adapter.", "quality_local_encoder.",
     "local_patch_proj.", "nss_proj.", "nss_gate.", "quality_feature_mix_logit",
+    "quality_adapter_gate_logit",
 )
 
 
@@ -934,8 +935,10 @@ class CrossModalIQAFullModel(nn.Module):
         if self.dual_quality_representation:
             dcfg = mcfg["dual_quality_representation"]
             if (self.quality_global_feature != "g" or not self.use_quality_adapter
-                    or self.quality_adapter_mode != "replace" or not self.normalize_quality_adapter):
-                raise ValueError("Dual quality requires g -> normalized Quality Adapter in replace mode")
+                    or self.quality_adapter_mode not in {"replace", "residual_feature"} or not self.normalize_quality_adapter):
+                raise ValueError("Dual quality requires g -> normalized Quality Adapter in replace or residual_feature mode")
+            if self.quality_adapter_residual_fixed is not None:
+                raise ValueError("Dual quality residual control requires a learnable alpha, not residual_fixed")
             if (self.quality_global_only or self.quality_branch_use_text_gate
                     or self.use_quality_local_attention or self.quality_sample_gate is not None
                     or self.shared_simsiam_projection):
@@ -948,7 +951,7 @@ class CrossModalIQAFullModel(nn.Module):
                 dropout=float(dcfg.get("dropout", 0.1)), residual_scale=0.1,
             )
             self.quality_feature_mix_logit = nn.Parameter(torch.tensor(math.log(initial / (1.0 - initial))))
-            self.register_buffer("dual_quality_signature", torch.tensor(1, dtype=torch.int64))
+            self.register_buffer("dual_quality_signature", torch.tensor(2 if self.quality_adapter_mode == "residual_feature" else 1, dtype=torch.int64))
 
     def _freeze_quality_adapter_bn_running_stats(self):
         # eval() changes BatchNorm's source of statistics, not requires_grad.
@@ -2037,8 +2040,8 @@ def load_pretrained_backbone(
         missing = required.difference(loadable)
         if missing:
             raise RuntimeError(f"Incomplete dual-quality representation transfer: {sorted(missing)}")
-        if int(loadable["dual_quality_signature"].item()) != 1:
-            raise RuntimeError("Unsupported dual-quality representation version")
+        if int(loadable["dual_quality_signature"].item()) != int(target["dual_quality_signature"].item()):
+            raise RuntimeError("Dual-quality scoring mode mismatch: use matching replace/residual pretraining and downstream")
     context = target.get("backbone.text_encoder.context_vectors")
     if context is not None and load_scope != "backbone" and (
         "backbone.text_encoder.context_vectors" not in loadable
