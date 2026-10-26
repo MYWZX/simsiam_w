@@ -940,9 +940,8 @@ class CrossModalIQAFullModel(nn.Module):
             if self.quality_adapter_residual_fixed is not None:
                 raise ValueError("Dual quality residual control requires a learnable alpha, not residual_fixed")
             if (self.quality_global_only or self.quality_branch_use_text_gate
-                    or self.use_quality_local_attention or self.quality_sample_gate is not None
-                    or self.shared_simsiam_projection):
-                raise ValueError("Dual quality requires both visual-only branches and no extra attention/sample gate/shared PI")
+                    or self.use_quality_local_attention or self.quality_sample_gate is not None):
+                raise ValueError("Dual quality requires both visual-only branches and no extra attention/sample gate")
             initial = float(dcfg.get("feature_local_init", 0.5))
             if not math.isfinite(initial) or not 0.0 < initial < 1.0:
                 raise ValueError("feature_local_init must be finite and in (0,1)")
@@ -1668,8 +1667,8 @@ class CrossModalIQAJointPretrain(nn.Module):
             quality_clean_p = {"z_proj": q, "p": F.normalize(self.quality_image_predictor(q), dim=-1)}
         if self.shared_simsiam_projection:
             # Only I-I moves from PQ to PI. Clean quality anchors/CE retain PQ.
-            quality_img1_p = self._project_image(img1["z"])
-            quality_img2_p = self._project_image(img2["z"])
+            quality_img1_p = self._project_image(self._quality_view_feature(img1))
+            quality_img2_p = self._project_image(self._quality_view_feature(img2))
         elif self.separate_quality_projection:
             quality_img1_p = self._project_quality_image(self._quality_view_feature(img1))
             quality_img2_p = self._project_quality_image(self._quality_view_feature(img2))
@@ -1780,8 +1779,8 @@ class CrossModalIQAJointPretrain(nn.Module):
         # projections are paired only with quality-safe views and quality
         # relations. Both receive gradients through the same image encoder.
         if self.shared_simsiam_projection:
-            quality_img1_p = self._project_image(score1["z"])
-            quality_img2_p = self._project_image(img2["z"])
+            quality_img1_p = self._project_image(self._quality_view_feature(score1))
+            quality_img2_p = self._project_image(self._quality_view_feature(img2))
         elif self.separate_quality_projection:
             quality_img1_p = self._project_quality_image(score1["z"])
             quality_img2_p = self._project_quality_image(self._quality_view_feature(img2))

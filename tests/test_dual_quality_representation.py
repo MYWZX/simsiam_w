@@ -169,7 +169,7 @@ class DualQualityTests(unittest.TestCase):
             self.assertFalse(c['train'].get('reinit_local_projection',False))
 
     def test_invalid_global_only_or_parallel_modes_are_rejected(self):
-        cases=[('quality_global_feature','z'),('quality_no_local_branch',True),('quality_branch_use_text_gate',True),('shared_simsiam_projection',True)]
+        cases=[('quality_global_feature','z'),('quality_no_local_branch',True),('quality_branch_use_text_gate',True)]
         for key,value in cases:
             c=config();c['model'][key]=value
             with self.subTest(key=key),self.assertRaises(ValueError):make(c)
