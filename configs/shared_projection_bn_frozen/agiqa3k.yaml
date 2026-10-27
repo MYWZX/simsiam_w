@@ -1,0 +1,160 @@
+seed: 42
+split_seed: 42
+results_csv: outputs/all_results_agiqa3k_quality_cliplarge_layer3_dualquality_residual_dualselect_shared_pi_pt_bnfrozen_seed42.csv
+output_dir: outputs/agiqa3k_quality_cliplarge_layer3_dualquality_residual_dualselect_shared_pi_pt_bnfrozen_seed42
+dataset:
+  type: agiqa3k_simsiam
+  root_dir: ./data/AGIQA-3K
+  image_dir: image
+  csv_file: data.csv
+  input_size: 224
+  mos_max: 5.0
+  final_quality_weight: 0.5
+  final_align_weight: 0.5
+  use_full_prompt: true
+  train_ratio: 0.7
+  val_ratio: 0.1
+  test_ratio: 0.2
+  verify_images: false
+  use_perturb: true
+  perturbation_prob: 0.7
+  perturbation_strengths:
+  - mild
+  - moderate
+  perturbation_strength: mild
+  saliency_sampling_ratio: 0.7
+  mirror_augmentation:
+    enabled: false
+    probability: 0.5
+    directional_only: true
+    swap_text: true
+    disable_random_horizontal_flip: true
+loader:
+  batch_size: 8
+  num_workers: 4
+  pin_memory: true
+model:
+  global_encoder:
+    type: open_clip
+    model_name: ViT-B-16
+    open_clip_pretrained: openai
+    pretrained: true
+    freeze: false
+    output_dim: 512
+    source_normalization: imagenet
+    normalize_output: true
+  local_encoder:
+    type: resnet50.a1_in1k
+    pretrained: true
+    freeze: false
+    output_dim: 256
+    feature_stage: layer3
+  fusion:
+    embed_dim: 256
+    num_heads: 4
+    dropout: 0.15
+  heads:
+    mlp_hidden_dim: 256
+    dropout: 0.2
+  text_encoder:
+    clip_model_name: ViT-B-16
+    clip_pretrained: openai
+  nss_text_gate:
+    nss_dim: 6
+    gate_hidden_dim: 256
+    quality_mix_init: 0.0
+  align_gate:
+    gate_hidden_dim: 256
+  fusion_init_logit: 0.0
+  quality_branch_use_text_gate: false
+  quality_adapter:
+    enabled: true
+    hidden_dim: 512
+    output_dim: 256
+    dropout: 0.1
+    last_bn: true
+    normalize: true
+    mode: residual_feature
+    residual_init: 0.1
+  align_adapter:
+    enabled: true
+    adapt_text: true
+    hidden_dim: 256
+    dropout: 0.1
+    residual_scale: 0.1
+  align_vmamba:
+    enabled: false
+  dual_quality_representation:
+    enabled: true
+    hidden_dim: 256
+    dropout: 0.1
+    feature_local_init: 0.5
+  quality_text_bank:
+    enabled: true
+    score_blend: 0.0
+    temperature: 0.2
+    class_context_tokens: 4
+    centers:
+    - 0.375
+    - 0.54166667
+    - 0.66666669
+    - 0.79166666
+    - 0.95833334
+  quality_global_feature: g
+  align_global_feature: g
+  shared_simsiam_projection: true
+  simsiam:
+    proj_dim: 256
+    proj_hidden_dim: 512
+  shared_projection_freeze_bn_stats: true
+train:
+  epochs: 60
+  lr: 0.0001
+  weight_decay: 0.002
+  amp: true
+  grad_clip: 1.0
+  log_interval: 20
+  early_stop_patience: 20
+  pretrained_checkpoint: outputs/richhf18k_cliplarge_dualquality_residual_layer3_shared_pi_pt_seed42/best_component_anchor_pretrain.pth
+  pretrained_load_scope: representation
+  two_output_only: true
+  layerwise_lr:
+    enabled: true
+    global_encoder_mult: 0.02
+    local_encoder_mult: 0.02
+    fusion_mult: 0.1
+    quality_mult: 1.0
+    align_mult: 1.0
+    other_mult: 1.0
+  lambda_quality: 1.0
+  lambda_align: 1.0
+  lambda_final: 0.0
+  lambda_align_aux: 0.3
+  lambda_pert: 0.02
+  pert_margin: 0.07
+  lambda_rank_quality: 0.03
+  lambda_rank_align: 0.03
+  lambda_rank_final: 0.0
+  rank_margin: 0.02
+  lambda_neg: 0.05
+  neg_margin: 0.1
+  use_align_rank: false
+  lambda_align_rank: 0.0
+  align_rank_margin_pos_hard: 0.05
+  align_rank_margin_hard_neg: 0.05
+  hard_negative_topk: 5
+  lambda_srocc_quality: 0.02
+  lambda_srocc_align: 0.04
+  lambda_srocc_final: 0.0
+  srocc_tau: 0.02
+  use_hard_rank: true
+  hard_rank_ratio: 0.35
+  selection_metric: val_component_hmean_SROCC
+  selection_mode: max
+  lambda_quality_text_ce: 0.005
+optimizer:
+  type: adamw
+scheduler:
+  type: cosine
+  min_lr: 1.0e-06
+run_id: agiqa3k_quality_cliplarge_layer3_dualquality_residual_dualselect_shared_pi_pt_bnfrozen_seed42

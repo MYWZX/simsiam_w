@@ -568,12 +568,17 @@ class CrossModalIQAFullModel(nn.Module):
         self.text_to_fused = nn.Linear(text_dim, fused_dim)
 
         self.shared_simsiam_projection = bool(mcfg.get("shared_simsiam_projection", False))
+        self.freeze_shared_projection_bn_stats = bool(mcfg.get("shared_projection_freeze_bn_stats", False))
+        if self.freeze_shared_projection_bn_stats and not self.shared_simsiam_projection:
+            raise ValueError("shared_projection_freeze_bn_stats requires shared_simsiam_projection")
         if self.shared_simsiam_projection:
             scfg = mcfg.get("simsiam", {})
             if int(scfg.get("proj_dim", fused_dim)) != fused_dim:
                 raise ValueError("Shared PI/PT output must equal fusion.embed_dim")
             self.shared_image_projector = MLP(fused_dim, int(scfg.get("proj_hidden_dim", 512)), fused_dim, dropout=dropout, last_bn=True)
             self.shared_text_projector = MLP(fused_dim, int(scfg.get("proj_hidden_dim", 512)), fused_dim, dropout=dropout, last_bn=True)
+            if self.freeze_shared_projection_bn_stats:
+                self._freeze_shared_projection_bn_running_stats()
 
         # Quality branch: local texture map -> patch tokens.
         self.local_patch_proj = nn.Conv2d(local_dim, fused_dim, kernel_size=1)
@@ -960,13 +965,23 @@ class CrossModalIQAFullModel(nn.Module):
             if isinstance(module, nn.modules.batchnorm._BatchNorm):
                 module.eval()
 
+    def _freeze_shared_projection_bn_running_stats(self):
+        # Only BN uses saved running statistics; Linear, BN affine and Dropout
+        # retain their normal training behavior and parameter trainability.
+        for projector in (self.shared_image_projector, self.shared_text_projector):
+            for module in projector.modules():
+                if isinstance(module, nn.modules.batchnorm._BatchNorm):
+                    module.eval()
+
     def train(self, mode: bool = True):
-        """Reapply the Adapter-only normalization policy after model.train()."""
+        """Reapply configured BN policies after every model.train() call."""
         super().train(mode)
         if self.use_quality_adapter and self.freeze_quality_adapter:
             self.quality_adapter.eval()
         elif self.use_quality_adapter and self.freeze_quality_adapter_bn_stats:
             self._freeze_quality_adapter_bn_running_stats()
+        if self.freeze_shared_projection_bn_stats:
+            self._freeze_shared_projection_bn_running_stats()
         return self
 
     @staticmethod
