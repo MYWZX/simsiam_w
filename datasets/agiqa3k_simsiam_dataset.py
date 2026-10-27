@@ -12,6 +12,7 @@ import torch
 from PIL import Image, ImageEnhance
 from torch.utils.data import DataLoader, Dataset
 
+from utils.data_protocols import loader_rng_kwargs
 from utils.perturbations import perturb_image
 from utils.saliency import compute_simple_saliency
 from utils.mirror_augmentation import maybe_mirror_sample, resolve_mirror_config
@@ -375,6 +376,7 @@ def build_agiqa3k_simsiam_dataloaders(cfg: Dict):
         num_workers=lcfg.get("num_workers", 4),
         pin_memory=lcfg.get("pin_memory", True),
         drop_last=True,
+        **loader_rng_kwargs(cfg, "train"),
     )
     val_loader = DataLoader(
         val_set,
@@ -383,6 +385,7 @@ def build_agiqa3k_simsiam_dataloaders(cfg: Dict):
         num_workers=lcfg.get("num_workers", 4),
         pin_memory=lcfg.get("pin_memory", True),
         drop_last=False,
+        **loader_rng_kwargs(cfg, "val"),
     )
     test_loader = DataLoader(
         test_set,
@@ -391,5 +394,6 @@ def build_agiqa3k_simsiam_dataloaders(cfg: Dict):
         num_workers=lcfg.get("num_workers", 4),
         pin_memory=lcfg.get("pin_memory", True),
         drop_last=False,
+        **loader_rng_kwargs(cfg, "test"),
     )
     return train_loader, val_loader, test_loader

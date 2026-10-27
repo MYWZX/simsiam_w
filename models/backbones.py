@@ -119,6 +119,7 @@ class GlobalVisualEncoder(nn.Module):
         open_clip_pretrained: str = "openai",
         source_normalization: str = "imagenet",
         normalize_output: bool = False,
+        force_quick_gelu: Optional[bool] = None,
     ):
         super().__init__()
         self.encoder_type = encoder_type
@@ -137,6 +138,7 @@ class GlobalVisualEncoder(nn.Module):
             model, _, _ = open_clip.create_model_and_transforms(
                 open_clip_model_name,
                 pretrained=open_clip_pretrained if pretrained else None,
+                **({"force_quick_gelu": bool(force_quick_gelu)} if force_quick_gelu is not None else {}),
             )
             self.backbone = model.visual
             self.feat_dim = getattr(model.visual, "output_dim", 512)

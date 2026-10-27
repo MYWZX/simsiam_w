@@ -13,6 +13,7 @@ from PIL import Image, ImageEnhance
 from scipy.io import loadmat
 from torch.utils.data import DataLoader, Dataset, random_split
 
+from utils.data_protocols import loader_rng_kwargs, fit_1k_train_scaler
 from utils.perturbations import perturb_image
 from utils.saliency import compute_simple_saliency
 from utils.mirror_augmentation import maybe_mirror_sample, resolve_mirror_config
@@ -263,7 +264,7 @@ class BaseIQADataset(Dataset):
 
 
 class AGIQA1KIQADataset(BaseIQADataset):
-    def __init__(self, root_dir: str, image_dir: str = "file", csv_file: str = "AIGC-1K_answer.csv", input_size: int = 224, train: bool = True, mos_max: float | None = None, use_perturb: bool = True, perturbation_prob: float = 0.7, perturbation_strengths: Sequence[str] | None = None, saliency_sampling_ratio: float = 0.7, final_quality_weight: float = 1.0, final_align_weight: float = 0.0, train_augmentation_mode: str = "legacy", quality_safe_flip_prob: float = 0.5, local_multicrop: Dict | None = None, mirror_augmentation: Dict | None = None):
+    def __init__(self, root_dir: str, image_dir: str = "file", csv_file: str = "AIGC-1K_answer.csv", input_size: int = 224, train: bool = True, mos_max: float | None = None, use_perturb: bool = True, perturbation_prob: float = 0.7, perturbation_strengths: Sequence[str] | None = None, saliency_sampling_ratio: float = 0.7, final_quality_weight: float = 1.0, final_align_weight: float = 0.0, train_augmentation_mode: str = "legacy", quality_safe_flip_prob: float = 0.5, local_multicrop: Dict | None = None, mirror_augmentation: Dict | None = None, mos_normalization: str = "legacy_full_data"):
         self.root = Path(root_dir); self.image_root = self.root / image_dir; self.csv_path = self.root / csv_file
         self.train = bool(train); self.use_perturb = bool(use_perturb); self.perturbation_prob = float(perturbation_prob); self.saliency_sampling_ratio = float(saliency_sampling_ratio)
         self.perturbation_strengths = [str(s) for s in (perturbation_strengths or [])]
@@ -276,7 +277,13 @@ class AGIQA1KIQADataset(BaseIQADataset):
         if missing: raise RuntimeError(f"AGIQA-1K missing columns: {missing}")
         self.df = df.reset_index(drop=True)
         scores = self.df["MOS"].astype(float).values
-        self.min_mos = float(np.min(scores)); self.max_mos = float(mos_max) if mos_max else float(np.max(scores))
+        if mos_normalization not in {"legacy_full_data", "train_minmax"}:
+            raise ValueError("Unsupported 1K MOS normalization mode")
+        # Fitted by the loader after generating training indices, never on test labels.
+        if mos_normalization == "train_minmax":
+            self.min_mos, self.max_mos = 0.0, 1.0
+        else:
+            self.min_mos = float(np.min(scores)); self.max_mos = float(mos_max) if mos_max else float(np.max(scores))
 
     def __len__(self): return len(self.df)
     def _path(self, name):
@@ -357,16 +364,19 @@ def build_iqa_dataloaders_from_dataset(dataset_train: Dataset, dataset_eval: Dat
     total = len(dataset_train); tr = int(total*float(dcfg.get("train_ratio", 0.7))); va = int(total*float(dcfg.get("val_ratio", 0.1))); te = total-tr-va
     split_seed = int(cfg.get("split_seed", cfg.get("seed", 42)))
     g = torch.Generator().manual_seed(split_seed); idx = torch.randperm(total, generator=g).tolist()
+    if dcfg.get("type") == "agiqa1k_iqa":
+        fit_1k_train_scaler(dataset_train, dataset_eval, idx[:tr], cfg)
     train_set = torch.utils.data.Subset(dataset_train, idx[:tr]); val_set = torch.utils.data.Subset(dataset_eval, idx[tr:tr+va]); test_set = torch.utils.data.Subset(dataset_eval, idx[tr+va:])
-    train_loader = DataLoader(train_set, batch_size=lcfg.get("batch_size",8), shuffle=True, num_workers=lcfg.get("num_workers",4), pin_memory=lcfg.get("pin_memory",True), drop_last=True)
-    val_loader = DataLoader(val_set, batch_size=lcfg.get("batch_size",8), shuffle=False, num_workers=lcfg.get("num_workers",4), pin_memory=lcfg.get("pin_memory",True), drop_last=False)
-    test_loader = DataLoader(test_set, batch_size=lcfg.get("batch_size",8), shuffle=False, num_workers=lcfg.get("num_workers",4), pin_memory=lcfg.get("pin_memory",True), drop_last=False)
+    train_loader = DataLoader(train_set, batch_size=lcfg.get("batch_size",8), shuffle=True, num_workers=lcfg.get("num_workers",4), pin_memory=lcfg.get("pin_memory",True), drop_last=True, **loader_rng_kwargs(cfg, "train"))
+    val_loader = DataLoader(val_set, batch_size=lcfg.get("batch_size",8), shuffle=False, num_workers=lcfg.get("num_workers",4), pin_memory=lcfg.get("pin_memory",True), drop_last=False, **loader_rng_kwargs(cfg, "val"))
+    test_loader = DataLoader(test_set, batch_size=lcfg.get("batch_size",8), shuffle=False, num_workers=lcfg.get("num_workers",4), pin_memory=lcfg.get("pin_memory",True), drop_last=False, **loader_rng_kwargs(cfg, "test"))
     return train_loader, val_loader, test_loader
 
 
 def build_agiqa1k_iqa_dataloaders(cfg: Dict):
     d = cfg["dataset"]
     common = dict(root_dir=d["root_dir"], image_dir=d.get("image_dir","file"), csv_file=d.get("csv_file","AIGC-1K_answer.csv"), input_size=d.get("input_size",224), mos_max=d.get("mos_max",None), use_perturb=d.get("use_perturb",True), perturbation_prob=d.get("perturbation_prob",0.7), perturbation_strengths=d.get("perturbation_strengths",[]), saliency_sampling_ratio=d.get("saliency_sampling_ratio",0.7), final_quality_weight=d.get("final_quality_weight",1.0), final_align_weight=d.get("final_align_weight",0.0), train_augmentation_mode=d.get("train_augmentation_mode","legacy"), quality_safe_flip_prob=d.get("quality_safe_flip_prob",0.5), local_multicrop=d.get("local_multicrop",{}), mirror_augmentation=d.get("mirror_augmentation",{}))
+    common["mos_normalization"] = d.get("mos_normalization", "legacy_full_data")
     return build_iqa_dataloaders_from_dataset(AGIQA1KIQADataset(train=True, **common), AGIQA1KIQADataset(train=False, **common), cfg)
 
 

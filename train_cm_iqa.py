@@ -43,6 +43,7 @@ from utils.downstream_controls import configure_downstream_controls, distinct_pr
 
 def parse_args():
     p = argparse.ArgumentParser()
+    p.add_argument("--refit-plan", type=str, default=None, help="Immutable validation-derived train+val fixed-step plan; no validation selection or intermediate test.")
     p.add_argument("--local-feature-stage", choices=("layer3", "layer4", "layer3_4"), default=None, help="Select ResNet layer3, layer4, or layer3_4 fusion; default follows YAML (legacy layer4).")
     p.add_argument("--reinit-local-projection", action="store_true", help="Explicitly reset only local projection weight/bias for layer4 checkpoint -> layer3 downstream transfer.")
     p.add_argument("--compare-selection-policies", action="store_true", help="Compare Quality and joint validation selection on one fixed 60-epoch trajectory, no early stopping or disk weights.")
@@ -448,6 +449,11 @@ def build_optimizer(cfg: Dict, model: nn.Module):
         "other": {"params": [], "lr": base_lr * float(lrcfg.get("other_mult", 1.0))},
     }
 
+    if "shared_projection_mult" in lrcfg:
+        multiplier = float(lrcfg["shared_projection_mult"])
+        if not math.isfinite(multiplier) or multiplier <= 0:
+            raise ValueError("shared_projection_mult must be finite and positive")
+        groups["shared_projection"] = {"params": [], "lr": base_lr * multiplier}
     quality_prefixes = (
         "quality_local_encoder", "quality_feature_mix_logit",
         "local_patch_proj", "nss_proj", "nss_gate", "text_gate",
@@ -475,6 +481,8 @@ def build_optimizer(cfg: Dict, model: nn.Module):
             groups["text_context"]["params"].append(param)
         elif name.startswith(("fusion_gate", "fusion_logit")):
             groups["fusion_gate"]["params"].append(param)
+        elif "shared_projection" in groups and name.startswith(("shared_image_projector.", "shared_text_projector.")):
+            groups["shared_projection"]["params"].append(param)
         elif name.startswith("quality_adapter."):
             groups["quality_adapter"]["params"].append(param)
         elif name.startswith("quality_text_bank."):
@@ -1452,7 +1460,7 @@ def compute_losses(model, batch, device, cfg, prompt_bank=None, epoch: int | Non
     return out, losses
 
 
-def train_one_epoch(model, loader, optimizer, scaler, device, cfg, epoch, prompt_bank=None):
+def train_one_epoch(model, loader, optimizer, scaler, device, cfg, epoch, prompt_bank=None, optimizer_step_callback=None):
     model.train()
     enforce_progressive_frozen_eval(model, cfg, epoch)
     amp_enabled = bool(cfg["train"].get("amp", True)) and device.type == "cuda"
@@ -1489,6 +1497,8 @@ def train_one_epoch(model, loader, optimizer, scaler, device, cfg, epoch, prompt
     all_ag, all_agt, all_ap, all_apt = [], [], [], []
     all_qgs, all_qgst, all_qga, all_qgat = [], [], [], []
     gradient_audit = {}
+    record_steps = bool(cfg["train"].get("record_step_budget", False) or optimizer_step_callback is not None)
+    processed_steps, successful_updates = 0, 0
     for step, batch in enumerate(loader):
         optimizer.zero_grad(set_to_none=True)
         with autocast(device_type=device.type, enabled=amp_enabled):
@@ -1536,8 +1546,15 @@ def train_one_epoch(model, loader, optimizer, scaler, device, cfg, epoch, prompt
         if float(cfg["train"].get("grad_clip", 1.0)) > 0:
             scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), float(cfg["train"].get("grad_clip", 1.0)))
+        scale_before = scaler.get_scale() if record_steps else None
         scaler.step(optimizer)
         scaler.update()
+        if record_steps:
+            processed_steps += 1
+            successful = scaler.get_scale() >= scale_before
+            successful_updates += int(successful)
+            if optimizer_step_callback is not None:
+                optimizer_step_callback(successful)
 
         bs = batch["image"].size(0)
         for k in keys:
@@ -1625,6 +1642,10 @@ def train_one_epoch(model, loader, optimizer, scaler, device, cfg, epoch, prompt
         m["pcgrad_conflict_rate"] = pcgrad_conflict_steps / max(1, pcgrad_active_steps)
         m["pcgrad_active_rate"] = pcgrad_active_steps / max(1, pcgrad_steps)
     m.update(gradient_audit)
+    if record_steps:
+        m["processed_steps"] = processed_steps
+        m["optimizer_updates"] = successful_updates
+        m["amp_skipped_steps"] = processed_steps - successful_updates
     return m
 
 
@@ -2020,6 +2041,13 @@ def main():
             ),
         })
         dataset_cfg["mirror_augmentation"] = mirror_cfg
+    refit_plan = None
+    if args.refit_plan:
+        from utils.refit_protocol import load_plan
+        refit_plan = load_plan(args.refit_plan, cfg)
+        if args.compare_selection_policies or cfg.get("train",{}).get("compare_selection_policies", False):
+            raise ValueError("Fixed-budget refit cannot compare validation selection policies")
+        cfg.setdefault("train", {})["refit_plan"] = str(args.refit_plan)
     compare_selection = configure_selection_comparison(cfg, args)
     validate_progressive_finetune_config(cfg)
     set_seed(int(cfg.get("seed", 42)))
@@ -2053,14 +2081,21 @@ def main():
     if pretrain_path and not os.path.isfile(pretrain_path):
         raise FileNotFoundError(f"Pretrained checkpoint not found: {pretrain_path}")
 
-    fingerprint = checkpoint_fingerprint(pretrain_path) if compare_selection else None
+    metadata_enabled = bool(compare_selection or cfg["train"].get("record_run_metadata", False) or refit_plan)
+    fingerprint = checkpoint_fingerprint(pretrain_path) if metadata_enabled else None
     metadata = None
-    if compare_selection:
+    if metadata_enabled:
         metadata = collect_run_metadata(fingerprint, cfg)
         metadata_path = write_run_metadata(outdir, metadata)
-        print("[INFO] Comparing validation selection on one 60-epoch trajectory; early stopping disabled.")
+        if compare_selection:
+            print("[INFO] Comparing validation selection on one 60-epoch trajectory; early stopping disabled.")
     train_loader, val_loader, test_loader = unpack_loaders(build_dataloaders(cfg))
     require_validation_data(val_loader)
+    if refit_plan is not None:
+        from utils.refit_protocol import merge_train_validation
+        train_loader, val_loader = merge_train_validation(train_loader, val_loader, test_loader, cfg, refit_plan)
+    if cfg["train"].get("protocol_version") == "corrected_v2" or refit_plan is not None:
+        dump_config_snapshot(cfg, outdir, config_path=args.config)
     if compare_selection and test_loader is None:
         raise ValueError("Selection comparison requires a held-out test loader for final reporting.")
     model = build_iqa_model(cfg, pretrain_path).to(device)
@@ -2073,7 +2108,7 @@ def main():
             reinit_local_projection=bool(cfg["train"].get("reinit_local_projection", False)),
         )
 
-    if compare_selection:
+    if metadata_enabled:
         # Hash again after both model construction and checkpoint loading. A
         # replaced input must not silently acquire an unrelated provenance hash.
         if checkpoint_fingerprint(pretrain_path) != fingerprint:
@@ -2113,6 +2148,12 @@ def main():
         .get("progressive_unfreeze", {})
         .get("encoder_start_epoch", 1)
     )
+    if refit_plan is not None:
+        from utils.refit_protocol import run_fixed_budget_refit
+        run_fixed_budget_refit(model=model, train_loader=train_loader, test_loader=test_loader,
+            optimizer=optimizer, device=device, cfg=cfg, plan=refit_plan, logger=logger,
+            train_epoch=train_one_epoch, evaluate_fn=evaluate, metadata_path=metadata_path)
+        return
     scheduler_epochs = int(cfg["train"].get("epochs", 60))
     if progressive_enabled:
         # Keep the original group learning rates throughout frozen stages.
@@ -2272,6 +2313,7 @@ def main():
         "last_checkpoint": "",
         "best_val": best_val,
         "best_test": best_test or {},
+        **({"run_metadata_path": metadata_path} if metadata_enabled else {}),
     }
     logger.log(event="final", epoch=best_epoch, metrics=final_metrics, best_epoch=best_epoch, is_best=False)
 

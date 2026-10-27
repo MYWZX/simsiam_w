@@ -68,6 +68,7 @@ class FrozenCLIPTextEncoder(nn.Module):
         pretrained: str = "openai",
         learnable_context_tokens: int = 0,
         isolate_context_init_rng: bool = False,
+        force_quick_gelu: Optional[bool] = None,
     ):
         super().__init__()
         try:
@@ -75,7 +76,8 @@ class FrozenCLIPTextEncoder(nn.Module):
         except ImportError as e:
             raise ImportError("open_clip_torch is required: pip install open_clip_torch") from e
 
-        self.model, _, _ = open_clip.create_model_and_transforms(model_name, pretrained=pretrained)
+        self.model, _, _ = open_clip.create_model_and_transforms(model_name, pretrained=pretrained,
+            **({"force_quick_gelu": bool(force_quick_gelu)} if force_quick_gelu is not None else {}))
         self.tokenizer = open_clip.get_tokenizer(model_name)
         for p in self.model.parameters():
             p.requires_grad = False
@@ -358,6 +360,9 @@ class ImageTextBackbone(nn.Module):
         fcfg = mcfg["fusion"]
         tcfg = mcfg.get("text_encoder", {})
 
+        clip_kwargs = {"force_quick_gelu": True} if mcfg.get("clip_quick_gelu", False) else {}
+        if clip_kwargs:
+            self.register_buffer("clip_activation_signature", torch.tensor(1, dtype=torch.int64))
         self.global_encoder = GlobalVisualEncoder(
             encoder_type=gcfg.get("type", "vit_base_patch16_224.augreg2_in21k_ft_in1k"),
             pretrained=gcfg.get("pretrained", True),
@@ -371,6 +376,7 @@ class ImageTextBackbone(nn.Module):
             ),
             source_normalization=gcfg.get("source_normalization", "imagenet"),
             normalize_output=gcfg.get("normalize_output", False),
+            **clip_kwargs,
         )
         self.local_encoder = ResNet50LocalEncoder(
             pretrained=lcfg.get("pretrained", True),
@@ -380,8 +386,12 @@ class ImageTextBackbone(nn.Module):
         )
         self.freeze_global_encoder = bool(gcfg.get("freeze", False))
         self.freeze_local_encoder = bool(lcfg.get("freeze", False))
+        self.freeze_local_bn_stats = bool(lcfg.get("freeze_bn_stats", False))
         maybe_freeze(self.global_encoder, self.freeze_global_encoder)
         maybe_freeze(self.local_encoder, self.freeze_local_encoder)
+        if self.freeze_local_bn_stats:
+            for module in self.local_encoder.modules():
+                if isinstance(module, nn.modules.batchnorm._BatchNorm): module.eval()
 
         self.fusion = SemanticStructureFusion(
             semantic_dim=gcfg.get("output_dim", 768),
@@ -397,6 +407,7 @@ class ImageTextBackbone(nn.Module):
             pretrained=tcfg.get("clip_pretrained", "openai"),
             learnable_context_tokens=tcfg.get("learnable_context_tokens", 0),
             isolate_context_init_rng=tcfg.get("isolate_context_init_rng", False),
+            **clip_kwargs,
         )
         self.text_dim = self.text_encoder.output_dim
 
@@ -408,6 +419,9 @@ class ImageTextBackbone(nn.Module):
             self.global_encoder.eval()
         if self.freeze_local_encoder:
             self.local_encoder.eval()
+        elif self.freeze_local_bn_stats:
+            for module in self.local_encoder.modules():
+                if isinstance(module, nn.modules.batchnorm._BatchNorm): module.eval()
         return self
 
     def encode_image(
@@ -1916,6 +1930,7 @@ def load_pretrained_backbone(
         "backbone.global_encoder.",
         "backbone.local_encoder.",
         "backbone.fusion.",
+        "backbone.clip_activation_signature",
         "backbone.text_encoder.context_vectors",
         "text_to_fused.",
         "quality_adapter.",
@@ -1940,6 +1955,13 @@ def load_pretrained_backbone(
     ckpt = torch.load(checkpoint_path, map_location=model_device)
     state = ckpt.get("model", ckpt.get("state_dict", ckpt))
     target = model.state_dict()
+    signature = "backbone.clip_activation_signature"
+    source_signature = {key.removeprefix("module.").removeprefix("iqa."): value for key,value in state.items()
+                        if key.removeprefix("module.").removeprefix("iqa.") == signature}
+    if bool(source_signature) != (signature in target):
+        raise RuntimeError("CLIP activation mismatch: QuickGELU corrected checkpoints cannot mix with legacy GELU")
+    if source_signature and int(source_signature[signature].item()) != 1:
+        raise RuntimeError("Unsupported CLIP activation signature")
     # In the decoupled checkpoint, the quality SimSiam projector is the
     # quality representation that should survive downstream. Prefer it over
     # the auxiliary persistent IQA adapter when both have the same shape.

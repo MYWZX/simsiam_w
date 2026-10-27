@@ -10,6 +10,7 @@ import pandas as pd
 import torch
 from PIL import Image, ImageEnhance
 from scipy.io import loadmat
+from utils.data_protocols import loader_rng_kwargs
 from torch.utils.data import ConcatDataset, DataLoader, Dataset, Sampler, WeightedRandomSampler
 
 from utils.mirror_augmentation import (
@@ -1773,6 +1774,7 @@ def build_mixed_pretrain_dataloaders(cfg: Dict):
         train_loader = DataLoader(
             train_dataset,
             batch_sampler=batch_sampler,
+            **loader_rng_kwargs(cfg, "train"),
             num_workers=lcfg.get("num_workers", 4),
             pin_memory=lcfg.get("pin_memory", True),
         )
@@ -1781,6 +1783,7 @@ def build_mixed_pretrain_dataloaders(cfg: Dict):
             weights=torch.DoubleTensor(train_weights),
             num_samples=num_samples,
             replacement=True,
+            **({"generator": loader_rng_kwargs(cfg, "train")["generator"]} if lcfg.get("isolate_rng", False) else {}),
         )
         train_loader = DataLoader(
             train_dataset,
@@ -1789,6 +1792,7 @@ def build_mixed_pretrain_dataloaders(cfg: Dict):
             num_workers=lcfg.get("num_workers", 4),
             pin_memory=lcfg.get("pin_memory", True),
             drop_last=True,
+            **loader_rng_kwargs(cfg, "train"),
         )
     val_loader = DataLoader(
         val_dataset,
@@ -1797,6 +1801,7 @@ def build_mixed_pretrain_dataloaders(cfg: Dict):
         num_workers=lcfg.get("num_workers", 4),
         pin_memory=lcfg.get("pin_memory", True),
         drop_last=False,
+        **loader_rng_kwargs(cfg, "val"),
     )
     test_loader = DataLoader(
         test_dataset,
@@ -1805,5 +1810,6 @@ def build_mixed_pretrain_dataloaders(cfg: Dict):
         num_workers=lcfg.get("num_workers", 4),
         pin_memory=lcfg.get("pin_memory", True),
         drop_last=False,
+        **loader_rng_kwargs(cfg, "test"),
     )
     return train_loader, val_loader, test_loader
