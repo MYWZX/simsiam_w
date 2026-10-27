@@ -14,4 +14,6 @@ def dual_quality_diagnostics(model):
         result['quality_residual_alpha'] = float(torch.sigmoid(owner.quality_adapter_gate_logit.detach().float()).item())
     if getattr(owner, 'freeze_shared_projection_bn_stats', False):
         result['shared_projection_bn_stats_frozen'] = 1.0
+    if getattr(owner, 'shared_simsiam_projection', False) and not getattr(owner, 'shared_projection_project_patches', True):
+        result['align_patch_uses_shared_pi'] = 0.0
     return result

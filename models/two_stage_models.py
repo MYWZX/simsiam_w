@@ -568,6 +568,9 @@ class CrossModalIQAFullModel(nn.Module):
         self.text_to_fused = nn.Linear(text_dim, fused_dim)
 
         self.shared_simsiam_projection = bool(mcfg.get("shared_simsiam_projection", False))
+        self.shared_projection_project_patches = bool(mcfg.get("shared_projection_project_patches", True))
+        if not self.shared_projection_project_patches and not self.shared_simsiam_projection:
+            raise ValueError("shared_projection_project_patches=false requires shared_simsiam_projection")
         self.freeze_shared_projection_bn_stats = bool(mcfg.get("shared_projection_freeze_bn_stats", False))
         if self.freeze_shared_projection_bn_stats and not self.shared_simsiam_projection:
             raise ValueError("shared_projection_freeze_bn_stats requires shared_simsiam_projection")
@@ -1297,7 +1300,8 @@ class CrossModalIQAFullModel(nn.Module):
     ) -> Dict[str, torch.Tensor]:
         if self.shared_simsiam_projection:
             z_global = self.project_shared_image(z_global)
-            patch_tokens = self.project_shared_image(patch_tokens)
+            if self.shared_projection_project_patches:
+                patch_tokens = self.project_shared_image(patch_tokens)
         z_align = self.align_global_adapter(z_global)
         text_align = self.project_align_text(text_fused)
         patch_align = self.align_patch_adapter(patch_tokens)
