@@ -261,3 +261,4 @@ def maybe_freeze(module: nn.Module, freeze: bool) -> None:
     if freeze:
         for p in module.parameters():
             p.requires_grad = False
+        module.eval()

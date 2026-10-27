@@ -140,17 +140,28 @@ def _numeric_sort_key(path: Path):
 
 def _load_mat_vector(path: Path, key: str | None = None) -> np.ndarray:
     data = loadmat(str(path))
-    if key and key in data:
+    if key:
+        if key not in data:
+            raise KeyError(f"MAT score key {key!r} missing from {path}; available keys: {[k for k in data if not k.startswith('__')]}")
         arr = data[key]
     else:
-        candidates = [(k, v) for k, v in data.items() if not k.startswith("__") and isinstance(v, np.ndarray)]
-        if not candidates: raise RuntimeError(f"No numeric vector found in {path}")
+        candidates = [(k, v) for k, v in data.items() if not k.startswith("__")
+                      and isinstance(v, np.ndarray) and np.issubdtype(v.dtype, np.number)
+                      and v.size > 0 and np.squeeze(v).ndim <= 1]
+        if len(candidates) != 1:
+            raise RuntimeError(f"Expected one numeric score vector in {path}; specify its MAT key explicitly")
         arr = candidates[0][1]
-    return np.asarray(arr).reshape(-1).astype(np.float32)
+    arr = np.asarray(arr)
+    if not np.issubdtype(arr.dtype, np.number) or arr.size == 0 or np.squeeze(arr).ndim > 1:
+        raise ValueError(f"Expected a nonempty numeric score vector in {path}, got shape {arr.shape}")
+    result = arr.reshape(-1).astype(np.float32)
+    if not np.isfinite(result).all():
+        raise ValueError(f"Non-finite MOS values in {path}")
+    return result
 
 
 def _load_prompts_from_file(path: Path) -> List[str]:
-    if not path.exists(): return []
+    if not path.is_file(): raise FileNotFoundError(f"Configured prompt file not found: {path}")
     if path.suffix.lower() in [".xlsx", ".xls"]:
         df = pd.read_excel(path).fillna("")
     else:
@@ -298,7 +309,11 @@ class AIGCIQA2023IQADataset(BaseIQADataset):
         a = _load_mat_vector(self.root / mosz3_file, mosz3_key if mosz3_key else None)
         exts = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
         imgs = sorted([p for p in self.image_root.rglob("*") if p.is_file() and p.suffix.lower() in exts], key=_numeric_sort_key)
-        n = min(len(imgs), len(q), len(a)); self.images = imgs[:n]; self.quality = q[:n]; self.align = a[:n]
+        if not imgs:
+            raise ValueError(f"No AIGCIQA2023 images found in {self.image_root}")
+        if len(imgs) != len(q) or len(imgs) != len(a):
+            raise ValueError(f"AIGCIQA2023 image/MOS count mismatch: images={len(imgs)}, quality={len(q)}, align={len(a)}; positional labels must match exactly")
+        self.images = imgs; self.quality = q; self.align = a
         mx = mos_max if mos_max is not None else (100.0 if max(np.nanmax(self.quality), np.nanmax(self.align)) > 10 else 5.0)
         self.mos_max = float(mx); self.prompts = _load_prompts_from_file(self.root / prompt_file) if prompt_file else []
         self.images_per_prompt = int(images_per_prompt)

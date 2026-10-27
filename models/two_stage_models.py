@@ -118,7 +118,7 @@ class FrozenCLIPTextEncoder(nn.Module):
             with torch.no_grad():
                 tokens = self.tokenizer(strings).to(device)
                 feat = self.model.encode_text(tokens)
-            return F.normalize(feat.float(), dim=-1)
+            return F.normalize(feat.float(), dim=-1, eps=1e-6)
 
         from open_clip.transformer import text_global_pool
 
@@ -154,7 +154,7 @@ class FrozenCLIPTextEncoder(nn.Module):
                 feat = self.model.text_projection(feat)
             else:
                 feat = feat @ self.model.text_projection
-        return F.normalize(feat.float(), dim=-1)
+        return F.normalize(feat.float(), dim=-1, eps=1e-6)
 
     def encode_with_context(self, texts: Sequence[str], context_vectors: torch.Tensor,
                             device: torch.device) -> torch.Tensor:
@@ -199,7 +199,7 @@ class FrozenCLIPTextEncoder(nn.Module):
                 feat = self.model.text_projection(feat)
             else:
                 feat = feat @ self.model.text_projection
-        return F.normalize(feat.float(), dim=-1)
+        return F.normalize(feat.float(), dim=-1, eps=1e-6)
 
     def encode_token_features(
         self, texts: Sequence[str], device: torch.device
@@ -264,7 +264,7 @@ class FrozenCLIPTextEncoder(nn.Module):
         self.model.eval()
         device = next(self.model.parameters()).device
         tokens = self.tokenizer([str(value) for value in texts]).to(device)
-        return F.normalize(self.model.encode_text(tokens).float(), dim=-1)
+        return F.normalize(self.model.encode_text(tokens).float(), dim=-1, eps=1e-6)
 
 
 class QualityTextPrototypeBank(nn.Module):
@@ -331,14 +331,14 @@ class QualityTextPrototypeBank(nn.Module):
         return (self.class_context - self.initial_class_context).pow(2).mean()
 
     def forward(self, image_feature: torch.Tensor) -> Dict[str, torch.Tensor]:
-        image_text = F.normalize(self.image_to_text(image_feature).float(), dim=-1)
+        image_text = F.normalize(self.image_to_text(image_feature).float(), dim=-1, eps=1e-6)
         if self.class_context is not None:
             references = self._text_encoder_ref.encode_with_context(
                 self._phrases, self.class_context, device=image_feature.device
             )
         else:
             references = self.text_features
-        references = F.normalize(references.float(), dim=-1)
+        references = F.normalize(references.float(), dim=-1, eps=1e-6)
         logits = image_text @ references.T / self.temperature
         probabilities = torch.softmax(logits, dim=-1)
         return {
@@ -378,8 +378,10 @@ class ImageTextBackbone(nn.Module):
             model_name=lcfg.get("type", "resnet50.a1_in1k"),
             feature_stage=lcfg.get("feature_stage", "layer4"),
         )
-        maybe_freeze(self.global_encoder, gcfg.get("freeze", False))
-        maybe_freeze(self.local_encoder, lcfg.get("freeze", False))
+        self.freeze_global_encoder = bool(gcfg.get("freeze", False))
+        self.freeze_local_encoder = bool(lcfg.get("freeze", False))
+        maybe_freeze(self.global_encoder, self.freeze_global_encoder)
+        maybe_freeze(self.local_encoder, self.freeze_local_encoder)
 
         self.fusion = SemanticStructureFusion(
             semantic_dim=gcfg.get("output_dim", 768),
@@ -397,6 +399,16 @@ class ImageTextBackbone(nn.Module):
             isolate_context_init_rng=tcfg.get("isolate_context_init_rng", False),
         )
         self.text_dim = self.text_encoder.output_dim
+
+    def train(self, mode: bool = True):
+        super().train(mode)
+        # Permanent encoder freezing also freezes BN statistics and Dropout;
+        # a parent model.train() must not silently reactivate them.
+        if self.freeze_global_encoder:
+            self.global_encoder.eval()
+        if self.freeze_local_encoder:
+            self.local_encoder.eval()
+        return self
 
     def encode_image(
         self,
@@ -489,13 +501,13 @@ class CrossModalSimSiamPretrain(nn.Module):
         )
 
     def _project_image(self, z: torch.Tensor) -> Dict[str, torch.Tensor]:
-        z_proj = F.normalize(self.image_projector(z), dim=-1)
-        p = F.normalize(self.image_predictor(z_proj), dim=-1)
+        z_proj = F.normalize(self.image_projector(z), dim=-1, eps=1e-6)
+        p = F.normalize(self.image_predictor(z_proj), dim=-1, eps=1e-6)
         return {"z_proj": z_proj, "p": p}
 
     def _project_text(self, feat: torch.Tensor) -> Dict[str, torch.Tensor]:
-        z_proj = F.normalize(self.text_projector(feat), dim=-1)
-        p = F.normalize(self.text_predictor(z_proj), dim=-1)
+        z_proj = F.normalize(self.text_projector(feat), dim=-1, eps=1e-6)
+        p = F.normalize(self.text_predictor(z_proj), dim=-1, eps=1e-6)
         return {"z_proj": z_proj, "p": p}
 
     def forward_views(
@@ -1063,7 +1075,7 @@ class CrossModalIQAFullModel(nn.Module):
                 # Its forward and auxiliary text-bank supervision still run.
                 return shared, alpha
         magnitude = shared.float().norm(dim=-1, keepdim=True).detach()
-        delta = F.normalize(adapted.float(), dim=-1) * magnitude
+        delta = F.normalize(adapted.float(), dim=-1, eps=1e-6) * magnitude
         fused = shared.float() + alpha * delta
         return fused.to(shared.dtype), alpha
 
@@ -1156,7 +1168,7 @@ class CrossModalIQAFullModel(nn.Module):
             adapter_input = z_global.detach() if self.detach_quality_adapter_input else z_global
             z_quality_global = self.quality_adapter(adapter_input)
             if self.normalize_quality_adapter:
-                z_quality_global = F.normalize(z_quality_global, dim=-1, eps=1e-6 if self.dual_quality_representation else 1e-12)
+                z_quality_global = F.normalize(z_quality_global, dim=-1, eps=1e-6)
 
             if self.quality_adapter_mode == "parallel_score":
                 s_global_shared = torch.sigmoid(
@@ -1282,11 +1294,11 @@ class CrossModalIQAFullModel(nn.Module):
         # flattened tokens, never the token-count axis as its channel dimension.
         shape = features.shape
         projected = self.shared_image_projector(features.reshape(-1, shape[-1]))
-        return F.normalize(projected.reshape(shape), dim=-1)
+        return F.normalize(projected.reshape(shape), dim=-1, eps=1e-6)
 
     def project_align_text(self, features: torch.Tensor) -> torch.Tensor:
         if self.shared_simsiam_projection:
-            features = F.normalize(self.shared_text_projector(features), dim=-1)
+            features = F.normalize(self.shared_text_projector(features), dim=-1, eps=1e-6)
         return self.align_text_adapter(features)
 
     def _align_from_global_and_patch(
@@ -1337,8 +1349,8 @@ class CrossModalIQAFullModel(nn.Module):
         else:
             patch_tokens_for_align = patch_align
 
-        p_img = F.normalize(self.align_patch_img_proj(patch_tokens_for_align), dim=-1)
-        p_txt = F.normalize(self.align_patch_txt_proj(text_align), dim=-1)
+        p_img = F.normalize(self.align_patch_img_proj(patch_tokens_for_align), dim=-1, eps=1e-6)
+        p_txt = F.normalize(self.align_patch_txt_proj(text_align), dim=-1, eps=1e-6)
         attn = torch.softmax(torch.sum(p_img * p_txt.unsqueeze(1), dim=-1), dim=1)
         evidence = torch.sum(attn.unsqueeze(-1) * patch_tokens_for_align, dim=1)
         pair_p = torch.cat([evidence, text_align, torch.abs(evidence - text_align)], dim=-1)
@@ -1443,7 +1455,7 @@ class CrossModalIQAFullModel(nn.Module):
         if quality_mos_projector is not None:
             if self.use_quality_adapter:
                 raise ValueError("Pretraining MOS-via-PQ requires the IQA Quality Adapter disabled")
-            quality_global = F.normalize(quality_mos_projector(quality_global), dim=-1)
+            quality_global = F.normalize(quality_mos_projector(quality_global), dim=-1, eps=1e-6)
         q_out = self._quality_from_patches(
             image,
             quality_global,
@@ -1584,26 +1596,26 @@ class CrossModalIQAJointPretrain(nn.Module):
     def _project_image(self, feature: torch.Tensor) -> Dict[str, torch.Tensor]:
         if self.shared_simsiam_projection:
             z = self.iqa.project_shared_image(feature)
-            return {"z_proj": z, "p": F.normalize(self.image_predictor(z), dim=-1)}
-        z = F.normalize(self.image_projector(feature), dim=-1)
-        return {"z_proj": z, "p": F.normalize(self.image_predictor(z), dim=-1)}
+            return {"z_proj": z, "p": F.normalize(self.image_predictor(z), dim=-1, eps=1e-6)}
+        z = F.normalize(self.image_projector(feature), dim=-1, eps=1e-6)
+        return {"z_proj": z, "p": F.normalize(self.image_predictor(z), dim=-1, eps=1e-6)}
 
     def _project_text(self, feature: torch.Tensor, already_projected: bool = False) -> Dict[str, torch.Tensor]:
         if self.shared_simsiam_projection:
-            z = F.normalize(feature, dim=-1) if already_projected else F.normalize(self.iqa.shared_text_projector(feature), dim=-1)
+            z = F.normalize(feature, dim=-1, eps=1e-6) if already_projected else F.normalize(self.iqa.shared_text_projector(feature), dim=-1, eps=1e-6)
         else:
-            z = F.normalize(self.text_projector(feature), dim=-1)
-        return {"z_proj": z, "p": F.normalize(self.text_predictor(z), dim=-1)}
+            z = F.normalize(self.text_projector(feature), dim=-1, eps=1e-6)
+        return {"z_proj": z, "p": F.normalize(self.text_predictor(z), dim=-1, eps=1e-6)}
 
     def _project_quality_image(self, feature: torch.Tensor) -> Dict[str, torch.Tensor]:
         """Project images into the optional quality-only SimSiam space."""
         if not self.separate_quality_projection:
             return self._project_image(feature)
         projector = self.iqa.quality_adapter if self.dual_quality_representation else self.quality_image_projector
-        z = F.normalize(projector(feature), dim=-1, eps=1e-6 if self.dual_quality_representation else 1e-12)
+        z = F.normalize(projector(feature), dim=-1, eps=1e-6)
         return {
             "z_proj": z,
-            "p": F.normalize(self.quality_image_predictor(z), dim=-1),
+            "p": F.normalize(self.quality_image_predictor(z), dim=-1, eps=1e-6),
         }
 
     def _quality_view_feature(self, image_features: Dict[str, torch.Tensor]) -> torch.Tensor:
@@ -1619,8 +1631,8 @@ class CrossModalIQAJointPretrain(nn.Module):
         the legacy path, so old configurations remain unchanged.
         """
         if self.shared_simsiam_projection:
-            z = F.normalize(self.iqa.align_global_adapter(self.iqa.project_shared_image(feature)), dim=-1)
-            return {"z_proj": z, "p": F.normalize(self.image_predictor(z), dim=-1)}
+            z = F.normalize(self.iqa.align_global_adapter(self.iqa.project_shared_image(feature)), dim=-1, eps=1e-6)
+            return {"z_proj": z, "p": F.normalize(self.image_predictor(z), dim=-1, eps=1e-6)}
         align_feature = self.iqa.align_global_adapter(feature)
         return self._project_image(align_feature)
 
@@ -1635,8 +1647,8 @@ class CrossModalIQAJointPretrain(nn.Module):
         pooled = pooled / weights.sum(dim=1, keepdim=True).clamp_min(1e-6)
         # Inputs are already AP(PI(P0)) in shared mode. Do not run PI twice.
         if self.shared_simsiam_projection:
-            z = F.normalize(self.iqa.align_global_adapter(pooled), dim=-1)
-            return {"z_proj": z, "p": F.normalize(self.image_predictor(z), dim=-1)}
+            z = F.normalize(self.iqa.align_global_adapter(pooled), dim=-1, eps=1e-6)
+            return {"z_proj": z, "p": F.normalize(self.image_predictor(z), dim=-1, eps=1e-6)}
         # Region-level image/text relations belong to the alignment branch.
         return self._project_align_image(pooled)
 
@@ -1678,12 +1690,12 @@ class CrossModalIQAJointPretrain(nn.Module):
         )
         if self.dual_quality_representation:
             q = score_clean["quality_representation"]
-            quality_clean_p = {"z_proj": q, "p": F.normalize(self.quality_image_predictor(q), dim=-1)}
+            quality_clean_p = {"z_proj": q, "p": F.normalize(self.quality_image_predictor(q), dim=-1, eps=1e-6)}
         if self.quality_mos_via_pq:
             # Reuse the exact PQ Clean tensor scored by all quality MOS heads.
             # No second PQ/BN/Dropout call for the anchor/CE targets.
             q = score_clean["z_quality_global"]
-            quality_clean_p = {"z_proj": q, "p": F.normalize(self.quality_image_predictor(q), dim=-1)}
+            quality_clean_p = {"z_proj": q, "p": F.normalize(self.quality_image_predictor(q), dim=-1, eps=1e-6)}
         if self.shared_simsiam_projection:
             # Only I-I moves from PQ to PI. Clean quality anchors/CE retain PQ.
             quality_img1_p = self._project_image(self._quality_view_feature(img1))
@@ -1849,8 +1861,8 @@ class CrossModalIQAJointPretrain(nn.Module):
 
 
 def negative_cosine(p: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
-    p = F.normalize(p, dim=-1)
-    z = F.normalize(z.detach(), dim=-1)
+    p = F.normalize(p, dim=-1, eps=1e-6)
+    z = F.normalize(z.detach(), dim=-1, eps=1e-6)
     return -(p * z).sum(dim=-1)
 
 
@@ -2054,7 +2066,10 @@ def load_pretrained_backbone(
         if missing:
             raise RuntimeError(f"Incomplete shared PI/PT transfer: {sorted(missing)}")
     if dual_quality:
-        required = {k for k in target if k.startswith(DUAL_QUALITY_TRANSFER_PREFIXES + ("backbone.local_encoder.",))}
+        required = {k for k in target if k.startswith(DUAL_QUALITY_TRANSFER_PREFIXES + (
+            "backbone.local_encoder.", "text_to_fused.", "align_global_adapter.",
+            "align_patch_adapter.", "align_text_adapter.",
+        ))}
         missing = required.difference(loadable)
         if missing:
             raise RuntimeError(f"Incomplete dual-quality representation transfer: {sorted(missing)}")

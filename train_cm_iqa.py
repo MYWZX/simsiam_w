@@ -347,6 +347,14 @@ def configure_downstream_pcgrad(cfg: Dict, args: argparse.Namespace) -> None:
 def compute_regression_metrics(y_true, y_pred):
     y_true = np.asarray(y_true).reshape(-1)
     y_pred = np.asarray(y_pred).reshape(-1)
+    if len(y_true) != len(y_pred):
+        raise ValueError(f"Metric target/prediction count mismatch: {len(y_true)} vs {len(y_pred)}")
+    if not np.isfinite(y_true).all() or not np.isfinite(y_pred).all():
+        raise ValueError("Non-finite targets or predictions in regression metrics")
+    if len(y_true) == 1:
+        error = float(y_true[0] - y_pred[0])
+        return {"N": 1, "PLCC": 0.0, "SROCC": 0.0, "KROCC": 0.0,
+                "RMSE": abs(error), "MAE": abs(error)}
     if len(y_true) < 2:
         return {"N": int(len(y_true)), "PLCC": 0.0, "SROCC": 0.0, "KROCC": 0.0, "RMSE": 0.0, "MAE": 0.0}
 
@@ -369,6 +377,17 @@ def compute_regression_metrics(y_true, y_pred):
 
 def unpack_loaders(loaders):
     return loaders if len(loaders) == 3 else (loaders[0], loaders[1], None)
+
+
+def require_validation_data(loader) -> None:
+    """The validation-selected entry point cannot silently become train/test."""
+    dataset = getattr(loader, "dataset", None)
+    if loader is None or len(loader) == 0 or (dataset is not None and len(dataset) < 2):
+        raise ValueError(
+            "This training mode requires a nonempty validation set with at least two samples. "
+            "Merging train+val requires a separate fixed-budget refit protocol; "
+            "do not use the test set for epoch selection."
+        )
 
 
 def build_iqa_model(cfg: Dict, pretrained_checkpoint: str = "") -> CrossModalIQAFullModel:
@@ -2041,6 +2060,7 @@ def main():
         metadata_path = write_run_metadata(outdir, metadata)
         print("[INFO] Comparing validation selection on one 60-epoch trajectory; early stopping disabled.")
     train_loader, val_loader, test_loader = unpack_loaders(build_dataloaders(cfg))
+    require_validation_data(val_loader)
     if compare_selection and test_loader is None:
         raise ValueError("Selection comparison requires a held-out test loader for final reporting.")
     model = build_iqa_model(cfg, pretrain_path).to(device)

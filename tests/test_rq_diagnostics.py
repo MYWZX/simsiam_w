@@ -184,7 +184,7 @@ class ResearchControlTests(unittest.TestCase):
                 patch.object(iqa, "ensure_dir"),
                 patch.object(iqa, "dump_config_snapshot", return_value="snapshot.yaml") as snapshot,
                 patch.object(iqa, "CSVExperimentLogger"),
-                patch.object(iqa, "build_dataloaders", return_value=(None, None, None)),
+                patch.object(iqa, "build_dataloaders", return_value=(None, [object()], None)),
                 patch.object(iqa, "build_iqa_model", return_value=nn.Linear(2, 2)),
                 patch.object(iqa.os.path, "isfile", return_value=True),
                 patch.object(iqa.torch.cuda, "is_available", return_value=False),
