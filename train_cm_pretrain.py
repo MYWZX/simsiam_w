@@ -586,6 +586,7 @@ def _compute_richhf_relational_losses(model, out, batch, prompts, device, tcfg):
     img_prompt_local = zero
     prompt_answer_word = zero
     core_model = model.module if hasattr(model, "module") else model
+    disable_negative = bool(tcfg.get("disable_negative_relations", False))
     relation_mode = str(tcfg.get("local_relation_loss", "pull_push")).strip().lower()
     if relation_mode not in {"pull_push", "relative_rank"}:
         raise ValueError(
@@ -627,6 +628,15 @@ def _compute_richhf_relational_losses(model, out, batch, prompts, device, tcfg):
             active_threshold = float(tcfg.get("misalignment_map_active_threshold", 0.05))
             misaligned_valid = valid * (misaligned_weight.amax(dim=1) > active_threshold).float()
             aligned_region = core_model.project_patch_regions(patch_features, aligned_weight)
+            if disable_negative:
+                # Keep the original positive coefficient (.5), but never
+                # project a negative region or run its BN/update path.
+                view_losses.append(0.5 * simsiam_pair_loss(
+                    aligned_region["p"], out["align_prompt_z"],
+                    out["align_prompt_p"], aligned_region["z_proj"],
+                    weight=aligned_valid,
+                ))
+                continue
             misaligned_region = core_model.project_patch_regions(patch_features, misaligned_weight)
             if relation_mode == "relative_rank":
                 view_losses.append(_simsiam_relative_rank(
@@ -664,10 +674,17 @@ def _compute_richhf_relational_losses(model, out, batch, prompts, device, tcfg):
             prompts, batch["prompt_word_labels"], device
         )
         aligned_prompt = core_model.project_aux_texts(aligned_phrases, device)
-        misaligned_prompt = core_model.project_aux_texts(misaligned_phrases, device)
         answer_conf = batch.get("answer_confidence", torch.ones_like(aligned_valid)).to(
             device, non_blocking=True
         ).float().clamp(0.0, 1.0)
+        if disable_negative:
+            prompt_answer_word = 0.5 * simsiam_pair_loss(
+                aligned_prompt["p"], out["answer_z"],
+                out["answer_p"], aligned_prompt["z_proj"],
+                weight=aligned_valid * answer_conf,
+            )
+            return img_prompt_local, prompt_answer_word
+        misaligned_prompt = core_model.project_aux_texts(misaligned_phrases, device)
         if relation_mode == "relative_rank":
             prompt_answer_word = _simsiam_relative_rank(
                 aligned_prompt,
