@@ -1921,9 +1921,11 @@ def _pcgrad_backward(
 
 
 
-def train_one_epoch(model, loader, optimizer, scaler, device, cfg, epoch: int):
+def train_one_epoch(model, loader, optimizer, scaler, device, cfg, epoch: int, optimizer_step_callback=None):
     model.train()
     tcfg = cfg["train"]
+    record_steps = bool(tcfg.get("record_step_budget", False) or optimizer_step_callback is not None)
+    processed_steps = successful_updates = 0
     supervision_view = str(tcfg.get("human_supervision_view", "augmented")).strip().lower()
     if supervision_view not in {
         "augmented", "clean", "quality_safe", "three_view", "separate_clean"
@@ -2131,8 +2133,15 @@ def train_one_epoch(model, loader, optimizer, scaler, device, cfg, epoch: int):
         if grad_clip > 0:
             scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
+        scale_before = scaler.get_scale() if record_steps else None
         scaler.step(optimizer)
         scaler.update()
+        if record_steps:
+            processed_steps += 1
+            successful = scaler.get_scale() >= scale_before
+            successful_updates += int(successful)
+            if optimizer_step_callback is not None:
+                optimizer_step_callback(successful)
 
         bs = image1.size(0)
         for k, v in {
@@ -2237,6 +2246,9 @@ def train_one_epoch(model, loader, optimizer, scaler, device, cfg, epoch: int):
     _add_quality_auxiliary_correlations(ret, quality_aux_storage)
     ret.update(local_stage_diagnostics(model))
     ret.update(dual_quality_diagnostics(model))
+    if record_steps:
+        ret.update(processed_steps=processed_steps, optimizer_updates=successful_updates,
+                   amp_skipped_steps=processed_steps-successful_updates)
     return ret
 
 
@@ -2816,7 +2828,14 @@ def main():
     logger.log(event="run_start", epoch=0, metrics={"config_file": args.config})
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    train_loader, val_loader, _ = unpack_loaders(build_dataloaders(cfg))
+    train_loader, val_loader, test_loader = unpack_loaders(build_dataloaders(cfg))
+    if cfg["train"].get("record_pretrain_split_manifest", False):
+        from utils.pretrain_refit import dataset_manifest, validate_source
+        validate_source(cfg)
+        parts = (train_loader.dataset.datasets[0].dataset,
+                 val_loader.dataset.datasets[0], test_loader.dataset.datasets[0])
+        cfg["dataset"]["pretrain_development_manifest"] = dataset_manifest(parts)
+        dump_config_snapshot(cfg, output_dir, config_path=args.config)
     if bool(cfg.get("train", {}).get("use_joint_iqa_pretraining", False)):
         model = CrossModalIQAJointPretrain(cfg).to(device)
         print("[INFO] Joint IQA pretraining enabled: persistent IQA heads will be saved for downstream loading.")
