@@ -33,6 +33,61 @@ def canonical_cfg(cfg):
     return c
 
 
+class ImageSplitOverlapError(ValueError):
+    def __init__(self, report):
+        self.report = report
+        counts = {key: value['image_count'] for key, value in report['cross_split'].items()
+                  if value['image_count']}
+        super().__init__(f'Repeated image IDs across splits: {counts}; inspect the overlap report')
+
+
+def image_identity_order(dataset):
+    """Resolve active loaders' actual image paths without opening image pixels."""
+    if hasattr(dataset, 'df'):
+        names = dataset.df['name'].astype(str).tolist()
+        resolver = getattr(dataset, '_resolve_image_path', None) or getattr(dataset, '_path', None)
+        return [str(Path(resolver(name)).resolve()) for name in names] if resolver else names
+    if hasattr(dataset, 'images'):
+        return [str(Path(path).resolve()) for path in dataset.images]
+    raise ValueError('Unsupported dataset identity schema')
+
+
+def split_overlap_report(loaders, sample_limit=20):
+    names = ('train', 'val', 'test')
+    orders = [image_identity_order(loader.dataset.dataset) for loader in loaders]
+    if orders[0] != orders[1] or orders[0] != orders[2]:
+        raise ValueError('Train/eval actual image ordering mismatch')
+    members = {}
+    for name, loader in zip(names, loaders):
+        members[name] = {}
+        for i in loader.dataset.indices:
+            i = int(i)
+            members[name].setdefault(orders[0][i], []).append(i)
+    def rows(split, indices):
+        dataset = loaders[names.index(split)].dataset.dataset
+        result = []
+        for i in indices[:sample_limit]:
+            detail = {'row_index': i}
+            if hasattr(dataset, 'df'):
+                row = dataset.df.iloc[i]
+                for key in ('name', 'MOS', 'mos_quality', 'mos_align', 'prompt'):
+                    if key in row:
+                        detail[key] = str(row[key])[:200]
+            result.append(detail)
+        return result
+    report = {'split_sizes': {name: len(loader.dataset) for name,loader in zip(names,loaders)},
+              'cross_split': {}, 'within_split_duplicate_image_counts': {
+                  name: sum(len(v)>1 for v in group.values()) for name,group in members.items()},
+              'identity': 'resolved image paths for active datasets; row IDs for synthetic datasets',
+              'sample_limit': sample_limit}
+    for left, right in [('train','val'), ('train','test'), ('val','test')]:
+        overlap = sorted(set(members[left]) & set(members[right]))
+        report['cross_split'][left+'_'+right] = {'image_count': len(overlap), 'examples': [
+            {'image_path': path, left: rows(left,members[left][path]),
+             right: rows(right,members[right][path])} for path in overlap[:sample_limit]]}
+    return report
+
+
 def split_manifest(train_loader,val_loader,test_loader):
     if test_loader is None:raise ValueError('Refit needs an original held-out test split')
     loaders=[train_loader,val_loader,test_loader]
@@ -48,8 +103,10 @@ def split_manifest(train_loader,val_loader,test_loader):
     if any(len(sets[k])!=len(v) for k,v in indices.items()):raise ValueError('Repeated split indices')
     for a,b in [('train','val'),('train','test'),('val','test')]:
         if sets[a]&sets[b]:raise ValueError('Split overlap')
-        if {ordered[0][i] for i in sets[a]}&{ordered[0][i] for i in sets[b]}:raise ValueError('Repeated image IDs across splits')
     if sets['train']|sets['val']|sets['test']!=set(range(len(ordered[0]))):raise ValueError('Split does not cover the dataset exactly')
+    report = split_overlap_report(loaders)
+    if any(pair['image_count'] for pair in report['cross_split'].values()):
+        raise ImageSplitOverlapError(report)
     return dict(dataset_ids_sha256=digest(ordered[0]),indices=indices,
         test_ids_sha256=digest([ordered[0][i] for i in indices['test']]),
         train_batches=len(train_loader),split_sizes={k:len(v) for k,v in indices.items()})
