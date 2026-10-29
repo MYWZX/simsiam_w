@@ -1561,6 +1561,14 @@ class CrossModalIQAJointPretrain(nn.Module):
         # The opt-in shared PI/PT live under iqa and survive transfer. PQ is
         # independent in every mode and initializes the Quality Adapter.
         self.dual_quality_representation = self.iqa.dual_quality_representation
+        # Explicit opt-in preserves historical experiments while allowing
+        # I-I to learn from fused global/local features through the shared PI.
+        self.image_image_feature = str(mcfg.get(
+            "image_image_feature", "g" if self.dual_quality_representation else "z"))
+        if self.image_image_feature not in {"g", "z"}:
+            raise ValueError("image_image_feature must be g or z")
+        if "image_image_feature" in mcfg and not self.iqa.shared_simsiam_projection:
+            raise ValueError("Explicit image_image_feature requires shared PI/PT")
         if self.dual_quality_representation and proj_dim != fused_dim:
             raise ValueError("Dual-quality SimSiam dimension must match the persistent PQ/QA output")
         if self.dual_quality_representation and str(cfg.get("train", {}).get("human_supervision_view")) not in {"three_view", "separate_clean"}:
@@ -1633,7 +1641,7 @@ class CrossModalIQAJointPretrain(nn.Module):
         }
 
     def _quality_view_feature(self, image_features: Dict[str, torch.Tensor]) -> torch.Tensor:
-        if self.dual_quality_representation:
+        if self.image_image_feature == "g":
             return self.iqa.backbone.fusion.semantic_proj(image_features["f_sem"])
         return image_features["z"]
 

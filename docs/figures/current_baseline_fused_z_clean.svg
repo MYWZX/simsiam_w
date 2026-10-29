@@ -1,0 +1,328 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1760" height="1390" viewBox="0 0 1760 1390" font-family="Liberation Serif, Times New Roman, serif">
+<defs><marker id="black" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#25313b"/></marker><marker id="purple" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#7825c4"/></marker></defs>
+<rect width="1760" height="1390" fill="#fff"/>
+<text x="25" y="40" font-size="30" fill="#101c29" text-anchor="start" font-weight="bold">(a) Quality-aware multimodal pretraining — fused-z I–I</text>
+<g transform="translate(25,150)"><rect width="95" height="95" fill="#b8deef" stroke="#aac1d5"/><polygon points="0,55 25,15 45,48 70,8 95,55" fill="#7289a4"/><polygon points="15,31 25,15 33,32 70,8 83,31 68,24 58,32" fill="#fff"/><rect y="55" width="95" height="40" fill="#78b7c9"/><path d="M25,73 L70,73 L61,84 L33,84 Z" fill="#bc3c29"/><path d="M28,70 L67,70 L70,73 L25,73 Z" fill="#ef7751"/></g>
+<text x="72" y="133" font-size="18" fill="#17212b" text-anchor="middle" font-weight="bold">Image I</text>
+<text x="72" y="266" font-size="15" fill="#17212b" text-anchor="middle" font-weight="normal">224 × 224 × 3</text>
+<path d="M122,198 L155,198" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<rect x="160" y="165" width="105" height="68" rx="4" fill="#fff" stroke="#a8b7c6"/>
+<text x="212.5" y="194.0" font-size="17" fill="#17212b" text-anchor="middle" font-weight="normal">SafeAug ×2</text>
+<text x="212.5" y="216.0" font-size="17" fill="#17212b" text-anchor="middle" font-weight="normal">+ Clean</text>
+<path d="M265,198 L290,198" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<rect x="290" y="75" width="365" height="260" rx="4" fill="#fff" stroke="#a6bed6"/>
+<text x="305" y="100" font-size="20" fill="#101c29" text-anchor="start" font-weight="bold">Shared visual encoders</text>
+<polygon points="310,120 420,135 420,185 310,200" fill="#174a9c" fill-opacity=".09" stroke="#174a9c" stroke-width="1.7"/>
+<text x="365.0" y="153.0" font-size="18" fill="#174a9c" text-anchor="middle" font-weight="bold">CLIP</text>
+<text x="365.0" y="177.0" font-size="18" fill="#174a9c" text-anchor="middle" font-weight="bold">ViT-L/14</text>
+<path d="M420,160 L445,160" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<rect x="445" y="141" width="112" height="38" rx="4" fill="#eef4ff" stroke="#a8b7c6"/>
+<text x="501.0" y="166.0" font-size="16" fill="#17212b" text-anchor="middle" font-weight="normal">Wg: 768→256</text>
+<path d="M557,160 L585,160" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<polygon points="587,146 596,139 622,139 613,146" fill="#a7d4fa" stroke="#4b9ee4"/>
+<rect x="587" y="146" width="26" height="28" fill="#4b9ee4" opacity=".85"/>
+<polygon points="613,146 622,139 622,167 613,174" fill="#a7d4fa" stroke="#4b9ee4"/>
+<text x="604" y="131" font-size="19" fill="#17212b" text-anchor="middle" font-weight="bold">g</text>
+<text x="604" y="195" font-size="15" fill="#53616d" text-anchor="middle" font-weight="normal">256-D</text>
+<polygon points="310,220 420,235 420,285 310,300" fill="#147e91" fill-opacity=".09" stroke="#147e91" stroke-width="1.7"/>
+<text x="365.0" y="253.0" font-size="18" fill="#147e91" text-anchor="middle" font-weight="bold">ResNet-50</text>
+<text x="365.0" y="277.0" font-size="18" fill="#147e91" text-anchor="middle" font-weight="bold">layer3</text>
+<path d="M420,260 L445,260" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<rect x="445" y="236" width="112" height="48" rx="4" fill="#edfbfc" stroke="#a8b7c6"/>
+<text x="501.0" y="255.0" font-size="15" fill="#17212b" text-anchor="middle" font-weight="normal">R: 1024→256</text>
+<text x="501.0" y="277.0" font-size="15" fill="#17212b" text-anchor="middle" font-weight="normal">L: 256→256</text>
+<path d="M557,260 L585,260" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<polygon points="587,246 596,239 622,239 613,246" fill="#a5edf1" stroke="#24afbf"/>
+<rect x="587" y="246" width="26" height="28" fill="#24afbf" opacity=".85"/>
+<polygon points="613,246 622,239 622,267 613,274" fill="#a5edf1" stroke="#24afbf"/>
+<path d="M593.5,246 v28 M587,253 h26" stroke="#e4ffff" stroke-width=".6"/>
+<path d="M600.0,246 v28 M587,260 h26" stroke="#e4ffff" stroke-width=".6"/>
+<path d="M606.5,246 v28 M587,267 h26" stroke="#e4ffff" stroke-width=".6"/>
+<text x="604" y="231" font-size="19" fill="#17212b" text-anchor="middle" font-weight="bold">P₀</text>
+<text x="604" y="295" font-size="15" fill="#53616d" text-anchor="middle" font-weight="normal">196 × 256</text>
+<text x="305" y="321" font-size="15" fill="#53616d" text-anchor="start" font-weight="normal">Fl = R(layer3); L and LF are independent</text>
+<rect x="300" y="352" width="340" height="65" rx="4" fill="#f5f1fc" stroke="#b8a1da"/>
+<text x="470.0" y="379.5" font-size="18" fill="#17212b" text-anchor="middle" font-weight="normal">Fusion: Q = g; K,V = LF(Fl)</text>
+<text x="470.0" y="401.5" font-size="18" fill="#17212b" text-anchor="middle" font-weight="normal">Cross-attention → z (256-D)</text>
+<text x="300" y="440" font-size="16" fill="#174a9c" text-anchor="start" font-weight="normal">Fusion used by I–I and image–text relations.</text>
+<rect x="685" y="75" width="535" height="218" rx="4" fill="#fff" stroke="#a6bed6"/>
+<text x="700" y="103" font-size="21" fill="#101c29" text-anchor="start" font-weight="bold">Image–Image SimSiam (symmetric)</text>
+<polygon points="712,139 721,132 747,132 738,139" fill="#a7d4fa" stroke="#4b9ee4"/>
+<rect x="712" y="139" width="26" height="28" fill="#4b9ee4" opacity=".85"/>
+<polygon points="738,139 747,132 747,160 738,167" fill="#a7d4fa" stroke="#4b9ee4"/>
+<text x="729" y="124" font-size="19" fill="#17212b" text-anchor="middle" font-weight="bold">z1</text>
+<text x="729" y="188" font-size="15" fill="#53616d" text-anchor="middle" font-weight="normal">fused z</text>
+<path id="ii-z1-to-pi" d="M752,153 L786,153" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<polygon points="790,125 856,140 856,165 790,180" fill="#7825c4" fill-opacity=".09" stroke="#7825c4" stroke-width="1.7"/>
+<text x="823.0" y="157.5" font-size="18" fill="#7825c4" text-anchor="middle" font-weight="bold">PI</text>
+<path d="M856,153 L882,153" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<polygon points="886,139 895,132 921,132 912,139" fill="#a7d4fa" stroke="#4b9ee4"/>
+<rect x="886" y="139" width="26" height="28" fill="#4b9ee4" opacity=".85"/>
+<polygon points="912,139 921,132 921,160 912,167" fill="#a7d4fa" stroke="#4b9ee4"/>
+<text x="903" y="124" font-size="19" fill="#17212b" text-anchor="middle" font-weight="bold">h1</text>
+<path d="M924,153 L952,153" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<polygon points="956,125 1022,140 1022,165 956,180" fill="#b95b26" fill-opacity=".09" stroke="#b95b26" stroke-width="1.7"/>
+<text x="989.0" y="157.5" font-size="18" fill="#b95b26" text-anchor="middle" font-weight="bold">DI</text>
+<path d="M1022,153 L1053,153" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<text x="1062" y="159" font-size="19" fill="#17212b" text-anchor="start" font-weight="normal">p1 vs sg(h2)</text>
+<polygon points="712,219 721,212 747,212 738,219" fill="#a7d4fa" stroke="#4b9ee4"/>
+<rect x="712" y="219" width="26" height="28" fill="#4b9ee4" opacity=".85"/>
+<polygon points="738,219 747,212 747,240 738,247" fill="#a7d4fa" stroke="#4b9ee4"/>
+<text x="729" y="204" font-size="19" fill="#17212b" text-anchor="middle" font-weight="bold">z2</text>
+<text x="729" y="268" font-size="15" fill="#53616d" text-anchor="middle" font-weight="normal">fused z</text>
+<path id="ii-z2-to-pi" d="M752,233 L786,233" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<polygon points="790,205 856,220 856,245 790,260" fill="#7825c4" fill-opacity=".09" stroke="#7825c4" stroke-width="1.7"/>
+<text x="823.0" y="237.5" font-size="18" fill="#7825c4" text-anchor="middle" font-weight="bold">PI</text>
+<path d="M856,233 L882,233" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<polygon points="886,219 895,212 921,212 912,219" fill="#a7d4fa" stroke="#4b9ee4"/>
+<rect x="886" y="219" width="26" height="28" fill="#4b9ee4" opacity=".85"/>
+<polygon points="912,219 921,212 921,240 912,247" fill="#a7d4fa" stroke="#4b9ee4"/>
+<text x="903" y="204" font-size="19" fill="#17212b" text-anchor="middle" font-weight="bold">h2</text>
+<path d="M924,233 L952,233" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<polygon points="956,205 1022,220 1022,245 956,260" fill="#b95b26" fill-opacity=".09" stroke="#b95b26" stroke-width="1.7"/>
+<text x="989.0" y="237.5" font-size="18" fill="#b95b26" text-anchor="middle" font-weight="bold">DI</text>
+<path d="M1022,233 L1053,233" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<text x="1062" y="239" font-size="19" fill="#17212b" text-anchor="start" font-weight="normal">p2 vs sg(h1)</text>
+<text x="821" y="198" font-size="15" fill="#7825c4" text-anchor="middle" font-weight="normal">shared PI / DI</text>
+<rect x="1250" y="75" width="480" height="218" rx="4" fill="#fff" stroke="#a6bed6"/>
+<text x="1266" y="103" font-size="21" fill="#101c29" text-anchor="start" font-weight="bold">Image–text relations</text>
+<rect x="1268" y="122" width="442" height="45" rx="4" fill="#faf6ff" stroke="#a8b7c6"/>
+<text x="1489.0" y="150.5" font-size="19" fill="#17212b" text-anchor="middle" font-weight="normal">z → PI → AG → DI  ↔  text targets</text>
+<text x="1268" y="196" font-size="18" fill="#17212b" text-anchor="start" font-weight="normal">Prompt: T* → U → PT → AT → DT</text>
+<text x="1268" y="229" font-size="18" fill="#17212b" text-anchor="start" font-weight="normal">Answer: T* → U → PT → DT</text>
+<text x="1268" y="264" font-size="15" fill="#53616d" text-anchor="start" font-weight="normal">T*: frozen text tower + trainable contexts</text>
+<rect x="685" y="320" width="1045" height="98" rx="4" fill="#fff" stroke="#c7b2e3"/>
+<text x="703" y="348" font-size="21" fill="#7825c4" text-anchor="start" font-weight="bold">Four SimSiam relations</text>
+<text x="703" y="377" font-size="22" fill="#17212b" text-anchor="start" font-weight="normal">I–I   ·   Image–Prompt   ·   Image–Answer   ·   Prompt–Answer</text>
+<text x="703" y="402" font-size="16" fill="#53616d" text-anchor="start" font-weight="normal">Positive local / phrase supervision retained; negative push disabled.</text>
+<rect x="25" y="465" width="1070" height="125" rx="4" fill="#fff" stroke="#b6c9d9"/>
+<text x="40" y="491" font-size="20" fill="#101c29" text-anchor="start" font-weight="bold">Clean quality supervision — two independent paths</text>
+<text x="42" y="531" font-size="20" fill="#174a9c" text-anchor="start" font-weight="normal">g</text>
+<path d="M65,525 L100,525" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<rect x="102" y="506" width="112" height="38" rx="4" fill="#f6efff" stroke="#a8b7c6"/>
+<text x="158.0" y="531.0" font-size="18" fill="#17212b" text-anchor="middle" font-weight="normal">PQ → qg</text>
+<path id="clean-qg-to-feature-mix" d="M214,525 L400,525" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<text x="42" y="572" font-size="18" fill="#147e91" text-anchor="start" font-weight="normal">P₀ + WNSS(n)</text>
+<path d="M185,566 L214,566" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<rect x="216" y="548" width="145" height="35" rx="4" fill="#effbfc" stroke="#a8b7c6"/>
+<text x="288.5" y="571.5" font-size="17" fill="#17212b" text-anchor="middle" font-weight="normal">QL + pool → ql</text>
+<path id="clean-ql-to-feature-mix" d="M361,566 L390,566 L390,550 L400,550" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<rect x="400" y="512" width="350" height="60" rx="4" fill="#fff" stroke="#a8b7c6"/>
+<text x="575.0" y="537.0" font-size="18" fill="#17212b" text-anchor="middle" font-weight="normal">q = norm[(1−η)qg + ηql]</text>
+<text x="575.0" y="559.0" font-size="18" fill="#17212b" text-anchor="middle" font-weight="normal">feature mixture (not g + P₀)</text>
+<path d="M750,542 L780,542" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<rect x="785" y="512" width="285" height="60" rx="4" fill="#faf5ff" stroke="#a8b7c6"/>
+<text x="927.5" y="537.0" font-size="18" fill="#17212b" text-anchor="middle" font-weight="normal">Component anchors + ordinal</text>
+<text x="927.5" y="559.0" font-size="18" fill="#17212b" text-anchor="middle" font-weight="normal">Artifact / Aesthetics</text>
+<rect x="1120" y="465" width="610" height="125" rx="4" fill="#fff" stroke="#e3baa2"/>
+<text x="1137" y="492" font-size="20" fill="#b95b26" text-anchor="start" font-weight="bold">Separate Clean MOS supervision</text>
+<text x="1137" y="527" font-size="19" fill="#17212b" text-anchor="start" font-weight="normal">Artifact/Aesthetics heads: [qg, ql, |qg−ql|]</text>
+<text x="1137" y="561" font-size="18" fill="#17212b" text-anchor="start" font-weight="normal">Quality / Align heads supervise Clean score outputs.</text>
+<path d="M860,598 L860,625" fill="none" stroke="#7825c4" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#purple)"/>
+<text x="885" y="616" font-size="17" fill="#7825c4" text-anchor="start" font-weight="normal">Transfer encoders, PQ→QA, PI/PT, adapters and local quality; reset score heads.</text>
+<path d="M25,637 H1730" stroke="#8795a2" stroke-dasharray="6 5"/>
+<text x="25" y="676" font-size="30" fill="#101c29" text-anchor="start" font-weight="bold">(b) Downstream quality and alignment assessment</text>
+<rect x="25" y="702" width="365" height="535" rx="4" fill="#fff" stroke="#b6c9d9"/>
+<text x="40" y="731" font-size="20" fill="#101c29" text-anchor="start" font-weight="bold">Visual encoders (fine-tuned)</text>
+<g transform="translate(45,850)"><rect width="85" height="85" fill="#b8deef" stroke="#aac1d5"/><polygon points="0,55 25,15 45,48 70,8 85,55" fill="#7289a4"/><polygon points="15,31 25,15 33,32 70,8 83,31 68,24 58,32" fill="#fff"/><rect y="55" width="85" height="30" fill="#78b7c9"/><path d="M25,73 L70,73 L61,84 L33,84 Z" fill="#bc3c29"/><path d="M28,70 L67,70 L70,73 L25,73 Z" fill="#ef7751"/></g>
+<text x="88" y="952" font-size="17" fill="#17212b" text-anchor="middle" font-weight="normal">Image I</text>
+<path d="M130,890 L150,890 L150,810 L175,810" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<path d="M150,890 L150,1070 L175,1070" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<polygon points="175,765 280,780 280,840 175,855" fill="#174a9c" fill-opacity=".09" stroke="#174a9c" stroke-width="1.7"/>
+<text x="227.5" y="803.0" font-size="18" fill="#174a9c" text-anchor="middle" font-weight="bold">CLIP</text>
+<text x="227.5" y="827.0" font-size="18" fill="#174a9c" text-anchor="middle" font-weight="bold">ViT-L/14</text>
+<path d="M280,810 L301,810" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<polygon points="315,795 324,788 350,788 341,795" fill="#a7d4fa" stroke="#4b9ee4"/>
+<rect x="315" y="795" width="26" height="28" fill="#4b9ee4" opacity=".85"/>
+<polygon points="341,795 350,788 350,816 341,823" fill="#a7d4fa" stroke="#4b9ee4"/>
+<text x="332" y="780" font-size="19" fill="#17212b" text-anchor="middle" font-weight="bold">g</text>
+<text x="332" y="844" font-size="15" fill="#53616d" text-anchor="middle" font-weight="normal">768→256</text>
+<polygon points="175,1025 280,1040 280,1100 175,1115" fill="#147e91" fill-opacity=".09" stroke="#147e91" stroke-width="1.7"/>
+<text x="227.5" y="1063.0" font-size="18" fill="#147e91" text-anchor="middle" font-weight="bold">ResNet-50</text>
+<text x="227.5" y="1087.0" font-size="18" fill="#147e91" text-anchor="middle" font-weight="bold">layer3</text>
+<path d="M280,1070 L301,1070" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<polygon points="315,1055 324,1048 350,1048 341,1055" fill="#a5edf1" stroke="#24afbf"/>
+<rect x="315" y="1055" width="26" height="28" fill="#24afbf" opacity=".85"/>
+<polygon points="341,1055 350,1048 350,1076 341,1083" fill="#a5edf1" stroke="#24afbf"/>
+<path d="M321.5,1055 v28 M315,1062 h26" stroke="#e4ffff" stroke-width=".6"/>
+<path d="M328.0,1055 v28 M315,1069 h26" stroke="#e4ffff" stroke-width=".6"/>
+<path d="M334.5,1055 v28 M315,1076 h26" stroke="#e4ffff" stroke-width=".6"/>
+<text x="332" y="1040" font-size="19" fill="#17212b" text-anchor="middle" font-weight="bold">P₀</text>
+<text x="332" y="1104" font-size="15" fill="#53616d" text-anchor="middle" font-weight="normal">196 × 256</text>
+<text x="43" y="1160" font-size="17" fill="#147e91" text-anchor="start" font-weight="normal">ResNet: 1024→256 → Fl</text>
+<text x="43" y="1187" font-size="17" fill="#147e91" text-anchor="start" font-weight="normal">Local L: 256→256 → P₀</text>
+<text x="43" y="1215" font-size="15" fill="#53616d" text-anchor="start" font-weight="normal">Repeated ports denote the same tensor.</text>
+<rect x="420" y="702" width="1310" height="310" rx="4" fill="#f0fbfc" stroke="#afdce0"/>
+<text x="438" y="730" font-size="24" fill="#147e91" text-anchor="start" font-weight="bold">Quality branch Q</text>
+<text x="442" y="754" font-size="17" fill="#147e91" text-anchor="start" font-weight="bold">Global</text>
+<polygon points="462,790 471,783 497,783 488,790" fill="#a7d4fa" stroke="#4b9ee4"/>
+<rect x="462" y="790" width="26" height="28" fill="#4b9ee4" opacity=".85"/>
+<polygon points="488,790 497,783 497,811 488,818" fill="#a7d4fa" stroke="#4b9ee4"/>
+<text x="479" y="775" font-size="19" fill="#17212b" text-anchor="middle" font-weight="bold">g</text>
+<path d="M501,804 L528,804" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<rect x="530" y="777" width="265" height="56" rx="4" fill="#e0f7fa" stroke="#80bfc7"/>
+<text x="662.5" y="800.0" font-size="18" fill="#17212b" text-anchor="middle" font-weight="normal">QA (from PQ)</text>
+<text x="662.5" y="822.0" font-size="18" fill="#17212b" text-anchor="middle" font-weight="normal">256→512→512→256</text>
+<path d="M795,804 L820,804" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<polygon points="826,790 835,783 861,783 852,790" fill="#a7d4fa" stroke="#4b9ee4"/>
+<rect x="826" y="790" width="26" height="28" fill="#4b9ee4" opacity=".85"/>
+<polygon points="852,790 861,783 861,811 852,818" fill="#a7d4fa" stroke="#4b9ee4"/>
+<text x="843" y="775" font-size="19" fill="#17212b" text-anchor="middle" font-weight="bold">qg</text>
+<path d="M867,804 L895,804" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<rect x="900" y="781" width="197" height="48" rx="4" fill="#fff" stroke="#a8b7c6"/>
+<text x="998.5" y="811.0" font-size="17" fill="#17212b" text-anchor="middle" font-weight="normal">α·sg(||g||)·norm(qg)</text>
+<path d="M1097,804 L1122,804" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<circle cx="1138" cy="804" r="15" fill="#fff" stroke="#25313b" stroke-width="1.6"/>
+<text x="1138" y="810" font-size="22" fill="#17212b" text-anchor="middle" font-weight="normal">+</text>
+<rect x="1110" y="746" width="56" height="29" rx="4" fill="#edf4ff" stroke="#a8b7c6"/>
+<text x="1138.0" y="766.5" font-size="17" fill="#17212b" text-anchor="middle" font-weight="normal">g</text>
+<path id="quality-global-g-residual" d="M1138,776 L1138,788" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<path d="M1154,804 L1200,804" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<rect x="1205" y="781" width="165" height="48" rx="4" fill="#fff" stroke="#a8b7c6"/>
+<text x="1287.5" y="811.0" font-size="18" fill="#17212b" text-anchor="middle" font-weight="normal">Hg + sigmoid</text>
+<path d="M1370,804 L1400,804" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<polygon points="1403,790 1412,783 1438,783 1429,790" fill="#a7d4fa" stroke="#4b9ee4"/>
+<rect x="1403" y="790" width="26" height="28" fill="#4b9ee4" opacity=".85"/>
+<polygon points="1429,790 1438,783 1438,811 1429,818" fill="#a7d4fa" stroke="#4b9ee4"/>
+<text x="1420" y="775" font-size="19" fill="#17212b" text-anchor="middle" font-weight="bold">Qg</text>
+<text x="442" y="846" font-size="17" fill="#147e91" text-anchor="start" font-weight="bold">Local</text>
+<polygon points="462,884 471,877 497,877 488,884" fill="#a5edf1" stroke="#24afbf"/>
+<rect x="462" y="884" width="26" height="28" fill="#24afbf" opacity=".85"/>
+<polygon points="488,884 497,877 497,905 488,912" fill="#a5edf1" stroke="#24afbf"/>
+<path d="M468.5,884 v28 M462,891 h26" stroke="#e4ffff" stroke-width=".6"/>
+<path d="M475.0,884 v28 M462,898 h26" stroke="#e4ffff" stroke-width=".6"/>
+<path d="M481.5,884 v28 M462,905 h26" stroke="#e4ffff" stroke-width=".6"/>
+<text x="479" y="869" font-size="19" fill="#17212b" text-anchor="middle" font-weight="bold">P₀</text>
+<text x="479" y="933" font-size="15" fill="#53616d" text-anchor="middle" font-weight="normal">196 × 256</text>
+<path d="M501,898 L545,898" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<circle cx="560" cy="898" r="15" fill="#fff" stroke="#25313b" stroke-width="1.6"/>
+<text x="560" y="904" font-size="22" fill="#17212b" text-anchor="middle" font-weight="normal">+</text>
+<rect x="530" y="847" width="60" height="28" rx="4" fill="#edf6ff" stroke="#a8b7c6"/>
+<text x="560.0" y="867.0" font-size="17" fill="#17212b" text-anchor="middle" font-weight="normal">sᵢ</text>
+<path id="quality-local-statistics-add" d="M560,876 L560,882" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<path d="M576,898 L613,898" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<rect x="615" y="876" width="154" height="44" rx="4" fill="#fff" stroke="#a8b7c6"/>
+<text x="692.0" y="904.0" font-size="18" fill="#17212b" text-anchor="middle" font-weight="normal">QL + norm</text>
+<path d="M769,898 L800,898" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<polygon points="806,884 815,877 841,877 832,884" fill="#a7d4fa" stroke="#4b9ee4"/>
+<rect x="806" y="884" width="26" height="28" fill="#4b9ee4" opacity=".85"/>
+<polygon points="832,884 841,877 841,905 832,912" fill="#a7d4fa" stroke="#4b9ee4"/>
+<text x="823" y="869" font-size="19" fill="#17212b" text-anchor="middle" font-weight="bold">oᵢ</text>
+<path d="M844,898 L875,898" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<rect x="880" y="868" width="195" height="62" rx="4" fill="#fff" stroke="#a8b7c6"/>
+<text x="977.5" y="894.0" font-size="18" fill="#17212b" text-anchor="middle" font-weight="normal">Gate MLP([oᵢ,nᵢ])</text>
+<text x="977.5" y="916.0" font-size="18" fill="#17212b" text-anchor="middle" font-weight="normal">softmax → wᵢ</text>
+<path d="M1075,898 L1102,898" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<text x="1110" y="866" font-size="15" fill="#147e91" text-anchor="start" font-weight="normal">inputs: wᵢ, oᵢ</text>
+<rect x="1105" y="875" width="218" height="47" rx="4" fill="#fff" stroke="#a8b7c6"/>
+<text x="1214.0" y="904.5" font-size="19" fill="#17212b" text-anchor="middle" font-weight="normal">ql = norm Σᵢ wᵢoᵢ</text>
+<path d="M1323,898 L1345,898" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<rect x="1350" y="877" width="117" height="43" rx="4" fill="#fff" stroke="#a8b7c6"/>
+<text x="1408.5" y="904.5" font-size="16" fill="#17212b" text-anchor="middle" font-weight="normal">Hl + sigmoid</text>
+<path d="M1467,898 L1484,898" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<polygon points="1489,884 1498,877 1524,877 1515,884" fill="#a7d4fa" stroke="#4b9ee4"/>
+<rect x="1489" y="884" width="26" height="28" fill="#4b9ee4" opacity=".85"/>
+<polygon points="1515,884 1524,877 1524,905 1515,912" fill="#a7d4fa" stroke="#4b9ee4"/>
+<text x="1506" y="869" font-size="19" fill="#17212b" text-anchor="middle" font-weight="bold">Ql</text>
+<rect x="442" y="949" width="980" height="48" rx="4" fill="#fff" stroke="#bbaddb"/>
+<text x="452" y="980" font-size="17" fill="#17212b" text-anchor="start" font-weight="normal">Image I</text>
+<path d="M515,974 L540,974" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<rect x="544" y="955" width="194" height="35" rx="4" fill="#f6f1fc" stroke="#a8b7c6"/>
+<text x="641.0" y="978.5" font-size="17" fill="#17212b" text-anchor="middle" font-weight="normal">NSS-like statistics</text>
+<path d="M738,974 L763,974" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<text x="770" y="981" font-size="18" fill="#17212b" text-anchor="start" font-weight="normal">nᵢ (6-D)</text>
+<path d="M843,974 L869,974" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<rect x="873" y="955" width="224" height="35" rx="4" fill="#f6f1fc" stroke="#a8b7c6"/>
+<text x="985.0" y="978.5" font-size="18" fill="#17212b" text-anchor="middle" font-weight="normal">WNSS MLP: 6→256</text>
+<path d="M1097,974 L1124,974" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<text x="1134" y="981" font-size="18" fill="#17212b" text-anchor="start" font-weight="normal">sᵢ (256-D)</text>
+<text x="1237" y="981" font-size="15" fill="#7825c4" text-anchor="start" font-weight="normal">reuse nᵢ in gate</text>
+<text x="1510" y="760" font-size="19" fill="#174a9c" text-anchor="start" font-weight="normal">Q = (1−β)Qg + βQl</text>
+<path d="M1440,804 L1550,804 L1550,843" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<path d="M1525,898 L1550,898 L1550,875" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<circle cx="1550" cy="859" r="15" fill="#fff" stroke="#25313b" stroke-width="1.6"/>
+<text x="1550" y="865" font-size="22" fill="#17212b" text-anchor="middle" font-weight="normal">β</text>
+<path d="M1566,859 L1600,859" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<rect x="1603" y="834" width="110" height="52" rx="4" fill="#d1f2f5" stroke="#147e91"/>
+<text x="1658.0" y="866.0" font-size="21" fill="#17212b" text-anchor="middle" font-weight="normal">Quality Q</text>
+<rect x="420" y="1030" width="1310" height="288" rx="4" fill="#fff6ed" stroke="#e6c5a8"/>
+<text x="438" y="1060" font-size="24" fill="#b95b26" text-anchor="start" font-weight="bold">Alignment branch A</text>
+<text x="445" y="1106" font-size="20" fill="#174a9c" text-anchor="start" font-weight="normal">g</text>
+<path d="M480,1100 L510,1100" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<polygon points="514,1076 574,1091 574,1109 514,1124" fill="#7825c4" fill-opacity=".09" stroke="#7825c4" stroke-width="1.7"/>
+<text x="544.0" y="1105.0" font-size="18" fill="#7825c4" text-anchor="middle" font-weight="bold">PI</text>
+<path d="M574,1100 L600,1100" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<polygon points="604,1076 664,1091 664,1109 604,1124" fill="#b95b26" fill-opacity=".09" stroke="#b95b26" stroke-width="1.7"/>
+<text x="634.0" y="1105.0" font-size="18" fill="#b95b26" text-anchor="middle" font-weight="bold">AG</text>
+<path d="M664,1100 L691,1100" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<polygon points="695,1086 704,1079 730,1079 721,1086" fill="#a7d4fa" stroke="#4b9ee4"/>
+<rect x="695" y="1086" width="26" height="28" fill="#4b9ee4" opacity=".85"/>
+<polygon points="721,1086 730,1079 730,1107 721,1114" fill="#a7d4fa" stroke="#4b9ee4"/>
+<text x="712" y="1071" font-size="19" fill="#17212b" text-anchor="middle" font-weight="bold">v</text>
+<text x="445" y="1186" font-size="20" fill="#174a9c" text-anchor="start" font-weight="normal">P₀</text>
+<path d="M480,1180 L510,1180" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<polygon points="514,1156 574,1171 574,1189 514,1204" fill="#7825c4" fill-opacity=".09" stroke="#7825c4" stroke-width="1.7"/>
+<text x="544.0" y="1185.0" font-size="18" fill="#7825c4" text-anchor="middle" font-weight="bold">PI</text>
+<path d="M574,1180 L600,1180" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<polygon points="604,1156 664,1171 664,1189 604,1204" fill="#b95b26" fill-opacity=".09" stroke="#b95b26" stroke-width="1.7"/>
+<text x="634.0" y="1185.0" font-size="18" fill="#b95b26" text-anchor="middle" font-weight="bold">AP</text>
+<path d="M664,1180 L691,1180" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<polygon points="695,1166 704,1159 730,1159 721,1166" fill="#a7d4fa" stroke="#4b9ee4"/>
+<rect x="695" y="1166" width="26" height="28" fill="#4b9ee4" opacity=".85"/>
+<polygon points="721,1166 730,1159 730,1187 721,1194" fill="#a7d4fa" stroke="#4b9ee4"/>
+<text x="712" y="1151" font-size="19" fill="#17212b" text-anchor="middle" font-weight="bold">pᵢ</text>
+<text x="545" y="1145" font-size="15" fill="#7825c4" text-anchor="middle" font-weight="normal">shared PI</text>
+<text x="442" y="1242" font-size="16" fill="#7825c4" text-anchor="start" font-weight="normal">Prompt + 4 contexts</text>
+<rect x="440" y="1254" width="105" height="42" rx="4" fill="#f7f0ff" stroke="#a8b7c6"/>
+<text x="492.5" y="1281.0" font-size="17" fill="#17212b" text-anchor="middle" font-weight="normal">T* frozen</text>
+<path d="M545,1275 L560,1275" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<rect x="565" y="1254" width="85" height="42" rx="4" fill="#fff" stroke="#a8b7c6"/>
+<text x="607.5" y="1281.0" font-size="19" fill="#17212b" text-anchor="middle" font-weight="normal">U</text>
+<path d="M650,1275 L665,1275" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<rect x="670" y="1254" width="55" height="42" rx="4" fill="#f7f0ff" stroke="#a8b7c6"/>
+<text x="697.5" y="1281.0" font-size="19" fill="#17212b" text-anchor="middle" font-weight="normal">PT</text>
+<path d="M725,1275 L741,1275" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<rect x="746" y="1254" width="55" height="42" rx="4" fill="#fff0e3" stroke="#a8b7c6"/>
+<text x="773.5" y="1281.0" font-size="19" fill="#17212b" text-anchor="middle" font-weight="normal">AT</text>
+<path d="M801,1275 L822,1275" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<text x="833" y="1282" font-size="21" fill="#7825c4" text-anchor="start" font-weight="normal">u</text>
+<path d="M734,1100 L786,1100" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<path d="M734,1180 L786,1180" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<rect x="790" y="1079" width="155" height="43" rx="4" fill="#fff" stroke="#a8b7c6"/>
+<text x="867.5" y="1106.5" font-size="19" fill="#17212b" text-anchor="middle" font-weight="normal">[v,u,|v−u|]</text>
+<path d="M945,1100 L968,1100" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<rect x="973" y="1079" width="202" height="43" rx="4" fill="#fff" stroke="#a8b7c6"/>
+<text x="1074.0" y="1106.5" font-size="17" fill="#17212b" text-anchor="middle" font-weight="normal">Global MLP + sigmoid</text>
+<path d="M1175,1100 L1200,1100" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<polygon points="1207,1086 1216,1079 1242,1079 1233,1086" fill="#a7d4fa" stroke="#4b9ee4"/>
+<rect x="1207" y="1086" width="26" height="28" fill="#4b9ee4" opacity=".85"/>
+<polygon points="1233,1086 1242,1079 1242,1107 1233,1114" fill="#a7d4fa" stroke="#4b9ee4"/>
+<text x="1224" y="1071" font-size="19" fill="#17212b" text-anchor="middle" font-weight="bold">Ag</text>
+<rect x="790" y="1153" width="240" height="61" rx="4" fill="#fff" stroke="#a8b7c6"/>
+<text x="910.0" y="1178.5" font-size="17" fill="#17212b" text-anchor="middle" font-weight="normal">pᵢ,u → XI(pᵢ)·XT(u)</text>
+<text x="910.0" y="1200.5" font-size="17" fill="#17212b" text-anchor="middle" font-weight="normal">softmax → aᵢ</text>
+<path d="M1030,1183 L1050,1183" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<rect x="1055" y="1153" width="170" height="61" rx="4" fill="#fff" stroke="#a8b7c6"/>
+<text x="1140.0" y="1178.5" font-size="18" fill="#17212b" text-anchor="middle" font-weight="normal">e = Σᵢ aᵢpᵢ</text>
+<text x="1140.0" y="1200.5" font-size="18" fill="#17212b" text-anchor="middle" font-weight="normal">pool original pᵢ</text>
+<path d="M1225,1183 L1240,1183" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<rect x="1245" y="1153" width="164" height="61" rx="4" fill="#fff" stroke="#a8b7c6"/>
+<text x="1327.0" y="1178.5" font-size="17" fill="#17212b" text-anchor="middle" font-weight="normal">[e,u,|e−u|]</text>
+<text x="1327.0" y="1200.5" font-size="17" fill="#17212b" text-anchor="middle" font-weight="normal">MLP + sigmoid</text>
+<path d="M1409,1183 L1430,1183" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<polygon points="1438,1169 1447,1162 1473,1162 1464,1169" fill="#a7d4fa" stroke="#4b9ee4"/>
+<rect x="1438" y="1169" width="26" height="28" fill="#4b9ee4" opacity=".85"/>
+<polygon points="1464,1169 1473,1162 1473,1190 1464,1197" fill="#a7d4fa" stroke="#4b9ee4"/>
+<text x="1455" y="1154" font-size="19" fill="#17212b" text-anchor="middle" font-weight="bold">Al</text>
+<rect x="1490" y="1072" width="222" height="55" rx="4" fill="#fff" stroke="#a8b7c6"/>
+<text x="1601.0" y="1094.5" font-size="18" fill="#17212b" text-anchor="middle" font-weight="normal">γ = sigmoid G</text>
+<text x="1601.0" y="1116.5" font-size="18" fill="#17212b" text-anchor="middle" font-weight="normal">([v,u,Ag,Al])</text>
+<text x="1493" y="1142" font-size="15" fill="#b95b26" text-anchor="start" font-weight="normal">inputs: Ag, Al, γ</text>
+<rect x="1488" y="1150" width="224" height="76" rx="4" fill="#ffe9d6" stroke="#b95b26"/>
+<text x="1600.0" y="1183.0" font-size="18" fill="#17212b" text-anchor="middle" font-weight="normal">A = γAg + (1−γ)Al</text>
+<text x="1600.0" y="1205.0" font-size="18" fill="#17212b" text-anchor="middle" font-weight="normal">Text–image alignment</text>
+<path d="M1600,1127 L1600,1147" fill="none" stroke="#25313b" stroke-width="1.6"  marker-end="url(#black)"/>
+<text x="900" y="1277" font-size="16" fill="#53616d" text-anchor="start" font-weight="normal">Named ports v,u,pᵢ,Ag,Al avoid crossed wires; γ is sample-wise.</text>
+<text x="30" y="1350" font-size="17" fill="#53616d" text-anchor="start" font-weight="normal">Solid arrows: forward   ·   Purple dashed: transfer/shared weights   ·   sg: stop-gradient   ·   T*: frozen text tower, trainable contexts</text>
+<text x="30" y="1378" font-size="17" fill="#7825c4" text-anchor="start" font-weight="normal">OFF: quality text CE, negative push.   ON: Soft-SROCC.   PI/PT BN statistics frozen downstream; visual weights fine-tuned.</text>
+</svg>
