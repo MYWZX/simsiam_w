@@ -21,6 +21,23 @@ def main():
     frame = pd.read_csv(csv_path, dtype=str, keep_default_na=False)
     duplicated = frame[frame['name'].duplicated(keep=False)]
     files = sorted(p.name for p in image_root.iterdir() if p.is_file())
+    image_suffixes = {'.jpg', '.jpeg', '.png', '.bmp', '.webp', '.tif', '.tiff'}
+    image_files = sorted(p for p in image_root.rglob('*')
+                         if p.is_file() and p.suffix.lower() in image_suffixes)
+    referenced_paths = set()
+    missing_names = []
+    for name in sorted(set(frame['name'])):
+        candidates = [image_root/name, root/name, root/'file'/name,
+                      root/'image'/name, root/'images'/name]
+        found = next((p for p in candidates if p.is_file()), None)
+        if found is None:
+            missing_names.append(name)
+        else:
+            referenced_paths.add(found.resolve())
+    unreferenced = [str(p.relative_to(image_root)) for p in image_files
+                    if p.resolve() not in referenced_paths]
+    annotation_tables = sorted(str(p.relative_to(root)) for p in root.iterdir()
+        if p.is_file() and p.suffix.lower() in {'.csv', '.xlsx', '.xls', '.mat'})
     records = []
     for name, group in duplicated.groupby('name', sort=True):
         stem = Path(name).stem
@@ -33,7 +50,12 @@ def main():
     report = {'snapshot': args.snapshot, 'csv_path': str(csv_path.resolve()),
               'csv_sha256': hashlib.sha256(csv_path.read_bytes()).hexdigest(),
               'csv_rows': len(frame), 'unique_csv_names': frame['name'].nunique(),
-              'image_directory_file_count': len(files), 'duplicate_groups': records,
+              'image_directory_file_count': len(files),
+              'image_file_count_recursive': len(image_files),
+              'csv_names_with_missing_image': missing_names,
+              'image_files_not_referenced_by_csv': unreferenced,
+              'annotation_tables_in_dataset_root': annotation_tables,
+              'duplicate_groups': records,
               'note': 'Read-only; candidate filenames do not establish the correct MOS mapping.'}
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)

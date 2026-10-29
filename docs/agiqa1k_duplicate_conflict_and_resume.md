@@ -43,3 +43,14 @@ HF_HUB_OFFLINE=1 /home/sll/anaconda3/envs/WZX-AI/bin/python \
 1K 冲突解决后要用新版本数据重新跑受影响的下游开发/预算与合并训练，原开发模型已经接触到测试图片，不能作为无泄漏结果继续沿用。修正版本应单独命名并保留旧 CSV/结果，明确说明测试成员或标签是否变化。同 CSV、同划分的历史 1K 结果也应复核，不把现有成绩当作已证明无泄漏的正式结果。
 
 本次不擅自改变科学划分协议、CSV、标签或历史测试索引。已经完成的 1K 结果继续保留用于诊断。
+
+## 第二轮只读核查
+
+已确认重复两行 MOS/Answer 都不相同，不能作为完全相同记录简单去重。检查脚本进一步输出：
+
+- `image_file_count_recursive`：排除 README 等非图片文件后的图像数量。
+- `image_files_not_referenced_by_csv`：图像目录存在、但没有任何 CSV name 解析到的图片。
+- `csv_names_with_missing_image`：按当前加载器候选路径仍找不到的 CSV name。
+- `annotation_tables_in_dataset_root`：根目录其他 CSV/XLSX/MAT 标注文件，便于核对原始 name–MOS 表。
+
+即使出现唯一未引用图片，也不能仅凭集合差就把某个冲突 MOS 指派给它；需要原始标注表或可靠的数据生成记录确认。不要覆盖原 Answer CSV。
