@@ -364,9 +364,17 @@ def build_iqa_dataloaders_from_dataset(dataset_train: Dataset, dataset_eval: Dat
     total = len(dataset_train); tr = int(total*float(dcfg.get("train_ratio", 0.7))); va = int(total*float(dcfg.get("val_ratio", 0.1))); te = total-tr-va
     split_seed = int(cfg.get("split_seed", cfg.get("seed", 42)))
     g = torch.Generator().manual_seed(split_seed); idx = torch.randperm(total, generator=g).tolist()
+    train_indices, val_indices, test_indices = idx[:tr], idx[tr:tr+va], idx[tr+va:]
+    if dcfg.get("data_revision"):
+        from utils.agiqa1k_subset1078 import REVISION
+        if dcfg["data_revision"] == REVISION and not dcfg.get("split_manifest_file"):
+            raise ValueError("Subset1078 requires its explicit split manifest; random reshuffling is not allowed")
+    if dcfg.get("split_manifest_file"):
+        from utils.agiqa1k_subset1078 import read_revision_split
+        train_indices, val_indices, test_indices = read_revision_split(cfg, total)
     if dcfg.get("type") == "agiqa1k_iqa":
-        fit_1k_train_scaler(dataset_train, dataset_eval, idx[:tr], cfg)
-    train_set = torch.utils.data.Subset(dataset_train, idx[:tr]); val_set = torch.utils.data.Subset(dataset_eval, idx[tr:tr+va]); test_set = torch.utils.data.Subset(dataset_eval, idx[tr+va:])
+        fit_1k_train_scaler(dataset_train, dataset_eval, train_indices, cfg)
+    train_set = torch.utils.data.Subset(dataset_train, train_indices); val_set = torch.utils.data.Subset(dataset_eval, val_indices); test_set = torch.utils.data.Subset(dataset_eval, test_indices)
     train_loader = DataLoader(train_set, batch_size=lcfg.get("batch_size",8), shuffle=True, num_workers=lcfg.get("num_workers",4), pin_memory=lcfg.get("pin_memory",True), drop_last=True, **loader_rng_kwargs(cfg, "train"))
     val_loader = DataLoader(val_set, batch_size=lcfg.get("batch_size",8), shuffle=False, num_workers=lcfg.get("num_workers",4), pin_memory=lcfg.get("pin_memory",True), drop_last=False, **loader_rng_kwargs(cfg, "val"))
     test_loader = DataLoader(test_set, batch_size=lcfg.get("batch_size",8), shuffle=False, num_workers=lcfg.get("num_workers",4), pin_memory=lcfg.get("pin_memory",True), drop_last=False, **loader_rng_kwargs(cfg, "test"))
