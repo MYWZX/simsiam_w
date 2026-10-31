@@ -10,6 +10,13 @@ from datasets import build_dataloaders
 from train_cm_iqa import get_selection_value, unpack_loaders
 from utils.refit_protocol import make_plan, ImageSplitOverlapError
 
+def refit_run_name(name):
+    if '_dev_' in name:
+        return name.replace('_dev_', '_refit80_')
+    if '_unmerged_' in name:
+        return name.replace('_unmerged_', '_refit80_')
+    raise ValueError('Expected a dedicated _dev_ or _unmerged_ run name')
+
 def main():
     p=argparse.ArgumentParser();p.add_argument('--snapshot',required=True);p.add_argument('--csv',required=True);p.add_argument('--prefix',required=True)
     args=p.parse_args();cfg=yaml.safe_load(Path(args.snapshot).read_text())
@@ -25,8 +32,7 @@ def main():
         report_path.write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
         p.error(f'{error}. Diagnostic saved to {report_path}; no plan/config created. Do not bypass the overlap check.')
     refit=copy.deepcopy(cfg);refit.pop('source_config',None)
-    name=cfg['run_id'].replace('_dev_','_refit80_')
-    if name==cfg['run_id']:raise ValueError('Expected a dedicated _dev_ run name')
+    name=refit_run_name(cfg['run_id'])
     refit.update(run_id=name,output_dir='outputs/'+name,results_csv='outputs/'+name+'.csv')
     prefix.parent.mkdir(parents=True,exist_ok=True)
     with cfg_path.open('x') as f:yaml.safe_dump(refit,f,sort_keys=False)
