@@ -1569,6 +1569,12 @@ class CrossModalIQAJointPretrain(nn.Module):
             raise ValueError("image_image_feature must be g or z")
         if "image_image_feature" in mcfg and not self.iqa.shared_simsiam_projection:
             raise ValueError("Explicit image_image_feature requires shared PI/PT")
+        self.image_text_feature = str(mcfg.get("image_text_feature", "z"))
+        if self.image_text_feature not in {"g", "z"}:
+            raise ValueError("image_text_feature must be g or z")
+        if self.image_text_feature == "g" and not (
+                self.dual_quality_representation and self.iqa.shared_simsiam_projection):
+            raise ValueError("Global image-text SimSiam requires dual quality and shared PI/PT")
         if self.dual_quality_representation and proj_dim != fused_dim:
             raise ValueError("Dual-quality SimSiam dimension must match the persistent PQ/QA output")
         if self.dual_quality_representation and str(cfg.get("train", {}).get("human_supervision_view")) not in {"three_view", "separate_clean"}:
@@ -1658,6 +1664,11 @@ class CrossModalIQAJointPretrain(nn.Module):
         align_feature = self.iqa.align_global_adapter(feature)
         return self._project_image(align_feature)
 
+    def _semantic_view_feature(self, image_features: Dict[str, torch.Tensor]) -> torch.Tensor:
+        if self.image_text_feature == "g":
+            return self.iqa.backbone.fusion.semantic_proj(image_features["f_sem"])
+        return image_features["z"]
+
     def project_patch_regions(
         self,
         patch_features: torch.Tensor,
@@ -1699,9 +1710,9 @@ class CrossModalIQAJointPretrain(nn.Module):
         answer_feat = self.iqa.backbone.encode_text(answers, image1.device)
         answer_fused = self.iqa.text_to_fused(answer_feat)
         # Semantic/image-text relations use the private alignment branch.
-        img1_p = self._project_align_image(img1["z"])
-        img2_p = self._project_align_image(img2["z"])
-        clean_p = self._project_align_image(score_clean["z"])
+        img1_p = self._project_align_image(self._semantic_view_feature(img1))
+        img2_p = self._project_align_image(self._semantic_view_feature(img2))
+        clean_p = self._project_align_image(self._semantic_view_feature(score_clean))
         # Human quality labels in three-view pretraining must supervise the clean
         # view, not either SafeAug view. Reuse the shared image projection when
         # no separate quality projector is configured.
