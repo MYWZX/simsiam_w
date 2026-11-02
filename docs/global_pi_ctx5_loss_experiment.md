@@ -67,7 +67,8 @@ The exported file records the original SHA256 and rejects a changed source.
 
 No pretraining rerun is needed. Synchronize the repair and rerun the same three
 `downstream DATASET` commands. A previous output with exactly one `run_start`, a
-matching config and only a config snapshot is moved to
+matching config and only a config snapshot plus optional unverified runtime metadata
+(`checkpoint_verified_after_load: false`) is moved to
 `outputs/failed_before_training` before retrying. Completed or partially trained
 runs and unexpected files are never removed or automatically restarted.
 

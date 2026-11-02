@@ -62,9 +62,18 @@ def archive_unstarted(config_path):
         '/best_pretrain.pth','/best_loss_representation.pth')
     if comparable_cfg(old)!=comparable_cfg(cfg):
         raise ValueError('Existing unstarted output has a different config; preserve it')
-    # Do not hide any checkpoint or extra files that might contain useful work.
-    if any(f.is_file() and f.name!='config_snapshot.yaml' for f in output.rglob('*')):
-        raise ValueError(f'Unexpected files in {output}; preserve it')
+    # main() writes runtime provenance BEFORE attempting checkpoint loading.
+    # Only an unverified initialization record can belong to this recovery path.
+    metadata_path=output/'run_metadata.json'
+    if metadata_path.exists():
+        metadata=json.loads(metadata_path.read_text())
+        if metadata.get('checkpoint_verified_after_load') is not False:
+            raise ValueError(f'Checkpoint may already be loaded in {output}; preserve it')
+    allowed={'config_snapshot.yaml','run_metadata.json'}
+    unexpected=[str(f.relative_to(output)) for f in output.rglob('*')
+                if f.is_file() and str(f.relative_to(output)) not in allowed]
+    if unexpected:
+        raise ValueError(f'Unexpected files in {output}: {unexpected}; preserve it')
     backup=Path('outputs/failed_before_training')/(output.name+'_'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%f'))
     backup.mkdir(parents=True,exist_ok=False)
     shutil.move(str(output),str(backup/output.name));shutil.move(str(csv_path),str(backup/csv_path.name))
