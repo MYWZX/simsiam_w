@@ -10,6 +10,13 @@ from datasets import build_dataloaders
 from train_cm_iqa import get_selection_value, unpack_loaders
 from utils.refit_protocol import make_plan, ImageSplitOverlapError
 
+SELECTION_POLICIES = {
+    'quality_srocc': ('val_quality_SROCC', 'max'),
+    'quality_plcc': ('val_quality_PLCC', 'max'),
+    'joint': ('val_quality_align_hmean_SROCC', 'max'),
+    'loss': ('val_reg_loss', 'min'),
+}
+
 def refit_run_name(name):
     if '_dev_' in name:
         return name.replace('_dev_', '_refit80_')
@@ -19,7 +26,11 @@ def refit_run_name(name):
 
 def main():
     p=argparse.ArgumentParser();p.add_argument('--snapshot',required=True);p.add_argument('--csv',required=True);p.add_argument('--prefix',required=True)
+    p.add_argument('--selection-policy',choices=SELECTION_POLICIES)
     args=p.parse_args();cfg=yaml.safe_load(Path(args.snapshot).read_text())
+    if args.selection_policy:
+        key,mode=SELECTION_POLICIES[args.selection_policy]
+        cfg['train'].update(selection_metric=key,selection_mode=mode)
     prefix=Path(args.prefix);plan_path=Path(str(prefix)+'.json');cfg_path=Path(str(prefix)+'.yaml')
     if plan_path.exists() or cfg_path.exists():raise FileExistsError('Preserve existing plan/config before preparing another')
     try:
@@ -33,6 +44,8 @@ def main():
         p.error(f'{error}. Diagnostic saved to {report_path}; no plan/config created. Do not bypass the overlap check.')
     refit=copy.deepcopy(cfg);refit.pop('source_config',None)
     name=refit_run_name(cfg['run_id'])
+    if args.selection_policy:
+        name += '_' + args.selection_policy
     refit.update(run_id=name,output_dir='outputs/'+name,results_csv='outputs/'+name+'.csv')
     prefix.parent.mkdir(parents=True,exist_ok=True)
     with cfg_path.open('x') as f:yaml.safe_dump(refit,f,sort_keys=False)
