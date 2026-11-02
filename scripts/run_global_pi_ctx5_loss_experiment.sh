@@ -33,6 +33,7 @@ if (cfg['train']['pretrain_selection_mode']!='min' or
     cfg['model']['text_encoder']['learnable_context_tokens']!=5):
  raise ValueError('Expected five-context, minimum-loss pretrained source')
 PYVERIFY
+env HF_HUB_OFFLINE=1 "$python_bin" scripts/prepare_ctx5_loss_transfer.py --trust-local-training-checkpoint
 for ds in "${datasets[@]}"; do
  name="${ds}_globalpi_ctx5_loss_noce_noneg_dev_seed42"
  if [[ "$ds" == agiqa1k ]]; then
@@ -40,6 +41,7 @@ for ds in "${datasets[@]}"; do
   name=agiqa1k_subset1078_globalpi_ctx5_loss_noce_noneg_dev_seed42
  fi
  if [[ "$stage" != refit ]]; then
+  env HF_HUB_OFFLINE=1 "$python_bin" scripts/prepare_ctx5_loss_transfer.py --archive-unstarted-config "configs/global_pi_ctx5_loss_noce_noneg/$ds.yaml"
   fresh "outputs/$name" train_cm_iqa.py --config "configs/global_pi_ctx5_loss_noce_noneg/$ds.yaml"
   env HF_HUB_OFFLINE=1 "$python_bin" scripts/prepare_protocol_refit.py --snapshot "outputs/$name/config_snapshot.yaml" --csv "outputs/$name.csv" --prefix "outputs/globalpi_ctx5_loss_plans/$ds"
  fi

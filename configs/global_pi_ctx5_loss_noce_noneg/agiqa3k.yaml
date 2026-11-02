@@ -119,7 +119,7 @@ train:
   grad_clip: 1.0
   log_interval: 20
   early_stop_patience: 60
-  pretrained_checkpoint: outputs/richhf18k_globalpi_ctx5_loss_noce_noneg_dev_seed42/best_pretrain.pth
+  pretrained_checkpoint: outputs/richhf18k_globalpi_ctx5_loss_noce_noneg_dev_seed42/best_loss_representation.pth
   pretrained_load_scope: representation
   two_output_only: true
   layerwise_lr:

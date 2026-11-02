@@ -20,7 +20,7 @@ class FiveContextLossConfigs(unittest.TestCase):
                     expected['train'].update(pretrain_selection_metric='val_loss',pretrain_selection_mode='min')
                 else:
                     expected['train'].update(selection_metric='val_reg_loss',selection_mode='min')
-                    expected['train']['pretrained_checkpoint']=expected['train']['pretrained_checkpoint'].replace('globalpi_ctx5_','globalpi_ctx5_loss_').replace('best_component_anchor_pretrain.pth','best_pretrain.pth')
+                    expected['train']['pretrained_checkpoint']=expected['train']['pretrained_checkpoint'].replace('globalpi_ctx5_','globalpi_ctx5_loss_').replace('best_component_anchor_pretrain.pth','best_loss_representation.pth')
                 self.assertEqual(actual,expected)
                 fn=get_pretrain_selection_value if name=='pretrain' else get_selection_value
                 metrics={'val_loss':.2,'val_reg_loss':.3,'val_quality_SROCC':.9,'val_component_anchor_SROCC':.95}
