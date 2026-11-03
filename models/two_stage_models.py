@@ -9,7 +9,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .backbones import GlobalVisualEncoder, ResNet50LocalEncoder, maybe_freeze
-from .fusion import SemanticStructureFusion, AlignOnlyVMambaFusion
+from .fusion import SemanticStructureFusion, AlignOnlyVMambaFusion, GlobalProjectionOnly
 
 
 # Persistent dual-quality encoders, feature pooling and its supervision gate.
@@ -393,13 +393,31 @@ class ImageTextBackbone(nn.Module):
             for module in self.local_encoder.modules():
                 if isinstance(module, nn.modules.batchnorm._BatchNorm): module.eval()
 
-        self.fusion = SemanticStructureFusion(
+        self.projection_only = fcfg.get("mode", "attention") == "projection_only_v1"
+        if fcfg.get("mode", "attention") not in {"attention", "projection_only_v1"}:
+            raise ValueError("Unknown fusion mode")
+        if self.projection_only:
+            t = cfg.get("train", {})
+            if (mcfg.get("quality_global_feature", "z") != "g"
+                    or mcfg.get("align_global_feature", "z") != "g"
+                    or not mcfg.get("dual_quality_representation", {}).get("enabled", False)
+                    or mcfg.get("fusion_gate", {}).get("enabled", False)
+                    or mcfg.get("image_image_feature", "g") != "g"
+                    or mcfg.get("image_text_feature", "z" if t.get("use_joint_iqa_pretraining", False) else "g") != "g"
+                    or (t.get("use_joint_iqa_pretraining", False) and t.get("human_supervision_view") not in {"three_view", "separate_clean"})
+                    or any(float(t.get(k, 0)) != 0 for k in (
+                        "lambda_final", "lambda_final_aux", "lambda_rank_final",
+                        "lambda_srocc_final", "lambda_fusion_gate"))):
+                raise ValueError("projection_only_v1 requires joint dual-quality g-only three-view routes and no fusion/Final losses")
+        self.fusion = (GlobalProjectionOnly(
+            gcfg.get("output_dim", 768), fcfg.get("embed_dim", 256)
+        ) if self.projection_only else SemanticStructureFusion(
             semantic_dim=gcfg.get("output_dim", 768),
             local_dim=lcfg.get("output_dim", 256),
             embed_dim=fcfg.get("embed_dim", 256),
             num_heads=fcfg.get("num_heads", 4),
             dropout=fcfg.get("dropout", 0.1),
-        )
+        ))
         self.fused_dim = int(fcfg.get("embed_dim", 256))
         self.local_dim = int(lcfg.get("output_dim", 256))
         self.text_encoder = FrozenCLIPTextEncoder(
@@ -459,7 +477,7 @@ class ImageTextBackbone(nn.Module):
                 .permute(0, 2, 1, 3, 4)
                 .reshape(batch_size, local_channels, num_crops * local_h, local_w)
             )
-        z = self.fusion(f_sem, f_loc)     # [B, E]
+        z = None if self.projection_only else self.fusion(f_sem, f_loc)
         return {
             "f_sem": f_sem,
             "f_loc": f_loc,
@@ -480,6 +498,8 @@ class CrossModalSimSiamPretrain(nn.Module):
     def __init__(self, cfg: Dict):
         super().__init__()
         self.backbone = ImageTextBackbone(cfg)
+        if self.backbone.projection_only:
+            raise ValueError("Pure SimSiam requires fused z; use joint g-only pretraining")
         mcfg = cfg["model"]
         pcfg = mcfg.get("simsiam", {})
         hcfg = mcfg.get("heads", {})
@@ -1496,7 +1516,7 @@ class CrossModalIQAFullModel(nn.Module):
             text_token_ids=text_token_ids,
         )
         w_img, fusion_gate_delta = self._compute_fusion_weight(
-            img["z"], text_fused, q_out["s_quality"], a_out["s_align"]
+            q_out["s_quality"] if getattr(self.backbone, "projection_only", False) else img["z"], text_fused, q_out["s_quality"], a_out["s_align"]
         )
         s_final = w_img * q_out["s_quality"] + (1.0 - w_img) * a_out["s_align"]
         out.update(a_out)
@@ -1570,6 +1590,8 @@ class CrossModalIQAJointPretrain(nn.Module):
         if "image_image_feature" in mcfg and not self.iqa.shared_simsiam_projection:
             raise ValueError("Explicit image_image_feature requires shared PI/PT")
         self.image_text_feature = str(mcfg.get("image_text_feature", "z"))
+        if getattr(self.iqa.backbone, "projection_only", False) and (self.image_text_feature != "g" or self.image_image_feature != "g"):
+            raise ValueError("projection_only_v1 pretraining requires both image routes to use g")
         if self.image_text_feature not in {"g", "z"}:
             raise ValueError("image_text_feature must be g or z")
         if self.image_text_feature == "g" and not (
@@ -2014,6 +2036,8 @@ def load_pretrained_backbone(
     source_dual = any(k.removeprefix("module.").removeprefix("iqa.").startswith(("dual_quality_signature", "quality_local_encoder.")) for k in state)
     if source_dual != dual_quality:
         raise RuntimeError("Dual-quality architecture mismatch: use matching dual-quality pretraining and downstream")
+    projection_only = bool(getattr(model.backbone, "projection_only", False))
+    ignored_fusion = []
     loadable = {}
     source_local_projection = {}
     local_projection_prefix = "backbone.local_encoder.proj."
@@ -2040,6 +2064,11 @@ def load_pretrained_backbone(
         ):
             target_key = "quality_adapter." + source_key[len("quality_image_projector."):]
         else:
+            continue
+        if projection_only and target_key.startswith("backbone.fusion.") and not target_key.startswith("backbone.fusion.semantic_proj."):
+            if not target_key.startswith(tuple("backbone.fusion." + x for x in ("local_proj.", "attn.", "norm1.", "ffn.", "norm2."))):
+                raise RuntimeError(f"Unknown legacy fusion key: {target_key}")
+            ignored_fusion.append(target_key)
             continue
         if load_scope == "representation" and not target_key.startswith(representation_prefixes):
             continue
@@ -2173,6 +2202,14 @@ def load_pretrained_backbone(
             atol=1e-6,
         ):
             raise RuntimeError("Align text centers differ from the pretraining checkpoint.")
+    if projection_only:
+        if load_scope != "representation" or skip_quality_adapter or reinit_local_projection:
+            raise ValueError("projection_only_v1 requires complete representation transfer")
+        required = {k for k in target if k.startswith(representation_prefixes)}
+        absent = required.difference(loadable)
+        if absent:
+            raise RuntimeError(f"Incomplete projection-only representation transfer: {sorted(absent)}")
+        print(f"[INFO] projection_only_v1: explicitly ignored legacy fusion tensors: {sorted(ignored_fusion)}")
     missing, unexpected = model.load_state_dict(loadable, strict=False)
     # Older class-context checkpoints predate the initialization anchor buffer.
     # Treat their loaded context as the anchor so enabling the new regularizer

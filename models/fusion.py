@@ -137,3 +137,16 @@ class AlignOnlyVMambaFusion(nn.Module):
             x = blk(x, hw=hw)
         x = self.norm(x)
         return patch_tokens + self.residual_scale * (x - patch_tokens)
+
+
+class GlobalProjectionOnly(nn.Module):
+    """projection_only_v1: legacy global Linear, without a fusion output.
+
+    Keep semantic_proj's state keys and optimizer ownership for old checkpoints.
+    """
+    def __init__(self, semantic_dim, embed_dim):
+        super().__init__()
+        self.semantic_proj = nn.Linear(semantic_dim, embed_dim)
+
+    def forward(self, *args, **kwargs):
+        raise RuntimeError("projection_only_v1 has no fused z; use semantic_proj for g")

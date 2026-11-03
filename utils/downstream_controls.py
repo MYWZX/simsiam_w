@@ -37,16 +37,24 @@ def distinct_prompt_mask(prompts, negatives, device):
 def audit_fusion_gradients(model, objectives):
     """Unscaled diagnostic norms on Fusion only; does not modify .grad."""
     import torch
-    params = [p for p in model.backbone.fusion.parameters() if p.requires_grad]
-    if not params:
-        return {'gradient_audit_fusion_active': 0.0}
-    result = {'gradient_audit_fusion_active': 1.0}
-    for name, loss in objectives.items():
-        norm2 = 0.0
-        if loss.requires_grad:
-            gradients = torch.autograd.grad(loss, params, retain_graph=True, allow_unused=True)
-            norm2 = sum(float(g.detach().float().square().sum()) for g in gradients if g is not None)
-        result[f'gradient_fusion_{name}_norm'] = math.sqrt(norm2)
+    fusion = model.backbone.fusion
+    groups = {
+        'fusion': list(fusion.parameters()),  # legacy aggregate retained
+        'global_projection': list(fusion.semantic_proj.parameters()) if hasattr(fusion, 'semantic_proj') else [],
+        'cross_attention': list(fusion.attn.parameters()) if hasattr(fusion, 'attn') else [],
+        'local_projection': list(model.local_patch_proj.parameters()) if hasattr(model, 'local_patch_proj') else [],
+    }
+    result = {}
+    for group, all_params in groups.items():
+        params = [p for p in all_params if p.requires_grad]
+        result[f'gradient_audit_{group}_present'] = float(bool(all_params))
+        result[f'gradient_audit_{group}_active'] = float(bool(params))
+        for name, loss in objectives.items():
+            norm2 = 0.0
+            if params and loss.requires_grad:
+                gradients = torch.autograd.grad(loss, params, retain_graph=True, allow_unused=True)
+                norm2 = sum(float(g.detach().float().square().sum()) for g in gradients if g is not None)
+            result[f'gradient_{group}_{name}_norm'] = math.sqrt(norm2)
     return result
 
 

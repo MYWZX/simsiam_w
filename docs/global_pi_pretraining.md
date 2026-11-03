@@ -18,8 +18,9 @@ Downstream:
 - Quality remains the dual-quality residual baseline. PI/PT BN statistics are frozen
   downstream as before. No other training hyperparameters are intentionally changed.
 
-Because semantic losses no longer use fused z, they no longer train the fusion
-module. The pure-global dual-quality paths also bypass fusion. This experiment
+Semantic losses and pure-global quality no longer use fused z or train its
+cross-attention path. The semantic_proj Linear inside Fusion still generates g
+and receives quality and semantic gradients. This experiment
 retains the module for compatibility but does not introduce a new fused-z loss.
 ResNet is still trained by local quality and local alignment/positive region paths.
 
