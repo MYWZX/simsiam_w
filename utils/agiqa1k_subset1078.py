@@ -1,4 +1,4 @@
-"""Pinned independent 1078-image revision, preserving unaffected split members."""
+"""Audited subset1078: original pinned members and explicit opt-in resplits."""
 import hashlib
 import json
 from pathlib import Path
@@ -36,18 +36,51 @@ def expected_manifest():
 
 def read_revision_split(cfg, total):
     dataset = cfg['dataset']
-    if dataset.get('data_revision') != REVISION or dataset.get('type') != 'agiqa1k_iqa':
+    if dataset.get('data_revision') not in {REVISION, RESPLIT_REVISION} or dataset.get('type') != 'agiqa1k_iqa':
         raise ValueError('Unsupported explicit subset split revision')
-    if total != 1078 or int(cfg.get('split_seed', cfg.get('seed',42))) != 42:
-        raise ValueError('Subset1078 requires 1078 records and split_seed=42')
+    resplit = dataset['data_revision'] == RESPLIT_REVISION
+    seed = int(cfg.get('split_seed', cfg.get('seed',42)))
+    if total != 1078 or (not resplit and seed != 42):
+        raise ValueError('Subset1078 requires 1078 records; original membership requires split_seed=42')
     if [float(dataset.get(k,v)) for k,v in [('train_ratio',.7),('val_ratio',.1),('test_ratio',.2)]] != [.7,.1,.2]:
         raise ValueError('Subset1078 preserves the original 70/10/20 split before exclusion')
     root = Path(dataset['root_dir'])
     manifest = json.loads((root/dataset['split_manifest_file']).read_text())
-    expected = expected_manifest()
+    expected = expected_resplit_manifest(seed) if resplit else expected_manifest()
     if manifest != expected:
         raise ValueError('Subset1078 split manifest differs from the pinned original membership')
     if file_sha256(root/dataset['csv_file']) != SUBSET_CSV_SHA256:
         raise ValueError('Subset1078 CSV changed; do not continue with a different annotation revision')
     dataset['actual_split_sizes'] = expected['split_sizes']
     return tuple(expected['split_indices'][name] for name in ('train','val','test'))
+
+
+RESPLIT_REVISION = 'agiqa1k_subset1078_resplit_v1'
+
+
+def expected_resplit_manifest(seed):
+    """Same audited 1078 rows, fresh membership, unchanged split sizes."""
+    seed = int(seed)
+    if seed < 0:
+        raise ValueError('Resplit seed must be nonnegative')
+    order = torch.randperm(1078, generator=torch.Generator().manual_seed(seed)).tolist()
+    return dict(revision=RESPLIT_REVISION, subset_csv_sha256=SUBSET_CSV_SHA256,
+                subset_rows=1078, split_seed=seed,
+                split_indices=dict(train=order[:755], val=order[755:863], test=order[863:]),
+                split_sizes=dict(train=755, val=108, test=215),
+                policy='resplit audited subset1078; preserve counts, not seed42 membership')
+
+
+def prepare_resplit_manifest(root, seed):
+    root = Path(root)
+    if file_sha256(root/RELATIVE_DIR/CSV_NAME) != SUBSET_CSV_SHA256:
+        raise ValueError('Subset1078 CSV changed')
+    path = root/'revisions/subset1078_resplit_v1'/f'split_seed{int(seed)}.json'
+    expected = expected_resplit_manifest(seed)
+    if path.exists():
+        if json.loads(path.read_text()) != expected:
+            raise ValueError('Existing resplit manifest differs; preserve and investigate')
+    else:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open('x') as f:json.dump(expected, f, indent=2)
+    return path

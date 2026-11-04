@@ -2091,6 +2091,13 @@ def main():
             print("[INFO] Comparing validation selection on one 60-epoch trajectory; early stopping disabled.")
     train_loader, val_loader, test_loader = unpack_loaders(build_dataloaders(cfg))
     require_validation_data(val_loader)
+    from utils.split_seed_evidence import record_split
+    split_record = record_split(cfg, (train_loader, val_loader, test_loader), outdir)
+    if split_record is not None:
+        summary = {k:v for k,v in split_record.items() if k != "indices"}
+        logger.log(event="data_split", epoch=0, metrics=summary)
+        if metadata is not None:
+            metadata["data_split"] = summary
     if refit_plan is not None:
         from utils.refit_protocol import merge_train_validation
         train_loader, val_loader = merge_train_validation(train_loader, val_loader, test_loader, cfg, refit_plan)

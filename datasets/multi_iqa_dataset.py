@@ -366,8 +366,8 @@ def build_iqa_dataloaders_from_dataset(dataset_train: Dataset, dataset_eval: Dat
     g = torch.Generator().manual_seed(split_seed); idx = torch.randperm(total, generator=g).tolist()
     train_indices, val_indices, test_indices = idx[:tr], idx[tr:tr+va], idx[tr+va:]
     if dcfg.get("data_revision"):
-        from utils.agiqa1k_subset1078 import REVISION
-        if dcfg["data_revision"] == REVISION and not dcfg.get("split_manifest_file"):
+        from utils.agiqa1k_subset1078 import REVISION, RESPLIT_REVISION
+        if dcfg["data_revision"] in {REVISION, RESPLIT_REVISION} and not dcfg.get("split_manifest_file"):
             raise ValueError("Subset1078 requires its explicit split manifest; random reshuffling is not allowed")
     if dcfg.get("split_manifest_file"):
         from utils.agiqa1k_subset1078 import read_revision_split
