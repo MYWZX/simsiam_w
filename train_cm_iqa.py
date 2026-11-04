@@ -2108,6 +2108,13 @@ def main():
             reinit_local_projection=bool(cfg["train"].get("reinit_local_projection", False)),
         )
 
+    from utils.qa_residual_tuning import apply_post_load_qa_alpha
+    qa_alpha_record = apply_post_load_qa_alpha(model, cfg, pretrain_path)
+    if qa_alpha_record is not None:
+        logger.log(event="post_load_qa_alpha", epoch=0, metrics=qa_alpha_record)
+        if metadata is not None:
+            metadata["qa_alpha_initialization"] = qa_alpha_record
+
     if metadata_enabled:
         # Hash again after both model construction and checkpoint loading. A
         # replaced input must not silently acquire an unrelated provenance hash.
