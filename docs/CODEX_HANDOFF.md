@@ -1,3 +1,5 @@
+> **2026-11-04 当前基线更新（优先于下文历史记录）**：用户已指定完整的 projection_only_v1 新预训练及三个下游结果为当前统一最好基线。以后统一与 [current_baseline.md](current_baseline.md) 比较；精确指标及来源见 [current_baseline.json](current_baseline.json)。不得将旧模式结果或不同配置单项最高值拼入新基线。未授权启动新训练。
+
 # AIGC-IQA 项目跨账号交接（更新至 2026-10-01 00:49 CST）
 
 > 2026-10-01 后续更新：已实现 `tools/diagnose_prompt_sensitivity.py`，

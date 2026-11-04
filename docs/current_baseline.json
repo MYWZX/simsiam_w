@@ -1,0 +1,67 @@
+{
+  "status": "user_designated_current_best_baseline",
+  "accepted_date": "2026-11-04",
+  "version": "projection_only_v1_baseline_ctx5",
+  "code_commit": "b52d1fd0bd6074bd37e1bd3876ddd9518a0cf1b0",
+  "source": {
+    "version": "projection_only_v1_baseline_ctx5",
+    "config_sha256": "4e6465d64276b0b6fc717dc40763b39184d03acb4ce0cab88733a4527a1a71cd",
+    "checkpoint": "/home1/wzx/aigc_naturalness_code/simsiam/outputs/richhf18k_projection_only_v1_baseline_ctx5_dev_seed42/best_component_anchor_pretrain.pth",
+    "sha256": "fa702194827ea2023375cef8dfec6014e9dd91fd80207a00ecebbb7ae6e34686",
+    "selected_epoch": 4,
+    "completion_sha256": "0e8d762c0dbc0f82f6ab7a4815df17774a101e7e48292d955aa6b170d4696efb"
+  },
+  "archive_name": "projection_only_v1_baseline_ctx5_downstream_results.tar.gz",
+  "archive_sha256": "49e5699798628798f93fc4f0f36ef0301cbae6377ae5272b80d8cb29d7a517e7",
+  "seed": 42,
+  "split_seed": 42,
+  "configuration_directory": "configs/projection_only_v1_baseline",
+  "selection_metric": "val_quality_SROCC",
+  "selection_mode": "max",
+  "merged_train_val": false,
+  "downstream_epochs": 60,
+  "results": [
+    {
+      "dataset": "agiqa1k_subset1078",
+      "run_id": "agiqa1k_subset1078_projection_only_v1_baseline_ctx5_dev_seed42",
+      "selected_epoch": 60,
+      "last_epoch": 60,
+      "quality_srocc": 0.8908228502468548,
+      "quality_plcc": 0.8929993371871321,
+      "align_srocc": null,
+      "align_plcc": null,
+      "test_quality_n": 215,
+      "test_align_n": 0,
+      "csv_sha256": "625ad0f02f6a8fe784e11f67ade163c73d73b75edec8e0a88a0fb7c78f47a30f"
+    },
+    {
+      "dataset": "agiqa3k",
+      "run_id": "agiqa3k_projection_only_v1_baseline_ctx5_dev_seed42",
+      "selected_epoch": 58,
+      "last_epoch": 60,
+      "quality_srocc": 0.9017667359985075,
+      "quality_plcc": 0.9368472464123653,
+      "align_srocc": 0.8307854003801469,
+      "align_plcc": 0.895084227541208,
+      "test_quality_n": 597,
+      "test_align_n": 597,
+      "csv_sha256": "7a9087f4f68dcd711cff15e5d45ad515a8b2b7b223d08f6cf9d7ed4a2aabc22e"
+    },
+    {
+      "dataset": "aigciqa2023",
+      "run_id": "aigciqa2023_projection_only_v1_baseline_ctx5_dev_seed42",
+      "selected_epoch": 57,
+      "last_epoch": 60,
+      "quality_srocc": 0.874495440518405,
+      "quality_plcc": 0.8886814006103914,
+      "align_srocc": 0.8072364680402259,
+      "align_plcc": 0.8062806714676722,
+      "test_quality_n": 480,
+      "test_align_n": 480,
+      "csv_sha256": "361b6ba1c45750f9e47e42f0b8d853fa290bc7d928a89f2873b62c780462b2e4"
+    }
+  ],
+  "mean_quality_srocc": 0.8890283422545892,
+  "mean_quality_plcc": 0.9061759947366296,
+  "note": "User-selected unified reference for all future comparisons; single seed, not a claim of statistical superiority over every historical run. Align absent for 1K, never treat it as zero."
+}
