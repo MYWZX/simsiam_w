@@ -2155,6 +2155,13 @@ def main():
         )
 
     optimizer = build_optimizer(cfg, model)
+    if cfg["train"].get("record_optimizer_initialization", False):
+        from utils.run_metadata import optimizer_initialization
+        initial_groups = optimizer_initialization(optimizer)
+        logger.log(event="optimizer_initialization", epoch=0, metrics={"groups": initial_groups})
+        if metadata is not None:
+            metadata["optimizer_initialization"] = initial_groups
+            write_run_metadata(outdir, metadata)
     # Capture model-config trainability before progressive stages alter it.
     # The optimizer already contains every parameter that may be unfrozen later.
     base_trainable = {

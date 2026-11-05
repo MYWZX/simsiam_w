@@ -67,3 +67,11 @@ def write_run_metadata(outdir, metadata):
     path = Path(outdir) / 'run_metadata.json'
     path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     return str(path)
+
+
+def optimizer_initialization(optimizer):
+    """JSON-safe initial group settings, before any scheduler step."""
+    return [dict(name=str(group.get('name', index)), lr=float(group['lr']),
+                 weight_decay=float(group['weight_decay']),
+                 parameter_count=sum(p.numel() for p in group['params']))
+            for index, group in enumerate(optimizer.param_groups)]
