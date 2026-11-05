@@ -2122,6 +2122,13 @@ def main():
         if metadata is not None:
             metadata["qa_alpha_initialization"] = qa_alpha_record
 
+    from utils.quality_mix_tuning import record_quality_mix_start
+    beta_record = record_quality_mix_start(model, cfg)
+    if beta_record is not None:
+        logger.log(event="quality_mix_initialization", epoch=0, metrics=beta_record)
+        if metadata is not None:
+            metadata["quality_mix_initialization"] = beta_record
+
     if metadata_enabled:
         # Hash again after both model construction and checkpoint loading. A
         # replaced input must not silently acquire an unrelated provenance hash.
