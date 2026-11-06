@@ -2154,6 +2154,14 @@ def main():
             batch_size=int(tcfg.get("prompt_bank_encode_batch_size", 256)),
         )
 
+    if cfg["train"].get("record_scoring_dropout", False):
+        from utils.run_metadata import scoring_dropout_initialization
+        score_dropout_record = scoring_dropout_initialization(model)
+        logger.log(event="scoring_dropout_initialization", epoch=0, metrics=score_dropout_record)
+        if metadata is not None:
+            metadata["scoring_dropout_initialization"] = score_dropout_record
+            write_run_metadata(outdir, metadata)
+
     optimizer = build_optimizer(cfg, model)
     if cfg["train"].get("record_optimizer_initialization", False):
         from utils.run_metadata import optimizer_initialization

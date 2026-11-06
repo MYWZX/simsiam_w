@@ -75,3 +75,12 @@ def optimizer_initialization(optimizer):
                  weight_decay=float(group['weight_decay']),
                  parameter_count=sum(p.numel() for p in group['params']))
             for index, group in enumerate(optimizer.param_groups)]
+
+
+def scoring_dropout_initialization(model):
+    """Actual four main scoring-head dropout settings; excludes PI/PT and gates."""
+    return {name: [dict(module=key, p=float(module.p))
+                   for key, module in getattr(model, name).named_modules()
+                   if isinstance(module, torch.nn.Dropout)]
+            for name in ('global_quality_head', 'patch_quality_head',
+                         'align_global_head', 'align_patch_head')}

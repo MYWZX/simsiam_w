@@ -607,6 +607,9 @@ class CrossModalIQAFullModel(nn.Module):
         text_dim = self.backbone.text_dim
         hidden_dim = int(hcfg.get("mlp_hidden_dim", 256))
         dropout = float(hcfg.get("dropout", 0.1))
+        score_dropout = float(hcfg.get("score_dropout", dropout))
+        if "score_dropout" in hcfg and (not math.isfinite(score_dropout) or not 0 <= score_dropout < 1):
+            raise ValueError("heads.score_dropout must be finite and in [0,1)")
         gate_hidden = int(ngcfg.get("gate_hidden_dim", hidden_dim))
         nss_dim = int(ngcfg.get("nss_dim", 6))
 
@@ -651,7 +654,7 @@ class CrossModalIQAFullModel(nn.Module):
             raise ValueError("quality_global_feature must be z or g")
         self.quality_no_local_branch = bool(mcfg.get("quality_no_local_branch", False))
         self.quality_global_only = bool(mcfg.get("quality_global_only", False)) or self.quality_no_local_branch
-        self.patch_quality_head = nn.Sequential(nn.Linear(fused_dim, gate_hidden), nn.GELU(), nn.Dropout(dropout), nn.Linear(gate_hidden, 1))
+        self.patch_quality_head = nn.Sequential(nn.Linear(fused_dim, gate_hidden), nn.GELU(), nn.Dropout(score_dropout), nn.Linear(gate_hidden, 1))
         qlcfg = mcfg.get("quality_local_attention", {})
         self.use_quality_local_attention = bool(qlcfg.get("enabled", False))
         if self.use_quality_local_attention:
@@ -676,8 +679,8 @@ class CrossModalIQAFullModel(nn.Module):
             self.quality_attention_head = None
             self.quality_attention_mix_logit = None
         self.global_quality_head = nn.Sequential(
-            nn.Linear(fused_dim, hidden_dim), nn.GELU(), nn.Dropout(dropout),
-            nn.Linear(hidden_dim, hidden_dim // 2), nn.GELU(), nn.Dropout(dropout), nn.Linear(hidden_dim // 2, 1),
+            nn.Linear(fused_dim, hidden_dim), nn.GELU(), nn.Dropout(score_dropout),
+            nn.Linear(hidden_dim, hidden_dim // 2), nn.GELU(), nn.Dropout(score_dropout), nn.Linear(hidden_dim // 2, 1),
         )
         self.quality_mix_logit = nn.Parameter(torch.tensor(float(ngcfg.get("quality_mix_init", 0.0))))
         # Preserve RNG for all existing modules when enabling this ablation.
@@ -856,8 +859,8 @@ class CrossModalIQAFullModel(nn.Module):
 
         # Alignment branch: global + patch align + gate fusion.
         self.align_global_head = nn.Sequential(
-            nn.Linear(fused_dim * 3, hidden_dim), nn.GELU(), nn.Dropout(dropout),
-            nn.Linear(hidden_dim, hidden_dim // 2), nn.GELU(), nn.Dropout(dropout), nn.Linear(hidden_dim // 2, 1),
+            nn.Linear(fused_dim * 3, hidden_dim), nn.GELU(), nn.Dropout(score_dropout),
+            nn.Linear(hidden_dim, hidden_dim // 2), nn.GELU(), nn.Dropout(score_dropout), nn.Linear(hidden_dim // 2, 1),
         )
         self.align_patch_img_proj = nn.Linear(fused_dim, fused_dim)
         self.align_patch_txt_proj = nn.Linear(fused_dim, fused_dim)
@@ -880,8 +883,8 @@ class CrossModalIQAFullModel(nn.Module):
             self.align_prompt_cross_norm = nn.Identity()
             self.align_prompt_cross_scale = 0.0
         self.align_patch_head = nn.Sequential(
-            nn.Linear(fused_dim * 3, hidden_dim), nn.GELU(), nn.Dropout(dropout),
-            nn.Linear(hidden_dim, hidden_dim // 2), nn.GELU(), nn.Dropout(dropout), nn.Linear(hidden_dim // 2, 1),
+            nn.Linear(fused_dim * 3, hidden_dim), nn.GELU(), nn.Dropout(score_dropout),
+            nn.Linear(hidden_dim, hidden_dim // 2), nn.GELU(), nn.Dropout(score_dropout), nn.Linear(hidden_dim // 2, 1),
         )
         self.align_gate = nn.Sequential(
             nn.Linear(fused_dim * 2 + 2, int(agcfg.get("gate_hidden_dim", hidden_dim))),
