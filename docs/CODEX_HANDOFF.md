@@ -1,3 +1,5 @@
+> **2026-11-06 当前下游调参对照 v2（优先阅读）**：用户指定1K（split3407）和3K（split42）保留原参数，2023（split42）改用Quality Soft-SROCC权重0.04。后续新调参以 [current_tuning_reference.md](current_tuning_reference.md) 及 configs/current_tuning_reference 为对照；预训练来源保持不变。原current_baseline.json仅保留历史及来源指纹用途，旧运行器不会自动切换。未启动新训练。
+
 > **2026-11-04 当前基线更新（优先于下文历史记录）**：用户已指定完整的 projection_only_v1 新预训练及三个下游结果为当前统一最好基线。以后统一与 [current_baseline.md](current_baseline.md) 比较；精确指标及来源见 [current_baseline.json](current_baseline.json)。不得将旧模式结果或不同配置单项最高值拼入新基线。未授权启动新训练。
 
 # AIGC-IQA 项目跨账号交接（更新至 2026-10-01 00:49 CST）

@@ -1,0 +1,62 @@
+{
+  "version": "projection_only_v1_selected_tuning_reference_v2",
+  "status": "user_selected_exploratory_reference",
+  "accepted_date": "2026-11-06",
+  "source": {
+    "version": "projection_only_v1_baseline_ctx5",
+    "config_sha256": "4e6465d64276b0b6fc717dc40763b39184d03acb4ce0cab88733a4527a1a71cd",
+    "checkpoint": "/home1/wzx/aigc_naturalness_code/simsiam/outputs/richhf18k_projection_only_v1_baseline_ctx5_dev_seed42/best_component_anchor_pretrain.pth",
+    "sha256": "fa702194827ea2023375cef8dfec6014e9dd91fd80207a00ecebbb7ae6e34686",
+    "selected_epoch": 4,
+    "completion_sha256": "0e8d762c0dbc0f82f6ab7a4815df17774a101e7e48292d955aa6b170d4696efb"
+  },
+  "results": [
+    {
+      "dataset": "agiqa1k",
+      "train_seed": 42,
+      "split_seed": 3407,
+      "lambda_srocc_quality": 0.03,
+      "selected_epoch": 13,
+      "run_id": "agiqa1k_subset1078_projection_only_v1_baseline_ctx5_dev_train42_split3407",
+      "config": "configs/current_tuning_reference/agiqa1k.yaml",
+      "csv_sha256": "84efca0e07f31051d1a35d6b3c3b666cfe23614c5f55d689ec7c5ec2aaeb8e46",
+      "quality_srocc": 0.8859216684813945,
+      "quality_plcc": 0.9093850559442241,
+      "align_srocc": null,
+      "align_plcc": null
+    },
+    {
+      "dataset": "agiqa3k",
+      "train_seed": 42,
+      "split_seed": 42,
+      "lambda_srocc_quality": 0.02,
+      "selected_epoch": 58,
+      "run_id": "agiqa3k_projection_only_v1_baseline_ctx5_dev_seed42",
+      "config": "configs/current_tuning_reference/agiqa3k.yaml",
+      "csv_sha256": "7a9087f4f68dcd711cff15e5d45ad515a8b2b7b223d08f6cf9d7ed4a2aabc22e",
+      "quality_srocc": 0.9017667359985075,
+      "quality_plcc": 0.9368472464123653,
+      "align_srocc": 0.8307854003801469,
+      "align_plcc": 0.895084227541208
+    },
+    {
+      "dataset": "aigciqa2023",
+      "train_seed": 42,
+      "split_seed": 42,
+      "lambda_srocc_quality": 0.04,
+      "selected_epoch": 52,
+      "run_id": "aigciqa2023_projection_only_v1_baseline_ctx5_dev_train42_split42_qsrocc200",
+      "config": "configs/current_tuning_reference/aigciqa2023.yaml",
+      "csv_sha256": "c423225d0f004c7a53191b2d4703b9ed84a1caf8b9c5f911ea688069efdad21b",
+      "quality_srocc": 0.8806000677086272,
+      "quality_plcc": 0.8926802955797198,
+      "align_srocc": 0.8070260721617715,
+      "align_plcc": 0.8064966229931119
+    }
+  ],
+  "mean_quality_srocc": 0.8894294907295097,
+  "mean_quality_plcc": 0.9129708659787698,
+  "mean_align_srocc": 0.8189057362709592,
+  "mean_align_plcc": 0.8507904252671599,
+  "note": "New user-selected downstream tuning reference. Original current_baseline.json remains immutable source/seed42 historical evidence. Existing runners retain their historical controls; future experiments must explicitly use this v2 reference. No new training performed."
+}
