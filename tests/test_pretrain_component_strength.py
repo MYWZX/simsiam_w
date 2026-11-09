@@ -150,13 +150,13 @@ class ComponentStrengthTests(unittest.TestCase):
             'utils.run_metadata.collect_run_metadata',return_value={'fake':True}):
             with contextlib.redirect_stdout(io.StringIO()): r.run('pretrain')
         source=r.completed('pretrain')
+        stage='agiqa3k'
         class Downstream:
             def __init__(inner, command, **kwargs):
                 self.assertEqual(command[1],'train_cm_iqa.py')
-                cfg=r.validate('agiqa3k');d,table=r.paths('agiqa3k')
+                cfg=r.validate(stage);d,table=r.paths(stage)
                 (d/'config_snapshot.yaml').write_text(yaml.safe_dump(cfg))
-                r.write_new(d/'run_metadata.json',dict(checkpoint_verified_after_load=True,checkpoint={'sha256':source['sha256']}))
-                r.write_new(d/'data_split_manifest.json',dict(train_seed=42,split_seed=42,indices={}))
+                r.write_new(d/'run_metadata.json',dict(seed=42,split_seed=cfg['split_seed'],checkpoint_verified_after_load=True,checkpoint={'sha256':source['sha256']}))
                 with table.open('w') as f:
                     writer=csv.DictWriter(f,fieldnames=['event','epoch','metrics_json']);writer.writeheader()
                     for epoch in range(1,61):writer.writerow(dict(event='epoch',epoch=epoch,metrics_json='{}'))
@@ -167,8 +167,28 @@ class ComponentStrengthTests(unittest.TestCase):
             r.run('agiqa3k')
         self.assertEqual(r.completed('agiqa3k'),source)
         d,_=r.paths('agiqa3k');evidence=d/'data_split_manifest.json'
+        self.assertFalse(evidence.exists())
         evidence.write_text(json.dumps(dict(train_seed=42,split_seed=123,indices={})))
         with self.assertRaisesRegex(ValueError,'seed'):r.completed('agiqa3k')
+        # Files required by the actual config must still be enforced.
+        for stage in ('agiqa1k','aigciqa2023'):
+            with patch('torch.cuda.is_available',return_value=True),patch.object(r.subprocess,'Popen',Downstream),patch.object(r.subprocess,'run'),patch('utils.run_metadata.collect_run_metadata',return_value={'fake':True}),contextlib.redirect_stdout(io.StringIO()):
+                with self.assertRaises(FileNotFoundError):r.run(stage)
+            self.assertTrue((r.paths(stage)[0]/'completion_manifest.json').exists())
+
+    def test_continue_skips_only_verified_and_does_not_rewrite(self):
+        r=sweep.make_runner('anchor050')
+        for stage in sweep.STAGES[:3]:
+            d,table=r.paths(stage); d.mkdir(parents=True)
+            table.write_text('keep original result')
+        with patch.object(r,'completed') as verify,patch.object(sweep,'run_stage') as launch:
+            sweep.run_pipeline(r,'continue')
+            self.assertEqual([c.args[0] for c in verify.call_args_list],list(sweep.STAGES[:3]))
+            self.assertEqual([c.args[1] for c in launch.call_args_list],['aigciqa2023'])
+        for stage in sweep.STAGES[:3]:self.assertEqual(r.paths(stage)[1].read_text(),'keep original result')
+        with patch.object(r,'completed',side_effect=ValueError('incomplete')),patch.object(sweep,'run_stage') as launch:
+            with self.assertRaisesRegex(ValueError,'incomplete'):sweep.run_pipeline(r,'continue')
+            launch.assert_not_called()
 
     def test_incomplete_refuses_pack(self):
         with self.assertRaises(FileNotFoundError): sweep.make_runner('anchor050').pack('pretrain')

@@ -76,8 +76,17 @@ def make_runner(variant):
             if finals[0].get('last_epoch') != 60 or [int(r['epoch']) for r in rows if r['event']=='epoch'] != list(range(1,61)):
                 raise ValueError('Expected a complete 60-epoch downstream run')
             from utils.agiqa1k_subset1078 import expected_resplit_manifest
-            evidence = runner.read_json(directory / 'data_split_manifest.json')
             cfg = validate(stage)
+            runtime = runner.read_json(directory / 'run_metadata.json')
+            if runtime.get('seed') != 42 or runtime.get('split_seed') != cfg['split_seed']:
+                raise ValueError('Downstream runtime seed mismatch')
+            manifest = directory / 'data_split_manifest.json'
+            if not manifest.exists() and not cfg['train'].get('record_split_manifest', False):
+                print(f'[SPLIT AUDIT] {stage}: actual membership was not recorded '
+                      '(record_split_manifest=false); config/runtime seeds verified, '
+                      'no membership file reconstructed.')
+                return source
+            evidence = runner.read_json(manifest)
             if evidence['train_seed'] != 42 or evidence['split_seed'] != cfg['split_seed']:
                 raise ValueError('Downstream seed evidence mismatch')
             if stage == 'agiqa1k' and evidence['indices'] != expected_resplit_manifest(3407)['split_indices']:
@@ -102,26 +111,32 @@ def run_stage(runner, stage, dry_run=False):
 
 
 def run_pipeline(runner, action, dry_run=False):
-    stages = STAGES if action == 'all' else STAGES[1:]
+    stages = STAGES if action in ('all', 'continue') else STAGES[1:]
+    pending = []
     # Refuse existing outputs before starting an expensive pipeline.
     for stage in stages:
         runner.validate(stage)
         directory, table = runner.paths(stage)
         if directory.exists() or table.exists():
+            if action == 'continue':
+                runner.completed(stage)
+                print(f'Verified completed stage; skip training: {stage}')
+                continue
             raise FileExistsError(f'Preserve existing output: {directory} / {table}')
+        pending.append(stage)
     if action == 'downstream':
         runner.completed('pretrain')
     if dry_run:
-        print(json.dumps({'stages': list(stages), 'configs': [str(runner.CONFIG / f'{s}.yaml') for s in stages]}))
+        print(json.dumps({'stages': list(pending), 'configs': [str(runner.CONFIG / f'{s}.yaml') for s in pending]}))
         return
-    for stage in stages:
+    for stage in pending:
         run_stage(runner, stage)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('variant', choices=VARIANTS)
-    parser.add_argument('action', nargs='?', default='pretrain', choices=STAGES + ('all', 'downstream', 'pack', 'pack-downstream'))
+    parser.add_argument('action', nargs='?', default='pretrain', choices=STAGES + ('all', 'downstream', 'continue', 'pack', 'pack-downstream'))
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args()
     os.chdir(ROOT)
@@ -130,7 +145,7 @@ def main():
         if args.dry_run:
             parser.error('--dry-run applies only to pretrain')
         runner.pack('pretrain' if args.action == 'pack' else 'downstream')
-    elif args.action in ('all', 'downstream'):
+    elif args.action in ('all', 'downstream', 'continue'):
         run_pipeline(runner, args.action, args.dry_run)
     else:
         run_stage(runner, args.action, args.dry_run)

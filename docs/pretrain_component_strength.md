@@ -95,3 +95,34 @@ CUDA_VISIBLE_DEVICES=0 bash scripts/run_pretrain_component_strength.sh anchor050
 ```bash
 for variant in anchor050 anchor200 ordinal050 ordinal200; do bash scripts/run_pretrain_component_strength.sh "$variant" pack-downstream || break; done
 ```
+
+
+## 已完成 3K 后缺少划分清单的修复与续跑
+
+旧 3K 配置没有启用 record_split_manifest，训练本来不会写 data_split_manifest.json。
+旧运行器却无条件要求该文件，导致 60 轮训练及测试评估后在完成核验阶段报错。
+修复遵循原始配置：未启用记录时检查配置及运行元数据的 seed，明确提示实际成员清单未记录；不事后伪造清单，也不改写旧配置、CSV、完成记录或权重。
+启用了记录的 1K/2023 仍严格要求原清单存在。该限制也适用于后续同配置的 3K 实验。
+
+新增 continue action：逐阶段验证已有结果的配置、SHA256、完成状态和下游 60 轮记录，通过才跳过；没有输出的阶段才启动。
+有不完整或损坏输出时停止，不删除、不覆盖，也不自动续训。它不是 trainer 的 resume。
+
+先同步一次代码：
+
+```bash
+cd /home1/wzx/aigc_naturalness_code/simsiam && git pull --ff-only origin work
+```
+
+GPU 0：核验并保留 anchor050 已完成的预训练、1K、3K，接着跑其 2023；之后运行 anchor200 所有未完成阶段：
+
+```bash
+cd /home1/wzx/aigc_naturalness_code/simsiam && CUDA_VISIBLE_DEVICES=0 bash scripts/run_pretrain_component_strength.sh anchor050 continue && CUDA_VISIBLE_DEVICES=0 bash scripts/run_pretrain_component_strength.sh anchor200 continue
+```
+
+GPU 1：同样继续 ordinal050，再运行 ordinal200：
+
+```bash
+cd /home1/wzx/aigc_naturalness_code/simsiam && CUDA_VISIBLE_DEVICES=1 bash scripts/run_pretrain_component_strength.sh ordinal050 continue && CUDA_VISIBLE_DEVICES=1 bash scripts/run_pretrain_component_strength.sh ordinal200 continue
+```
+
+只读预览可在任一 continue 命令后添加 --dry-run；该预览仍核验已有成果但不会启动训练或改写输出。
