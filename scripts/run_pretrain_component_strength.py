@@ -43,23 +43,24 @@ def expected_config(variant, stage='pretrain'):
     return cfg
 
 
-def make_runner(variant):
+def make_runner(variant, *, config_factory=None, config_dir=None, version=None):
     """Isolate each runner's globals so parallel runs cannot share paths or identity."""
-    expected_config(variant)
+    policy = expected_config if config_factory is None else config_factory
+    policy(variant)
     spec = importlib.util.spec_from_file_location(
         f'_component_strength_{variant}', ROOT / 'scripts/run_projection_only_v1_baseline.py')
     runner = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(runner)
     runner.ROOT = ROOT
-    runner.CONFIG = ROOT / CONFIG / variant
-    runner.VERSION = f'projection_only_v1_ctx5_component_{variant}'
+    runner.CONFIG = ROOT / (CONFIG if config_dir is None else config_dir) / variant
+    runner.VERSION = version or f'projection_only_v1_ctx5_component_{variant}'
     runner.STAGES = STAGES
 
     def validate(stage):
         if stage not in STAGES:
             raise ValueError(f'Unknown stage: {stage}')
         cfg = runner.configuration(stage)
-        if cfg != expected_config(variant, stage):
+        if cfg != policy(variant, stage):
             raise ValueError('Configuration differs from fixed component-strength policy')
         return cfg
 
