@@ -1,0 +1,65 @@
+[
+  {
+    "name": "01_modular_framework",
+    "pixels": [
+      5600,
+      3057
+    ],
+    "vector_pdf": true,
+    "objects": {
+      "native_shapes": 212,
+      "connectors": 40,
+      "text_objects": 54,
+      "pictures": 0
+    },
+    "sha256": {
+      "01_modular_framework.pptx": "23dac249439398d1ae8e28067f0954d543250ef318fc60f8a324dd02bab8ea35",
+      "01_modular_framework.pdf": "1f60d6883aebe2a5e3388ceeaa00a87d2ac1949ac14bbbea8d157fd6899704bc",
+      "01_modular_framework.png": "ae9df1d86dc83f6b15aae0dbc9244717cbbc4d138289d298758f90b7a295fb14"
+    },
+    "independent_regeneration_pixel_match": true,
+    "visual_review": "Full diagram inspected after native-PPT rendering; stage sharing vs transfer, four SRM input pairs, stop-gradient direction and predictor parameter reuse checked against code."
+  },
+  {
+    "name": "02_DAC_module",
+    "pixels": [
+      5600,
+      6005
+    ],
+    "vector_pdf": true,
+    "objects": {
+      "native_shapes": 279,
+      "connectors": 84,
+      "text_objects": 55,
+      "pictures": 0
+    },
+    "sha256": {
+      "02_DAC_module.pptx": "cbcc4f6914d1ddade21e4ccf742bf5f1fddfc15af804039e74f8ec7a25d1f3d7",
+      "02_DAC_module.pdf": "3554d341b8a1c2a9a07d41295e94f5e83a49337b8b3b103b08f8c89d4f799e43",
+      "02_DAC_module.png": "77b362cd7594362ee6df1c865d4abf3d2962feca753ffe432464fa7a1b873b3a"
+    },
+    "independent_regeneration_pixel_match": true,
+    "visual_review": "Full diagram inspected after native-PPT rendering; stage sharing vs transfer, four SRM input pairs, stop-gradient direction and predictor parameter reuse checked against code."
+  },
+  {
+    "name": "03_SRM_module",
+    "pixels": [
+      5600,
+      3329
+    ],
+    "vector_pdf": true,
+    "objects": {
+      "native_shapes": 82,
+      "connectors": 17,
+      "text_objects": 26,
+      "pictures": 0
+    },
+    "sha256": {
+      "03_SRM_module.pptx": "ab205ee7a3c1f5060d00d7af7b3b81bc14b648bb53ffe2e875ab1df1b083049f",
+      "03_SRM_module.pdf": "9bfd1e1cdf12c0da4ed82cdfc03308020a923fe6f1e9f584d6c9bee8d4d64a67",
+      "03_SRM_module.png": "60b5e53a5cdea4a55fcab774352b410b349cb0fe66c5eb5faafbeb8c050a33ec"
+    },
+    "independent_regeneration_pixel_match": true,
+    "visual_review": "Full diagram inspected after native-PPT rendering; stage sharing vs transfer, four SRM input pairs, stop-gradient direction and predictor parameter reuse checked against code."
+  }
+]
