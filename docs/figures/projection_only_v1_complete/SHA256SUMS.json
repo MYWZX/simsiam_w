@@ -1,0 +1,18 @@
+{
+  "ProjectionOnly_Modular_Framework.pptx": "8390bd2ae0d227bc1249e60974f8f0a4c11809a0db784a1803e3b2a1971b07fa",
+  "ProjectionOnly_Modular_Framework.pdf": "ab38a278e711f51d8b7e976d18c6ed220fef21667cc869eb4b70f6c8a0b2b3b2",
+  "01_Framework.png": "e9faf43755c6881a6e35e8d9acdad03a6e2c920d02143b271ac9cf1058ef92a2",
+  "02_SRE.png": "bc785dde9cdd9757aa22f53c465b9337b70a4718b07c441a17d660bd567f121e",
+  "03_QAM.png": "41936c543a8aa07a0474c4dcb36a0fc0e192b3a70c65d56cfab6f7972c28b54b",
+  "04_AAM.png": "b05737971d9158cb13487ec6fd9d24ded73f5b7927468c4b2354ddaf42d3b5c2",
+  "05_TPM.png": "5cadf176287ba12f267afbb8bcebfabb6dcd7bab304ec33e2585cdefc8edc02d",
+  "06_SRM.png": "41dd75b39fb4adcadab923c427c6848e978f94c0905c145314fd9652ca8f783f",
+  "Modules_overview.png": "f0c72b1231a13e72fe3fd8efee13120d7159cd023605b257783129fe9e8bd545",
+  "README.md": "1b01fd498cdba047b1a5c514e5658d31ad2cf9821357d23c5a7faa5de86a69fd",
+  "generate_all.py": "2ce4ed249159d65977fdc5a9d638c4255349958284ce5b47aa17e05596e9d6ae",
+  "generate_srm.py": "5148d3b06912dfef82708a6b4d6814cca817c24d0680f300fabea3e30c73a6a1",
+  "drawing_primitives.py": "cbc11b4231683c81c59a1b3bb9a4ff9a3ef3096554515a74d2bbe7027d79a793",
+  "requirements.txt": "6d9369e28010bed6282c6f34443cd0ac00f2784bb589f5a0120dea09ecd5e960",
+  "render_audit.json": "c3a679034bccc583f597ad87f4ceafbbbf369231b6301356b18d14c6306fcb27",
+  "source_audit.json": "94de4d336c235ee8a9557aaef475351168f68071edfceacba0b3922e14144d68"
+}

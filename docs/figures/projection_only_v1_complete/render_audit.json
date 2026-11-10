@@ -1,0 +1,122 @@
+[
+  {
+    "name": "01_Framework",
+    "pixels": [
+      6000,
+      4050
+    ],
+    "editable_objects": {
+      "shapes": 153,
+      "connectors": 28,
+      "text_objects": 58,
+      "pictures": 0
+    },
+    "pdf_raster_images": 0,
+    "out_of_page_text": [],
+    "unique_object_ids": true,
+    "valid_connector_references": true,
+    "attached_connector_endpoints": 3,
+    "png_matches_pdf_pixels": true,
+    "visually_reviewed": true
+  },
+  {
+    "name": "02_SRE",
+    "pixels": [
+      6000,
+      4050
+    ],
+    "editable_objects": {
+      "shapes": 174,
+      "connectors": 31,
+      "text_objects": 47,
+      "pictures": 0
+    },
+    "pdf_raster_images": 0,
+    "out_of_page_text": [],
+    "unique_object_ids": true,
+    "valid_connector_references": true,
+    "attached_connector_endpoints": 16,
+    "png_matches_pdf_pixels": true,
+    "visually_reviewed": true
+  },
+  {
+    "name": "03_QAM",
+    "pixels": [
+      6000,
+      4050
+    ],
+    "editable_objects": {
+      "shapes": 186,
+      "connectors": 39,
+      "text_objects": 53,
+      "pictures": 0
+    },
+    "pdf_raster_images": 0,
+    "out_of_page_text": [],
+    "unique_object_ids": true,
+    "valid_connector_references": true,
+    "attached_connector_endpoints": 38,
+    "png_matches_pdf_pixels": true,
+    "visually_reviewed": true
+  },
+  {
+    "name": "04_AAM",
+    "pixels": [
+      6000,
+      4050
+    ],
+    "editable_objects": {
+      "shapes": 156,
+      "connectors": 35,
+      "text_objects": 47,
+      "pictures": 0
+    },
+    "pdf_raster_images": 0,
+    "out_of_page_text": [],
+    "unique_object_ids": true,
+    "valid_connector_references": true,
+    "attached_connector_endpoints": 36,
+    "png_matches_pdf_pixels": true,
+    "visually_reviewed": true
+  },
+  {
+    "name": "05_TPM",
+    "pixels": [
+      6000,
+      4050
+    ],
+    "editable_objects": {
+      "shapes": 112,
+      "connectors": 21,
+      "text_objects": 30,
+      "pictures": 0
+    },
+    "pdf_raster_images": 0,
+    "out_of_page_text": [],
+    "unique_object_ids": true,
+    "valid_connector_references": true,
+    "attached_connector_endpoints": 18,
+    "png_matches_pdf_pixels": true,
+    "visually_reviewed": true
+  },
+  {
+    "name": "06_SRM",
+    "pixels": [
+      6000,
+      4050
+    ],
+    "editable_objects": {
+      "shapes": 195,
+      "connectors": 19,
+      "text_objects": 113,
+      "pictures": 0
+    },
+    "pdf_raster_images": 0,
+    "out_of_page_text": [],
+    "unique_object_ids": true,
+    "valid_connector_references": true,
+    "attached_connector_endpoints": 25,
+    "png_matches_pdf_pixels": true,
+    "visually_reviewed": true
+  }
+]

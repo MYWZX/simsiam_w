@@ -1,0 +1,18 @@
+{
+  "repository": "MYWZX/simsiam_w",
+  "branch": "work",
+  "source_commit": "0294a7d227c83a0ad232ba9ac018579de47428e3",
+  "mode": "projection_only_v1",
+  "checked_files": {
+    "models/fusion.py": "c4c6c81111abcf8cbfad226709cb095ddd58ad036aa7264db0986c40380e3933",
+    "models/backbones.py": "5c8ac309a013ad62d24808c66b7e56c9930d15614f716d5b12c07c94fdc7507e",
+    "models/two_stage_models.py": "efdc971e737955f11058b3c2b6429735097a9236df3d5af4ea13b9f45af129d4",
+    "train_cm_pretrain.py": "f84c287da30a330f1c80c51ed9b9dfab13735f760c4463ff67f62f3d92c44b99",
+    "configs/projection_only_v1_baseline/pretrain.yaml": "4e6465d64276b0b6fc717dc40763b39184d03acb4ce0cab88733a4527a1a71cd",
+    "configs/current_tuning_reference/agiqa1k.yaml": "cf1f7b0cbbe30931eaf5161543891c9a8801b903dd5ff3cfa04cb38ad3ecf203",
+    "configs/current_tuning_reference/agiqa3k.yaml": "85383e20cacd9d0a2967cd75f306472d37533bb9e25152f52110578adfd545e4",
+    "configs/current_tuning_reference/aigciqa2023.yaml": "fe1646e88bbdec6a1abe24ebc031342e7f8f82204a10c397dc9980dde4b23c15"
+  },
+  "reference_image_use": "Palette and visual hierarchy only; actual paths checked in source",
+  "training_started": false
+}
