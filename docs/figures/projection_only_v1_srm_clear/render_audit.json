@@ -1,0 +1,53 @@
+{
+  "pixels": [
+    6000,
+    3525
+  ],
+  "canvas_inches": [
+    16,
+    9.4
+  ],
+  "editable_objects": {
+    "shapes": 194,
+    "connectors": 19,
+    "text_objects": 113,
+    "pictures": 0
+  },
+  "pdf_raster_images": 0,
+  "out_of_page_text": 0,
+  "fonts": [
+    "ABAAAA+DejaVuSerif",
+    "BAAAAA+DejaVuSans-Bold",
+    "BBAAAA+DejaVuSerif-Italic",
+    "CAAAAA+DejaVuSans",
+    "DAAAAA+DejaVuSans-Bold",
+    "EAAAAA+DejaVuSerif-Italic",
+    "FAAAAA+DejaVuSans-Bold",
+    "GAAAAA+DejaVuSerif",
+    "HAAAAA+DejaVuSerif-Italic",
+    "IAAAAA+DejaVuSerif-Italic",
+    "JAAAAA+DejaVuSans-Bold",
+    "KAAAAA+DejaVuSerif-Italic",
+    "LAAAAA+DejaVuSerif-Italic",
+    "MAAAAA+DejaVuSans-Bold",
+    "NAAAAA+DejaVuSerif-Italic",
+    "OAAAAA+DejaVuSans",
+    "PAAAAA+DejaVuSans",
+    "QAAAAA+DejaVuSans-Bold",
+    "RAAAAA+DejaVuSans",
+    "SAAAAA+DejaVuSerif-Italic",
+    "TAAAAA+DejaVuSerif",
+    "UAAAAA+DejaVuSans-Bold",
+    "VAAAAA+DejaVuSans-Bold",
+    "WAAAAA+DejaVuSans",
+    "XAAAAA+DejaVuSerif",
+    "YAAAAA+DejaVuSerif-Italic",
+    "ZAAAAA+DejaVuSerif"
+  ],
+  "source": "Native editable PPTX -> LibreOffice PDF -> PNG",
+  "sha256": {
+    "SRM_publication.pptx": "23bae1208cdd85d4f20673d7f78800a4e227eee4eff5db61a7f77761ebb61ee8",
+    "SRM_publication.pdf": "e5866ce4c8d9b01197be3ee80e9caf37451e82ebb18632c75a61ed05ecc8c170",
+    "SRM_publication.png": "abbb94ad1c45dd65a769e7a2fbeec6201e2f6fe6730c028da65f43ee44ea4eed"
+  }
+}
