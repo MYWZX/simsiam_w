@@ -1,0 +1,254 @@
+{
+  "canvas_inches": [
+    26,
+    14.65
+  ],
+  "png_pixels": [
+    5600,
+    3156
+  ],
+  "pdf_pages": 1,
+  "font_family": "DejaVu Sans",
+  "pdf_fonts": [
+    "ABAAAA+DejaVuSans",
+    "BAAAAA+DejaVuSans-Bold",
+    "BBAAAA+DejaVuSans",
+    "CAAAAA+DejaVuSans-Bold",
+    "CBAAAA+DejaVuSans",
+    "DAAAAA+DejaVuSans-Bold",
+    "DBAAAA+DejaVuSans-Bold",
+    "EAAAAA+DejaVuSans",
+    "EBAAAA+DejaVuSans",
+    "FAAAAA+DejaVuSans",
+    "FBAAAA+DejaVuSans-Bold",
+    "GAAAAA+DejaVuSans-Bold",
+    "HAAAAA+DejaVuSans-Oblique",
+    "IAAAAA+DejaVuSans",
+    "JAAAAA+DejaVuSans",
+    "KAAAAA+DejaVuSans",
+    "LAAAAA+DejaVuSans",
+    "MAAAAA+DejaVuSans-Bold",
+    "NAAAAA+DejaVuSans",
+    "OAAAAA+DejaVuSans",
+    "PAAAAA+DejaVuSans-Bold",
+    "QAAAAA+DejaVuSans",
+    "RAAAAA+DejaVuSans",
+    "SAAAAA+DejaVuSans",
+    "TAAAAA+DejaVuSans-Bold",
+    "UAAAAA+DejaVuSans",
+    "VAAAAA+DejaVuSans",
+    "WAAAAA+DejaVuSans",
+    "XAAAAA+DejaVuSans",
+    "YAAAAA+DejaVuSans-Bold",
+    "ZAAAAA+DejaVuSans-Bold"
+  ],
+  "editable_objects": {
+    "shapes": 551,
+    "connectors": 149,
+    "text_objects": 117,
+    "pictures": 0,
+    "groups": 162
+  },
+  "required_render_text_present": true,
+  "font_fit_adjustments": [
+    {
+      "name": "FeatureLabel_g1",
+      "original": 20,
+      "actual": 19.0,
+      "text": "g1"
+    },
+    {
+      "name": "FeatureLabel_g2",
+      "original": 20,
+      "actual": 19.0,
+      "text": "g2"
+    },
+    {
+      "name": "Label_Symmetric\ncross-view I\u2013I\n\nsg targets",
+      "original": 22,
+      "actual": 21.25,
+      "text": "Symmetric\ncross-view I\u2013I\n\nsg targets"
+    },
+    {
+      "name": "Label_G",
+      "original": 21,
+      "actual": 19.75,
+      "text": "Global\nG"
+    },
+    {
+      "name": "Label_Quality branch\nsee (b)",
+      "original": 23,
+      "actual": 21.5,
+      "text": "Quality branch\nsee (b)"
+    },
+    {
+      "name": "Label_Components\nAnchor / ordinal",
+      "original": 20,
+      "actual": 17.25,
+      "text": "Components\nAnchor / ordinal"
+    },
+    {
+      "name": "Label_H_art  /  H_aes",
+      "original": 23,
+      "actual": 19.75,
+      "text": "H_art  /  H_aes"
+    },
+    {
+      "name": "Label_Aux. reg. / rank",
+      "original": 19,
+      "actual": 17.75,
+      "text": "Aux. reg. / rank"
+    },
+    {
+      "name": "Label_Alignment branch\nsee (b)",
+      "original": 22,
+      "actual": 17.75,
+      "text": "Alignment branch\nsee (b)"
+    },
+    {
+      "name": "Label_Align labels\nReg. / rank / SR",
+      "original": 20,
+      "actual": 17.75,
+      "text": "Align labels\nReg. / rank / SR"
+    },
+    {
+      "name": "Text_shared_IDs",
+      "original": 20,
+      "actual": 19.5,
+      "text": "TEXT \u00b7 shared E\u209c, T, PT"
+    },
+    {
+      "name": "Label_Prompt /\nAnswer",
+      "original": 21,
+      "actual": 20.25,
+      "text": "Prompt /\nAnswer"
+    },
+    {
+      "name": "Label_ET",
+      "original": 22,
+      "actual": 21.25,
+      "text": "CLIP text\nE\u209c"
+    },
+    {
+      "name": "Label_T",
+      "original": 22,
+      "actual": 21.0,
+      "text": "Text T"
+    },
+    {
+      "name": "Label_Text routes\u2020",
+      "original": 21,
+      "actual": 18.0,
+      "text": "Text routes\u2020"
+    },
+    {
+      "name": "Label_I\u2013Prompt\nI\u2013Answer\nPrompt\u2013Answer",
+      "original": 21,
+      "actual": 17.5,
+      "text": "I\u2013Prompt\nI\u2013Answer\nPrompt\u2013Answer"
+    },
+    {
+      "name": "Label_R",
+      "original": 22,
+      "actual": 20.75,
+      "text": "ResNet\nlayer3 \u00b7 R"
+    },
+    {
+      "name": "Label_L",
+      "original": 22,
+      "actual": 18.75,
+      "text": "Local\nproj. \u00b7 L"
+    },
+    {
+      "name": "Global_dimension",
+      "original": 20,
+      "actual": 19.5,
+      "text": "768 \u2192 256"
+    },
+    {
+      "name": "Local_dimension",
+      "original": 20,
+      "actual": 19.5,
+      "text": "P\u2080: 196 \u00d7 256"
+    },
+    {
+      "name": "Quality_output_title",
+      "original": 25,
+      "actual": 18.25,
+      "text": "Quality"
+    },
+    {
+      "name": "Label_AG",
+      "original": 24,
+      "actual": 18.5,
+      "text": "AG\nadapter"
+    },
+    {
+      "name": "FeatureLabel_sG",
+      "original": 20,
+      "actual": 19.0,
+      "text": "sG"
+    },
+    {
+      "name": "Label_AP",
+      "original": 24,
+      "actual": 18.75,
+      "text": "AP\nadapter"
+    },
+    {
+      "name": "Label_Prompt",
+      "original": 20,
+      "actual": 17.0,
+      "text": "Prompt"
+    },
+    {
+      "name": "Label_AT",
+      "original": 24,
+      "actual": 18.5,
+      "text": "AT\nadapter"
+    },
+    {
+      "name": "Label_Gate \u03b3\nM",
+      "original": 22,
+      "actual": 19.75,
+      "text": "Gate \u03b3\nM"
+    },
+    {
+      "name": "Legend_frozen",
+      "original": 21,
+      "actual": 18.5,
+      "text": "Frozen weights"
+    },
+    {
+      "name": "OperatorLabel_+",
+      "original": 23,
+      "actual": 20.75,
+      "text": "+"
+    },
+    {
+      "name": "OperatorLabel_C",
+      "original": 23,
+      "actual": 20.75,
+      "text": "C"
+    },
+    {
+      "name": "OperatorLabel_M",
+      "original": 23,
+      "actual": 18.25,
+      "text": "M"
+    }
+  ],
+  "anchored_native_connector_endpoints": 135,
+  "content_source": "projection_only_v1_framework.pptx",
+  "rasterized_objects": "None; all drawing objects including input placeholders are native editable shapes.",
+  "sha256": {
+    "projection_only_v1_framework.pptx": "65de75de05d54a332cd8bf0bbd2a5e22059d0cd2ff5b9871e3805e6b6735690c",
+    "projection_only_v1_framework.pdf": "647a2486da88856a5cd8fac63495656a9d5120090aea0ff0399c14c08ec76977",
+    "projection_only_v1_framework.png": "24a69c2cc637cbc88ea4bb99870001f84f0e20e6f3797ba58812b1a78bcb8dc0"
+  },
+  "pdf_raster_images": 0,
+  "text_spans_outside_page": 0,
+  "visual_review": "Inspected full slide after final LibreOffice rendering, with separate text/pool-evidence routes and corrected symbols, score formulas, output clearance and nonconnecting crossings.",
+  "independent_script_regeneration_png_sha256_match": true,
+  "generation_script_sha256": "f56034f7dcc60d5b36138497cee8453e0409e0861564e699fc57802b148172c2"
+}

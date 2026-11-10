@@ -1,0 +1,29 @@
+{
+  "repository": "MYWZX/simsiam_w",
+  "branch": "work",
+  "commit": "50463fe8dd081684d9dd81fad7537ea9b47a2f9a",
+  "mode": "projection_only_v1",
+  "fact_source": "Latest user-accepted architecture explanation, checked against actual repository forward paths; attached DPGF-Net PDF used only for style.",
+  "files_sha256": {
+    "models/two_stage_models.py": "efdc971e737955f11058b3c2b6429735097a9236df3d5af4ea13b9f45af129d4",
+    "models/backbones.py": "5c8ac309a013ad62d24808c66b7e56c9930d15614f716d5b12c07c94fdc7507e",
+    "models/fusion.py": "c4c6c81111abcf8cbfad226709cb095ddd58ad036aa7264db0986c40380e3933",
+    "train_cm_pretrain.py": "f84c287da30a330f1c80c51ed9b9dfab13735f760c4463ff67f62f3d92c44b99",
+    "train_cm_iqa.py": "7d798e02ffd2a281fe1b0b7ffed77fb23bd4d62204e46e5f8f5ee3d4650493c2",
+    "configs/projection_only_v1_baseline/pretrain.yaml": "4e6465d64276b0b6fc717dc40763b39184d03acb4ce0cab88733a4527a1a71cd",
+    "configs/current_tuning_reference/agiqa1k.yaml": "cf1f7b0cbbe30931eaf5161543891c9a8801b903dd5ff3cfa04cb38ad3ecf203",
+    "configs/current_tuning_reference/agiqa3k.yaml": "85383e20cacd9d0a2967cd75f306472d37533bb9e25152f52110578adfd545e4",
+    "configs/current_tuning_reference/aigciqa2023.yaml": "fe1646e88bbdec6a1abe24ebc031342e7f8f82204a10c397dc9980dde4b23c15"
+  },
+  "checked_paths": [
+    "g from semantic_proj, not cross-attention",
+    "P0 bypasses PI",
+    "g -> QA residual for Quality",
+    "g -> PI for semantic alignment and I-I",
+    "Prompt and Answer post-PT asymmetry",
+    "NSS embedding and raw gate branches",
+    "Feature mix rho distinct from score mix beta",
+    "Exact representation transfer/reset scope",
+    "Frozen CLIP text tower; 5 trainable context tokens"
+  ]
+}
