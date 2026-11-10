@@ -1,0 +1,86 @@
+[
+  {
+    "name": "01_split_framework",
+    "pixels": [
+      5600,
+      3104
+    ],
+    "vector_pdf": true,
+    "sha256": {
+      "01_split_framework.pptx": "3e66a11255f8a213d5737cff095cbf2fae5ad46407eaef5ab724b1b87f655dee",
+      "01_split_framework.pdf": "d7f75a1091ab94b4c75e361794fc0f597282c8d2d157882f1dc7e7e9a8b7cd38",
+      "01_split_framework.png": "e8f6e96b0887a8e9f246d63c7fd95fccee60d7f3b6f92ea24ffe7d309b34f753"
+    },
+    "editable_objects": {
+      "shapes": 255,
+      "connectors": 52,
+      "text_objects": 69,
+      "pictures": 0
+    },
+    "independent_png_regeneration_match": true,
+    "visual_review": "Inspected full native-PPT render. QAM/AAM input boundaries, g vs PI(g), P0 bypass, shared features, QA/QL training taps, NSS raw gate path, alignment tuple construction, SRM shared predictors and cross-stage initialization verified."
+  },
+  {
+    "name": "02_QAM_module",
+    "pixels": [
+      5600,
+      4175
+    ],
+    "vector_pdf": true,
+    "sha256": {
+      "02_QAM_module.pptx": "44e164fa9c87c04b1141e37388924e26c0b8a5dc55d70784073f63075fa99975",
+      "02_QAM_module.pdf": "d9b3214baee917749101387ceae46a41704a7ee5eb8b23f94bb887da9f48cb22",
+      "02_QAM_module.png": "6abd96da1d16de19ab12ac159dad521c876c58b015bb9880be3648074c34ec6c"
+    },
+    "editable_objects": {
+      "shapes": 137,
+      "connectors": 38,
+      "text_objects": 32,
+      "pictures": 0
+    },
+    "independent_png_regeneration_match": true,
+    "visual_review": "Inspected full native-PPT render. QAM/AAM input boundaries, g vs PI(g), P0 bypass, shared features, QA/QL training taps, NSS raw gate path, alignment tuple construction, SRM shared predictors and cross-stage initialization verified."
+  },
+  {
+    "name": "03_AAM_module",
+    "pixels": [
+      5600,
+      3394
+    ],
+    "vector_pdf": true,
+    "sha256": {
+      "03_AAM_module.pptx": "724fbe4dd555402ee7dd0c1b57d29db42de98dee5cb5401e1940e170f2d4d08d",
+      "03_AAM_module.pdf": "0fa0443440d29cb58af9a41706128e68b60a4667303a2c07fa74da407a936335",
+      "03_AAM_module.png": "f257492c16ad0809623496a1613398f866a06fb8a797d2824729280cec2056b7"
+    },
+    "editable_objects": {
+      "shapes": 110,
+      "connectors": 33,
+      "text_objects": 25,
+      "pictures": 0
+    },
+    "independent_png_regeneration_match": true,
+    "visual_review": "Inspected full native-PPT render. QAM/AAM input boundaries, g vs PI(g), P0 bypass, shared features, QA/QL training taps, NSS raw gate path, alignment tuple construction, SRM shared predictors and cross-stage initialization verified."
+  },
+  {
+    "name": "04_SRM_module",
+    "pixels": [
+      5600,
+      3329
+    ],
+    "vector_pdf": true,
+    "sha256": {
+      "04_SRM_module.pptx": "ad6269fee44048d7dd9db2a30ef1401db12dcd51e4953cd06347bec247b2e06e",
+      "04_SRM_module.pdf": "398e636d2118d05eec922cfdf18b31a0a83e266da21cdfc004ca830e13ba165b",
+      "04_SRM_module.png": "5895c19144f48a4a6f8213529003524385a26c503d8000dee617c722b16ab65b"
+    },
+    "editable_objects": {
+      "shapes": 82,
+      "connectors": 17,
+      "text_objects": 26,
+      "pictures": 0
+    },
+    "independent_png_regeneration_match": true,
+    "visual_review": "Inspected full native-PPT render. QAM/AAM input boundaries, g vs PI(g), P0 bypass, shared features, QA/QL training taps, NSS raw gate path, alignment tuple construction, SRM shared predictors and cross-stage initialization verified."
+  }
+]
