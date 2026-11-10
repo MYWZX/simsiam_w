@@ -135,4 +135,3 @@ def image_tag(sh,x,y,label,w=1.05,h=.64):
  shape(g.shapes,x+.07,y+.08,.14,.14,'vision',None,MSO_SHAPE.OVAL,'Image_sun')
  shape(g.shapes,x+.09,y+.28,.34,.25,'vision',None,MSO_SHAPE.ISOSCELES_TRIANGLE,'Image_peak')
  txt(g.shapes,x+.44,y+.06,w-.47,h-.1,label,22,True,name='Image_label')
-
