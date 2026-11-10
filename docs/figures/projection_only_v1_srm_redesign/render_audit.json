@@ -1,0 +1,62 @@
+{
+  "pixels": [
+    6000,
+    3750
+  ],
+  "canvas_inches": [
+    16,
+    10.0
+  ],
+  "editable_objects": {
+    "shapes": 294,
+    "connectors": 19,
+    "text_objects": 197,
+    "pictures": 0
+  },
+  "pdf_raster_images": 0,
+  "out_of_page_text": 0,
+  "fonts": [
+    "ABAAAA+DejaVuSerif-Italic",
+    "BAAAAA+DejaVuSans-Bold",
+    "BBAAAA+DejaVuSerif-Italic",
+    "CAAAAA+DejaVuSans-Bold",
+    "CBAAAA+DejaVuSerif",
+    "DAAAAA+DejaVuSans",
+    "DBAAAA+DejaVuSans-Bold",
+    "EAAAAA+DejaVuSans-Bold",
+    "EBAAAA+DejaVuSans",
+    "FAAAAA+DejaVuSans-Bold",
+    "FBAAAA+DejaVuSans",
+    "GAAAAA+DejaVuSans",
+    "GBAAAA+DejaVuSerif",
+    "HAAAAA+DejaVuSerif-Italic",
+    "HBAAAA+DejaVuSerif",
+    "IAAAAA+DejaVuSans-Bold",
+    "IBAAAA+DejaVuSerif",
+    "JAAAAA+DejaVuSerif-Italic",
+    "JBAAAA+DejaVuSerif-Italic",
+    "KAAAAA+DejaVuSerif-Italic",
+    "KBAAAA+DejaVuSerif",
+    "LAAAAA+DejaVuSerif",
+    "MAAAAA+DejaVuSerif-Italic",
+    "NAAAAA+NotoSerif-Italic",
+    "OAAAAA+DejaVuSerif",
+    "PAAAAA+DejaVuSerif-Italic",
+    "QAAAAA+DejaVuSerif-Italic",
+    "RAAAAA+DejaVuSerif-Italic",
+    "SAAAAA+DejaVuSerif",
+    "TAAAAA+DejaVuSerif-Italic",
+    "UAAAAA+DejaVuSerif",
+    "VAAAAA+DejaVuSerif",
+    "WAAAAA+DejaVuSans",
+    "XAAAAA+DejaVuSerif-Italic",
+    "YAAAAA+DejaVuSerif",
+    "ZAAAAA+DejaVuSerif"
+  ],
+  "source": "Native editable PPTX -> LibreOffice PDF -> PNG",
+  "sha256": {
+    "SRM_publication.pptx": "a99a867a5fd040dbec7f4f66c1d2ac7eadf536d351974d51b26801005f72c9c3",
+    "SRM_publication.pdf": "ba50ecbb13a9da7c822561b42e4256916d2398fd51f9f8b8b7e4c2f42bceb28e",
+    "SRM_publication.png": "b00a27a2456f680515dfa291a1f6dcb49f2b3f20229ee2a7d37ef64e86fcc37a"
+  }
+}
