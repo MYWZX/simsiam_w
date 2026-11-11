@@ -45,3 +45,5 @@ cd /home1/wzx/aigc_naturalness_code/simsiam && bash scripts/run_pretrain_img_sia
 原打包白名单不含独立data_split_manifest.json，1K/2023的成员指纹摘要在run_metadata.json中。
 
 结果作为独立实验报告；原最好基线及其成绩不变。单seed比较不代表多seed稳定提升；不保证训练逐位复现。
+
+本轮结果已核查，0.10/0.20均未超过当前基线，继续保留I-I=0.15。详见 [结果记录](pretrain_img_siam_results.md)。下一轮单独比较 [图像—Prompt权重](pretrain_img_prompt.md)。
