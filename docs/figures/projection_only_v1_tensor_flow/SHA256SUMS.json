@@ -1,0 +1,18 @@
+{
+  "01_Framework.png": "bd85a6b09b2fed3b91fd33b12e2a31054da3587bef6abd548e919db374c55f2a",
+  "02_SRE.png": "ad043a185238e133811663b57cf77f8a84cfa5cc560afcc5836a07a5ddc9a00c",
+  "03_QAM.png": "41936c543a8aa07a0474c4dcb36a0fc0e192b3a70c65d56cfab6f7972c28b54b",
+  "04_AAM.png": "b05737971d9158cb13487ec6fd9d24ded73f5b7927468c4b2354ddaf42d3b5c2",
+  "05_TPM.png": "5cadf176287ba12f267afbb8bcebfabb6dcd7bab304ec33e2585cdefc8edc02d",
+  "06_SRM.png": "41dd75b39fb4adcadab923c427c6848e978f94c0905c145314fd9652ca8f783f",
+  "07_Operations.png": "e73e4dc47f88f0be9a5972ae6d70c6e5647b921852c836bf6f413be5ced430e7",
+  "README.md": "7542a02e8b03b6e7e18a86b235a14e0ddf76c8a89aefe4b91be93e7d19cf8ce7",
+  "Tensor_Flow_Framework.pdf": "898354d06a9f10b7e4ed3d2b36ee6e15a95d36ae1726a9f0bafb726d02505381",
+  "Tensor_Flow_Framework.pptx": "6b248169d8ea46e886ef2634f1309c6d062602305f7c887e89bc64c91a178136",
+  "drawing_primitives.py": "cbc11b4231683c81c59a1b3bb9a4ff9a3ef3096554515a74d2bbe7027d79a793",
+  "generate_all.py": "4b1988e9a0f161b709b25bf05d57f3b7d354e68ee84b9a207b5e5e41bf2a4ab2",
+  "generate_srm.py": "5148d3b06912dfef82708a6b4d6814cca817c24d0680f300fabea3e30c73a6a1",
+  "render_audit.json": "9ee261badf555e2fa0a80d223a37b554dfe680cf7d1474279372a1a845f9d85b",
+  "requirements.txt": "6d9369e28010bed6282c6f34443cd0ac00f2784bb589f5a0120dea09ecd5e960",
+  "source_audit.json": "fae7da60e0bf4d99e912212c4c17312e400d76747d637a4efad1d21b84b443c6"
+}

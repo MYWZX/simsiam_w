@@ -1,0 +1,11 @@
+{
+  "commit": "14f30cabe6bdde7fa5fadabc18787e41eaab959d",
+  "mode": "projection_only_v1",
+  "files_sha256": {
+    "models/backbones.py": "5c8ac309a013ad62d24808c66b7e56c9930d15614f716d5b12c07c94fdc7507e",
+    "models/fusion.py": "c4c6c81111abcf8cbfad226709cb095ddd58ad036aa7264db0986c40380e3933",
+    "models/two_stage_models.py": "efdc971e737955f11058b3c2b6429735097a9236df3d5af4ea13b9f45af129d4",
+    "configs/projection_only_v1_baseline/pretrain.yaml": "4e6465d64276b0b6fc717dc40763b39184d03acb4ce0cab88733a4527a1a71cd"
+  },
+  "training_started": false
+}
