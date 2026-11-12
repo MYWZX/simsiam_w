@@ -1,0 +1,26 @@
+[
+  {
+    "name": "01_Compact_Module",
+    "pixels": [
+      6000,
+      3000
+    ],
+    "pdf_raster_images": 0,
+    "out_of_page_text": 0,
+    "png_matches_pdf_pixels": true,
+    "native_objects": 128,
+    "ppt_raster_pictures": 0
+  },
+  {
+    "name": "02_Worked_Example",
+    "pixels": [
+      6000,
+      3000
+    ],
+    "pdf_raster_images": 0,
+    "out_of_page_text": 0,
+    "png_matches_pdf_pixels": true,
+    "native_objects": 138,
+    "ppt_raster_pictures": 0
+  }
+]
