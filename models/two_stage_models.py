@@ -8,6 +8,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from .nss import StandardMSCNDescriptor, validate_nss, MODES as NSS_MODES
+
 from .backbones import GlobalVisualEncoder, ResNet50LocalEncoder, maybe_freeze
 from .fusion import SemanticStructureFusion, AlignOnlyVMambaFusion, GlobalProjectionOnly
 
@@ -16,7 +18,7 @@ from .fusion import SemanticStructureFusion, AlignOnlyVMambaFusion, GlobalProjec
 # Dataset-specific regression heads and score-mixing beta are deliberately reset.
 DUAL_QUALITY_TRANSFER_PREFIXES = (
     "dual_quality_signature", "quality_adapter.", "quality_local_encoder.",
-    "local_patch_proj.", "nss_proj.", "nss_gate.", "quality_feature_mix_logit",
+    "nss_descriptor_signature", "local_patch_proj.", "nss_proj.", "nss_gate.", "quality_feature_mix_logit",
     "quality_adapter_gate_logit",
 )
 
@@ -630,6 +632,10 @@ class CrossModalIQAFullModel(nn.Module):
 
     def __init__(self, cfg: Dict):
         super().__init__()
+        nss_mode, nss_dim = validate_nss(cfg["model"].get("nss_text_gate", {}))
+        if nss_mode != 'legacy' and (cfg['model'].get('fusion', {}).get('mode') != 'projection_only_v1'
+                or not cfg['model'].get('dual_quality_representation', {}).get('enabled', False)):
+            raise ValueError('Standard MSCN variants require projection_only_v1 and dual quality representation')
         self.backbone = ImageTextBackbone(cfg)
         mcfg = cfg["model"]
         hcfg = mcfg.get("heads", {})
@@ -645,7 +651,10 @@ class CrossModalIQAFullModel(nn.Module):
         if "score_dropout" in hcfg and (not math.isfinite(score_dropout) or not 0 <= score_dropout < 1):
             raise ValueError("heads.score_dropout must be finite and in [0,1)")
         gate_hidden = int(ngcfg.get("gate_hidden_dim", hidden_dim))
-        nss_dim = int(ngcfg.get("nss_dim", 6))
+        self.nss_mode, self.nss_dim = nss_mode, nss_dim
+        if nss_mode != 'legacy':
+            self.nss_descriptor = StandardMSCNDescriptor(nss_mode)
+            self.register_buffer('nss_descriptor_signature', torch.tensor([NSS_MODES[nss_mode][0], nss_dim]))
 
         # Shared text projection to fused dimension.
         self.text_to_fused = nn.Linear(text_dim, fused_dim)
@@ -1077,12 +1086,14 @@ class CrossModalIQAFullModel(nn.Module):
         return (x * std + mean).clamp(0.0, 1.0)
 
     def _compute_nss_features(self, image: torch.Tensor, out_hw: tuple[int, int]) -> torch.Tensor:
-        """Fast differentiable NSS-like patch descriptors.
+        """Legacy box-filter NSS-like patch descriptors.
 
-        Uses MSCN-inspired normalized luminance statistics. It is not a slow exact
-        scipy GGD fit; alpha/sigma are lightweight proxies suitable for GPU training.
+        Preserves the historical box-filter statistics, including the duplicate
+        second moment. No GGD parameters are fitted in legacy mode.
         Output: [B, H*W, 6]
         """
+        if getattr(self, 'nss_mode', 'legacy') != 'legacy':
+            return self.nss_descriptor(self._normalize_img01(image), out_hw)
         x = self._normalize_img01(image)
         gray = 0.299 * x[:, 0:1] + 0.587 * x[:, 1:2] + 0.114 * x[:, 2:3]
         mu = F.avg_pool2d(gray, kernel_size=7, stride=1, padding=3)
@@ -1126,8 +1137,8 @@ class CrossModalIQAFullModel(nn.Module):
             batch_size * num_crops, channels, crop_h, crop_w
         )
         crop_nss = self._compute_nss_features(flat_crops, (per_crop_h, out_w))
-        return crop_nss.reshape(batch_size, num_crops, -1, 6).reshape(
-            batch_size, -1, 6
+        return crop_nss.reshape(batch_size, num_crops, -1, getattr(self, 'nss_dim', 6)).reshape(
+            batch_size, -1, getattr(self, 'nss_dim', 6)
         )
 
     def _quality_residual_feature(self, shared: torch.Tensor, adapted: torch.Tensor):
@@ -2034,6 +2045,19 @@ def load_pretrained_backbone(
     ckpt = torch.load(checkpoint_path, map_location=model_device)
     state = ckpt.get("model", ckpt.get("state_dict", ckpt))
     target = model.state_dict()
+    normalized_source = {k.removeprefix('module.').removeprefix('iqa.'): v for k,v in state.items()}
+    nss_signature = 'nss_descriptor_signature'
+    if (nss_signature in normalized_source) != (nss_signature in target):
+        raise RuntimeError('NSS descriptor mismatch: legacy and standard MSCN checkpoints cannot mix')
+    if nss_signature in target:
+        if not torch.equal(normalized_source[nss_signature].cpu(), target[nss_signature].cpu()):
+            raise RuntimeError('NSS descriptor signature mismatch')
+        for key in target:
+            if key.startswith(('nss_proj.', 'nss_gate.')):
+                if key not in normalized_source or normalized_source[key].shape != target[key].shape:
+                    raise RuntimeError(f'Incomplete/mismatched NSS checkpoint: {key}')
+        if load_scope == 'backbone':
+            raise RuntimeError('Standard MSCN requires full NSS representation transfer, not backbone-only')
     adapter_prefix = "backbone.global_adapter."
     source_adapter = {k.removeprefix("module.").removeprefix("iqa."): v for k, v in state.items()
                       if k.removeprefix("module.").removeprefix("iqa.").startswith(adapter_prefix)}
