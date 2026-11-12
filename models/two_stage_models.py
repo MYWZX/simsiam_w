@@ -61,6 +61,25 @@ class ResidualAdapter(nn.Module):
         return x + self.residual_scale * self.net(x)
 
 
+class GlobalResidualAdapter(nn.Module):
+    """Shared post-CLIP residual; outside the frozen visual encoder boundary."""
+
+    def __init__(self, dim: int, hidden_dim: int, scale: float):
+        super().__init__()
+        if hidden_dim <= 0 or not math.isfinite(scale) or scale <= 0:
+            raise ValueError("global_adapter requires positive hidden_dim and finite positive scale")
+        self.norm = nn.LayerNorm(dim)
+        self.down = nn.Linear(dim, hidden_dim)
+        self.up = nn.Linear(hidden_dim, dim)
+        self.residual_scale = float(scale)
+        self.register_buffer("signature", torch.tensor([dim, hidden_dim, scale], dtype=torch.float64))
+        nn.init.zeros_(self.up.weight)
+        nn.init.zeros_(self.up.bias)
+
+    def forward(self, x):
+        return x + self.residual_scale * self.up(F.gelu(self.down(self.norm(x))))
+
+
 class FrozenCLIPTextEncoder(nn.Module):
     def __init__(
         self,
@@ -420,6 +439,19 @@ class ImageTextBackbone(nn.Module):
         ))
         self.fused_dim = int(fcfg.get("embed_dim", 256))
         self.local_dim = int(lcfg.get("output_dim", 256))
+        acfg = mcfg.get("global_adapter", {})
+        self.use_global_adapter = bool(acfg.get("enabled", False))
+        if self.use_global_adapter:
+            if not self.projection_only:
+                raise ValueError("global_adapter requires projection_only_v1")
+            # Do not perturb the initialization of any existing downstream module.
+            with torch.random.fork_rng(devices=[]):
+                self.global_adapter = GlobalResidualAdapter(
+                    int(gcfg.get("output_dim", 768)), int(acfg.get("hidden_dim", 256)),
+                    float(acfg.get("residual_scale", 0.1)),
+                )
+        else:
+            self.global_adapter = nn.Identity()
         self.text_encoder = FrozenCLIPTextEncoder(
             model_name=tcfg.get("clip_model_name", "ViT-B-16"),
             pretrained=tcfg.get("clip_pretrained", "openai"),
@@ -448,6 +480,8 @@ class ImageTextBackbone(nn.Module):
         local_crops: Optional[torch.Tensor] = None,
     ) -> Dict[str, torch.Tensor]:
         f_sem = self.global_encoder(x)    # [B, D_sem]
+        if self.use_global_adapter:
+            f_sem = self.global_adapter(f_sem)
         if local_crops is None:
             f_loc = self.local_encoder(x)  # [B, C, H, W]
         else:
@@ -1974,6 +2008,7 @@ def load_pretrained_backbone(
         "backbone.global_encoder.",
         "backbone.local_encoder.",
         "backbone.fusion.",
+        "backbone.global_adapter.",
         "backbone.clip_activation_signature",
         "backbone.text_encoder.context_vectors",
         "text_to_fused.",
@@ -1992,13 +2027,25 @@ def load_pretrained_backbone(
         representation_prefixes += DUAL_QUALITY_TRANSFER_PREFIXES
         if skip_quality_adapter or reinit_local_projection or load_scope == "backbone":
             raise ValueError("Dual quality requires complete matched-stage representation transfer; no reinit/skip/backbone-only loading")
-    backbone_prefixes = representation_prefixes[:3]
+    backbone_prefixes = representation_prefixes[:3] + ("backbone.global_adapter.",)
 
     # ckpt = torch.load(checkpoint_path, map_location="cpu")
     model_device = next(model.parameters()).device
     ckpt = torch.load(checkpoint_path, map_location=model_device)
     state = ckpt.get("model", ckpt.get("state_dict", ckpt))
     target = model.state_dict()
+    adapter_prefix = "backbone.global_adapter."
+    source_adapter = {k.removeprefix("module.").removeprefix("iqa."): v for k, v in state.items()
+                      if k.removeprefix("module.").removeprefix("iqa.").startswith(adapter_prefix)}
+    adapter_keys = {k for k in target if k.startswith(adapter_prefix)}
+    if set(source_adapter) != adapter_keys:
+        raise RuntimeError("Global adapter architecture/incomplete checkpoint mismatch; use matching adapter pretraining")
+    if adapter_keys:
+        if any(source_adapter[k].shape != target[k].shape for k in adapter_keys):
+            raise RuntimeError("Global adapter tensor shape mismatch")
+        if not torch.equal(source_adapter[adapter_prefix + "signature"].cpu(),
+                           target[adapter_prefix + "signature"].cpu()):
+            raise RuntimeError("Global adapter architecture signature mismatch")
     signature = "backbone.clip_activation_signature"
     source_signature = {key.removeprefix("module.").removeprefix("iqa."): value for key,value in state.items()
                         if key.removeprefix("module.").removeprefix("iqa.") == signature}
@@ -2108,6 +2155,12 @@ def load_pretrained_backbone(
         if missing_local:
             raise RuntimeError(f"Incomplete multiscale local checkpoint: {sorted(missing_local)}")
     projection_keys = {key for key in target if key.startswith(local_projection_prefix)}
+    if adapter_keys.difference(loadable):
+        raise RuntimeError("Incomplete global adapter transfer")
+    if adapter_keys:
+        required_clip = {k for k in target if k.startswith("backbone.global_encoder.")}
+        if required_clip.difference(loadable):
+            raise RuntimeError("Incomplete CLIP visual encoder transfer for global adapter")
     if projection_keys:
         missing_projection = projection_keys.difference(source_local_projection)
         if missing_projection:

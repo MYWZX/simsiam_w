@@ -35,7 +35,7 @@ def distinct_prompt_mask(prompts, negatives, device):
 
 
 def audit_fusion_gradients(model, objectives):
-    """Unscaled diagnostic norms on Fusion only; does not modify .grad."""
+    """Unscaled norms on named visual parameter groups; does not modify .grad."""
     import torch
     fusion = model.backbone.fusion
     groups = {
@@ -44,6 +44,8 @@ def audit_fusion_gradients(model, objectives):
         'cross_attention': list(fusion.attn.parameters()) if hasattr(fusion, 'attn') else [],
         'local_projection': list(model.local_patch_proj.parameters()) if hasattr(model, 'local_patch_proj') else [],
     }
+    if getattr(model.backbone, 'use_global_adapter', False):
+        groups['global_adapter'] = list(model.backbone.global_adapter.parameters())
     result = {}
     for group, all_params in groups.items():
         params = [p for p in all_params if p.requires_grad]

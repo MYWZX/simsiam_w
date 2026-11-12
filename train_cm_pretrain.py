@@ -205,6 +205,7 @@ def _extract_representation_state(state: Dict[str, torch.Tensor]) -> Dict[str, t
     """Keep only encoder/Fusion/text projection weights used by downstream IQA."""
     prefixes = (
         "iqa.backbone.global_encoder.",
+        "iqa.backbone.global_adapter.",
         "iqa.backbone.local_encoder.",
         "iqa.backbone.fusion.",
         "iqa.backbone.clip_activation_signature",
@@ -221,6 +222,7 @@ def _extract_representation_state(state: Dict[str, torch.Tensor]) -> Dict[str, t
         "iqa.align_patch_adapter.",
         "iqa.align_vmamba.",
         "backbone.global_encoder.",
+        "backbone.global_adapter.",
         "backbone.local_encoder.",
         "backbone.fusion.",
         "backbone.clip_activation_signature",
@@ -256,6 +258,7 @@ def build_optimizer(cfg: Dict, model: torch.nn.Module):
         )
 
     groups = {
+        "global_adapter": {"params": [], "lr": base_lr * float(lrcfg.get("global_adapter_mult", 1.0))},
         "global_encoder": {
             "params": [],
             "lr": base_lr * float(lrcfg.get("global_encoder_mult", lrcfg.get("backbone_mult", 0.1))),
@@ -349,7 +352,9 @@ def build_optimizer(cfg: Dict, model: torch.nn.Module):
         # Joint pretraining stores the persistent model below ``iqa`` while
         # legacy pure-SimSiam pretraining exposes ``backbone`` at the root.
         canonical_name = name.removeprefix("module.").removeprefix("iqa.")
-        if canonical_name.startswith("backbone.global_encoder"):
+        if canonical_name.startswith("backbone.global_adapter."):
+            group_name = "global_adapter"
+        elif canonical_name.startswith("backbone.global_encoder"):
             group_name = "global_encoder"
         elif canonical_name.startswith("backbone.local_encoder"):
             group_name = "local_encoder"

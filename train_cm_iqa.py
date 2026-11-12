@@ -438,6 +438,7 @@ def build_optimizer(cfg: Dict, model: nn.Module):
         )
 
     groups = {
+        "global_adapter": {"params": [], "lr": base_lr * float(lrcfg.get("global_adapter_mult", 1.0))},
         "global_encoder": {"params": [], "lr": base_lr * float(lrcfg.get("global_encoder_mult", lrcfg.get("backbone_mult", 0.1)))},
         "local_encoder": {"params": [], "lr": base_lr * float(lrcfg.get("local_encoder_mult", lrcfg.get("backbone_mult", 0.1)))},
         "fusion": {"params": [], "lr": base_lr * float(lrcfg.get("fusion_mult", 0.5))},
@@ -471,7 +472,9 @@ def build_optimizer(cfg: Dict, model: nn.Module):
     for name, param in model.named_parameters():
         if not param.requires_grad:
             continue
-        if name.startswith("backbone.global_encoder"):
+        if name.startswith("backbone.global_adapter."):
+            groups["global_adapter"]["params"].append(param)
+        elif name.startswith("backbone.global_encoder"):
             groups["global_encoder"]["params"].append(param)
         elif name.startswith("backbone.local_encoder"):
             groups["local_encoder"]["params"].append(param)
