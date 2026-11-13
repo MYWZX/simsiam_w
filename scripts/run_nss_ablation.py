@@ -54,16 +54,23 @@ def make_runner(variant):
             if value is None or tuple(value.shape)!=shape:
                 raise ValueError(f'Incomplete NSS source tensor: {key}')
     runner.verify_checkpoint=verify_checkpoint
+    from scripts import nss_recovery
+    nss_recovery.install(runner)
     return runner
 
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('variant',choices=VARIANTS)
-    p.add_argument('action',nargs='?',default='pretrain',choices=STAGES+('all','downstream','continue','pack','pack-downstream'))
+    p.add_argument('action',nargs='?',default='pretrain',choices=STAGES+('all','downstream','continue','pack','pack-downstream','recover-pretrain','recover-all'))
     p.add_argument('--dry-run',action='store_true');a=p.parse_args();os.chdir(ROOT)
     r=make_runner(a.variant)
-    if a.action.startswith('pack'):
+    if a.action.startswith('recover-'):
+        from scripts import nss_recovery
+        nss_recovery.recover(r,a.variant,a.dry_run)
+        if a.action=='recover-all' and not a.dry_run:
+            pipeline.run_pipeline(r,'continue')
+    elif a.action.startswith('pack'):
         if a.dry_run:p.error('--dry-run is for run actions')
         r.pack('pretrain' if a.action=='pack' else 'downstream')
     elif a.action in ('all','continue','downstream'):

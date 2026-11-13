@@ -118,3 +118,35 @@ bash scripts/run_nss_ablation.sh ggd pack-downstream
 ```
 
 生成`projection_only_v1_nss_diagnostics_<时间戳>.tar.gz`。无需CUDA、无需torch、不启动训练，也不更改结果目录。包含当前及最近三个同名.failed_/.incomplete_目录的日志/元数据、当前与归档CSV、相关配置/源码和git状态。单文件超过2MiB仅收集末尾2MiB并在报告中标明。模型权重只记录文件名与大小，不读取其内容，不打入包内。已删除的日志无法恢复。这个诊断包不属于已完成实验结果包。
+
+## 服务器重启后的第16轮断点恢复
+
+仅这两组NSS运行器增加显式 `recover-pretrain` / `recover-all` 动作；普通 `all` 仍不会自行恢复未完成训练。两份服务器断点确认保存epoch16、字段齐全、签名[1,6]/[2,2]、最佳epoch5、no_improve11，因此应从epoch17继续。第17轮未保存的部分重算，早停耐心不清零；若始终无提升且patience15不变，会在epoch20达到早停，而非重新额外训练15轮。
+
+同步干净的work后，分别在两个终端运行：
+
+```bash
+CUDA_VISIBLE_DEVICES=0 bash scripts/run_nss_ablation.sh stats6 recover-all
+CUDA_VISIBLE_DEVICES=1 bash scripts/run_nss_ablation.sh ggd recover-all
+```
+
+各自恢复预训练，正常结束且核验通过后自动依次启动其三个下游。只恢复预训练则改用 `recover-pretrain`。只核查断点和计划、不修改文件也不训练：
+
+```bash
+bash scripts/run_nss_ablation.sh stats6 recover-pretrain --dry-run
+bash scripts/run_nss_ablation.sh ggd recover-pretrain --dry-run
+```
+
+恢复前严格核对原启动身份、配置SHA、实际配置快照、完整断点模式及签名、CSV与断点轮次、历史最佳和早停计数，以及已有最佳Component检查点。比较原启动提交与当前的训练、模型、数据、损失、utils源码；这些计算代码发生变化时拒绝恢复，允许本次运行器/核验逻辑的改动。脚本会拒绝正在运行的同配置训练，采用每组独立的进程锁，并拒绝覆盖完成记录或已有恢复尝试。
+
+开始训练前将原CSV、日志、配置、元数据保存在 `recovery_inputs/`。原`.pth`也会保留：优先建立硬链接，文件系统不支持时复制；训练器通过原子替换保存新权重，所以旧链接保留原始断点。不要手动原地修改备份文件。随后调用现有训练器的`--resume`恢复模型、optimizer、scheduler、AMP scaler、Python/NumPy/Torch/CUDA随机数状态。
+
+新增 `recovery_manifest.json` 记录输入断点SHA、原选模状态、恢复命令、代码兼容核查和新运行环境；成功后新增 `recovery_complete.json`。完成核验检查原CSV字节前缀未被改写、恰好一次resume、连续完整轮次、恢复输入指纹、全历史最大val_component_anchor_SROCC选模，以及配置预算/早停规则。只通过上述核验后才发布正常completion_manifest并允许下游加载。
+
+来源指纹增加 `training_continuity=interruption_recovery_v1` 与恢复清单SHA；这些结果应报告为中断恢复实验，不冒充未中断训练，也不保证数据加载器工作进程或CUDA运算逐位复现。没有改变两个NSS描述器、目标或训练超参数，没有重置第5轮最佳状态。
+
+原有 `pack` / `pack-downstream` 命令保持使用，新增恢复清单和原始日志/CSV等证据会一起打包，仍不包含原始或恢复后的权重。其他实验的默认完成核验继续拒绝resume记录，不宽泛放开历史实验来源。
+
+当前入口支持一次显式恢复。若恢复本身再次异常，会保留原始和新增证据并拒绝再次覆盖；需要单独诊断，不能删除恢复记录后强行继续。已完成且验证通过的恢复运行，再次执行 `recover-all` 会复用完成状态，不重复预训练。若下游已有未完成输出，仍按原规则拒绝覆盖。
+
+恢复入口验证：全量unittest 378项通过；补充CLI顺序/失败中止与训练代码兼容检查后，NSS定向25项通过。包括CPU与dry-run不训练不创建备份、活动进程拒绝、模式/轮次/配置/早停状态错误拒绝、两版从16到17的模拟恢复、原证据与权重保留、来源标记及下游接受、打包排除权重、失败不发布完成记录和禁止覆盖恢复尝试。云端未运行真实训练；实际GPU恢复效果仍需服务器执行验证。

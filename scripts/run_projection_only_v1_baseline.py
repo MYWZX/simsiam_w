@@ -112,8 +112,12 @@ def completed(stage):
     with table.open(encoding='utf-8-sig', newline='') as f:
         rows = list(csv.DictReader(f))
     finals = [json.loads(r['metrics_json']) for r in rows if r['event'] == 'final']
-    if len(finals) != 1 or any(r['event'] == 'resume' for r in rows):
+    resumed = any(r['event'] == 'resume' for r in rows)
+    recovery_validator = globals().get('validate_recovery_history')
+    if len(finals) != 1 or (resumed and not callable(recovery_validator)):
         raise ValueError('Expected exactly one completed, non-resumed run')
+    if resumed or (callable(recovery_validator) and (directory / 'recovery_manifest.json').is_file()):
+        recovery_validator(stage, rows, done)
     key = 'val_component_anchor_SROCC' if stage == 'pretrain' else 'val_quality_SROCC'
     if finals[0].get('selection_metric') != key:
         raise ValueError('Wrong selection rule')
@@ -199,7 +203,11 @@ def pack(phase):
         files.add(table)
         # Explicit allowlist: model weights can never enter the archive.
         for name in ('config_snapshot.yaml', 'console.log', 'launch_manifest.json',
-                     'completion_manifest.json', 'source_fingerprint.json', 'run_metadata.json'):
+                     'completion_manifest.json', 'source_fingerprint.json', 'run_metadata.json',
+                     'recovery_manifest.json', 'recovery_complete.json',
+                     'recovery_inputs/results.csv', 'recovery_inputs/console.log',
+                     'recovery_inputs/config_snapshot.yaml', 'recovery_inputs/run_metadata.json',
+                     'recovery_inputs/launch_manifest.json'):
             if (directory / name).is_file():
                 files.add(directory / name)
     with archive.open('xb') as stream:
