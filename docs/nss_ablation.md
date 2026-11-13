@@ -106,3 +106,15 @@ bash scripts/run_nss_ablation.sh ggd pack-downstream
 - 同版表示权重逐张量迁移一致；旧版/两新版互相混载、签名错误、NSS参数缺失均拒绝。
 - 假训练产物检验两次预训练及六个下游的完成记录、来源SHA、60轮预算、选模规则、划分证据和无权重打包；不代表真实GPU训练已验证。
 - 两种 `all --dry-run`、shell语法及 `git diff --check` 通过。云端没有访问训练数据或创建真实实验结果。
+
+## 预训练未完成时的诊断包
+
+`pack-downstream`要求来源预训练有完整且可验证的完成记录。缺少`completion_manifest.json`时，不应伪造该文件、直接宣称成功或先删除日志；它只能说明完成验证不可用，不能据此判断最初失败原因。
+
+在服务器仓库运行以下独立脚本（默认同时收集两版）：
+
+```bash
+/home/sll/anaconda3/envs/WZX-AI/bin/python scripts/pack_nss_diagnostics.py
+```
+
+生成`projection_only_v1_nss_diagnostics_<时间戳>.tar.gz`。无需CUDA、无需torch、不启动训练，也不更改结果目录。包含当前及最近三个同名.failed_/.incomplete_目录的日志/元数据、当前与归档CSV、相关配置/源码和git状态。单文件超过2MiB仅收集末尾2MiB并在报告中标明。模型权重只记录文件名与大小，不读取其内容，不打入包内。已删除的日志无法恢复。这个诊断包不属于已完成实验结果包。
