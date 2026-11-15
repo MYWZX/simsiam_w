@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .nss import StandardMSCNDescriptor, validate_nss, MODES as NSS_MODES
+from .nss import StandardMSCNDescriptor, FiveStatDescriptor, validate_nss, MODES as NSS_MODES
 
 from .backbones import GlobalVisualEncoder, ResNet50LocalEncoder, maybe_freeze
 from .fusion import SemanticStructureFusion, AlignOnlyVMambaFusion, GlobalProjectionOnly
@@ -18,7 +18,7 @@ from .fusion import SemanticStructureFusion, AlignOnlyVMambaFusion, GlobalProjec
 # Dataset-specific regression heads and score-mixing beta are deliberately reset.
 DUAL_QUALITY_TRANSFER_PREFIXES = (
     "dual_quality_signature", "quality_adapter.", "quality_local_encoder.",
-    "nss_descriptor_signature", "local_patch_proj.", "nss_proj.", "nss_gate.", "quality_feature_mix_logit",
+    "nss_descriptor_signature", "nss_pathway_signature", "local_patch_proj.", "nss_proj.", "nss_gate.", "quality_feature_mix_logit",
     "quality_adapter_gate_logit",
 )
 
@@ -652,8 +652,14 @@ class CrossModalIQAFullModel(nn.Module):
             raise ValueError("heads.score_dropout must be finite and in [0,1)")
         gate_hidden = int(ngcfg.get("gate_hidden_dim", hidden_dim))
         self.nss_mode, self.nss_dim = nss_mode, nss_dim
+        self.nss_pathway = ngcfg.get('pathway', 'both')
+        self.nss_inject_enabled = self.nss_pathway != 'gate_only'
+        self.nss_gate_uses_stats = self.nss_pathway != 'inject_only'
+        nss5 = nss_mode in ('legacy_stats5_v1','mscn_stats5_v1')
+        if nss5:
+            self.register_buffer('nss_pathway_signature', torch.tensor([{'both':1,'inject_only':2,'gate_only':3}[self.nss_pathway]]))
         if nss_mode != 'legacy':
-            self.nss_descriptor = StandardMSCNDescriptor(nss_mode)
+            self.nss_descriptor = FiveStatDescriptor(nss_mode) if nss5 else StandardMSCNDescriptor(nss_mode)
             self.register_buffer('nss_descriptor_signature', torch.tensor([NSS_MODES[nss_mode][0], nss_dim]))
 
         # Shared text projection to fused dimension.
@@ -677,8 +683,35 @@ class CrossModalIQAFullModel(nn.Module):
 
         # Quality branch: local texture map -> patch tokens.
         self.local_patch_proj = nn.Conv2d(local_dim, fused_dim, kernel_size=1)
-        self.nss_proj = nn.Sequential(nn.Linear(nss_dim, gate_hidden), nn.GELU(), nn.Linear(gate_hidden, fused_dim))
-        self.nss_gate = nn.Sequential(nn.Linear(fused_dim + nss_dim, gate_hidden), nn.GELU(), nn.Dropout(dropout), nn.Linear(gate_hidden, 1))
+        if nss5:
+            # Draw the historical six-channel template once. Fold duplicate
+            # columns without advancing RNG again: all surviving common weights
+            # and subsequent module initialization match the legacy seed.
+            self.nss_proj = nn.Sequential(nn.Linear(6, gate_hidden), nn.GELU(), nn.Linear(gate_hidden, fused_dim))
+            self.nss_gate = nn.Sequential(nn.Linear(fused_dim+6, gate_hidden), nn.GELU(), nn.Dropout(dropout), nn.Linear(gate_hidden, 1))
+            with torch.random.fork_rng(devices=[]):
+                if self.nss_inject_enabled:
+                    canonical = self.nss_proj[0]
+                    reduced = nn.Linear(5, gate_hidden)
+                    with torch.no_grad():
+                        reduced.weight.copy_(canonical.weight[:, :5])
+                        reduced.weight[:, 1].add_(canonical.weight[:, 5])
+                        reduced.bias.copy_(canonical.bias)
+                    self.nss_proj[0] = reduced
+                else:
+                    self.nss_proj = nn.Identity()
+                canonical = self.nss_gate[0]
+                gate_input = fused_dim+5 if self.nss_gate_uses_stats else fused_dim
+                reduced = nn.Linear(gate_input, gate_hidden)
+                with torch.no_grad():
+                    reduced.weight.copy_(canonical.weight[:, :gate_input])
+                    if self.nss_gate_uses_stats:
+                        reduced.weight[:, fused_dim+1].add_(canonical.weight[:, fused_dim+5])
+                    reduced.bias.copy_(canonical.bias)
+                self.nss_gate[0] = reduced
+        else:
+            self.nss_proj = nn.Sequential(nn.Linear(nss_dim, gate_hidden), nn.GELU(), nn.Linear(gate_hidden, fused_dim))
+            self.nss_gate = nn.Sequential(nn.Linear(fused_dim + nss_dim, gate_hidden), nn.GELU(), nn.Dropout(dropout), nn.Linear(gate_hidden, 1))
         self.text_gate = nn.Sequential(nn.Linear(fused_dim * 2, gate_hidden), nn.GELU(), nn.Dropout(dropout), nn.Linear(gate_hidden, 1))
         # Quality is a visual-perceptual task. In the decoupled pretraining
         # variant it must not receive a text-conditioned gate. The default
@@ -1193,7 +1226,8 @@ class CrossModalIQAFullModel(nn.Module):
             # NSS features use the same whole image or native-resolution crops as
             # the ResNet tokens, so every descriptor stays spatially aligned.
             nss = self._compute_local_nss_features(image, f_loc, local_crops)
-            patch_tokens = patch_tokens + self.nss_proj(nss)
+            if self.nss_inject_enabled:
+                patch_tokens = patch_tokens + self.nss_proj(nss)
             if self.dual_quality_representation:
                 patch_tokens = F.normalize(self.quality_local_encoder(patch_tokens), dim=-1, eps=1e-6)
 
@@ -1215,7 +1249,8 @@ class CrossModalIQAFullModel(nn.Module):
                 )
 
             # NSS gate: which patches are quality/statistics-sensitive?
-            nss_logits = self.nss_gate(torch.cat([patch_tokens, nss], dim=-1)).squeeze(-1)
+            gate_features = torch.cat([patch_tokens, nss], dim=-1) if self.nss_gate_uses_stats else patch_tokens
+            nss_logits = self.nss_gate(gate_features).squeeze(-1)
 
             # Text gate: which patches are relevant to the global prompt semantics?
             if text_fused is None:
@@ -2058,6 +2093,11 @@ def load_pretrained_backbone(
                     raise RuntimeError(f'Incomplete/mismatched NSS checkpoint: {key}')
         if load_scope == 'backbone':
             raise RuntimeError('Standard MSCN requires full NSS representation transfer, not backbone-only')
+    pathway_key = 'nss_pathway_signature'
+    if (pathway_key in normalized_source) != (pathway_key in target):
+        raise RuntimeError('NSS pathway signature missing or incompatible')
+    if pathway_key in target and not torch.equal(normalized_source[pathway_key].cpu(), target[pathway_key].cpu()):
+        raise RuntimeError('NSS pathway mismatch: injection/gating conditions cannot mix')
     adapter_prefix = "backbone.global_adapter."
     source_adapter = {k.removeprefix("module.").removeprefix("iqa."): v for k, v in state.items()
                       if k.removeprefix("module.").removeprefix("iqa.").startswith(adapter_prefix)}

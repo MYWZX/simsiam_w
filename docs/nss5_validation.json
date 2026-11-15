@@ -1,0 +1,17 @@
+{
+  "scope": "CPU tiny fake visual/text backbones; not the real baseline checkpoint",
+  "full_unittest_count": 395,
+  "full_unittest_passed": true,
+  "nss5_targeted_tests": 15,
+  "dtype": "float32",
+  "tensor_outputs_checked": 31,
+  "global_max_abs_eval_error": 5.960464477539063e-08,
+  "quality_pred_clean_max_abs_error": 0.0,
+  "align_pred_clean_max_abs_error": 0.0,
+  "tolerance": {
+    "atol": 3e-06,
+    "rtol": 3e-06
+  },
+  "real_checkpoint_verification": "Run scripts/migrate_nss5_checkpoint.py on the server; original checkpoint was not available in cloud",
+  "real_training_started": false
+}
