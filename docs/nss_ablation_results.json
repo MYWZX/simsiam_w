@@ -1,0 +1,238 @@
+{
+  "reference": "projection_only_v1_selected_tuning_reference_v2",
+  "results": {
+    "baseline": {
+      "agiqa1k": {
+        "selected_epoch": 13,
+        "quality_SROCC": 0.8859216684813945,
+        "quality_PLCC": 0.9093850559442241,
+        "align_SROCC": null,
+        "align_PLCC": null
+      },
+      "agiqa3k": {
+        "selected_epoch": 58,
+        "quality_SROCC": 0.9017667359985075,
+        "quality_PLCC": 0.9368472464123653,
+        "align_SROCC": 0.8307854003801469,
+        "align_PLCC": 0.895084227541208
+      },
+      "aigciqa2023": {
+        "selected_epoch": 52,
+        "quality_SROCC": 0.8806000677086272,
+        "quality_PLCC": 0.8926802955797198,
+        "align_SROCC": 0.8070260721617715,
+        "align_PLCC": 0.8064966229931119
+      }
+    },
+    "ggd": {
+      "pretrain": {
+        "selected_epoch": 5,
+        "last_epoch": 20,
+        "val_component_anchor_SROCC": 0.7138693126992967,
+        "source_sha256": "a95fd3907678972aee6a80f9dc7240ba3ad503ef8a19c61b7ae5acec1a6b12f6",
+        "saved_epoch": 16,
+        "resumed_from_epoch": 17,
+        "previous_best_selected_unchanged": true
+      },
+      "agiqa1k": {
+        "selected_epoch": 11,
+        "last_epoch": 60,
+        "quality_SROCC": 0.8773269055754299,
+        "quality_PLCC": 0.9008175781128686,
+        "align_SROCC": null,
+        "align_PLCC": null,
+        "test_quality_N": 215,
+        "test_align_N": 0
+      },
+      "agiqa3k": {
+        "selected_epoch": 58,
+        "last_epoch": 60,
+        "quality_SROCC": 0.8975593636728911,
+        "quality_PLCC": 0.9333779801333609,
+        "align_SROCC": 0.818505624683315,
+        "align_PLCC": 0.8879619066981159,
+        "test_quality_N": 597,
+        "test_align_N": 597
+      },
+      "aigciqa2023": {
+        "selected_epoch": 30,
+        "last_epoch": 60,
+        "quality_SROCC": 0.8708339662932564,
+        "quality_PLCC": 0.8833501277324931,
+        "align_SROCC": 0.7933371021575614,
+        "align_PLCC": 0.7917571022324695,
+        "test_quality_N": 480,
+        "test_align_N": 480
+      }
+    },
+    "stats6": {
+      "pretrain": {
+        "selected_epoch": 5,
+        "last_epoch": 20,
+        "val_component_anchor_SROCC": 0.7155294095494007,
+        "source_sha256": "51468a54ef92149d3e42fafbe74b991e785a14fada77f9f0553d70dc87f29275",
+        "saved_epoch": 16,
+        "resumed_from_epoch": 17,
+        "previous_best_selected_unchanged": true
+      },
+      "agiqa1k": {
+        "selected_epoch": 8,
+        "last_epoch": 60,
+        "quality_SROCC": 0.8759310716446495,
+        "quality_PLCC": 0.8942704455695136,
+        "align_SROCC": null,
+        "align_PLCC": null,
+        "test_quality_N": 215,
+        "test_align_N": 0
+      },
+      "agiqa3k": {
+        "selected_epoch": 50,
+        "last_epoch": 60,
+        "quality_SROCC": 0.8977722645405515,
+        "quality_PLCC": 0.9336078452383599,
+        "align_SROCC": 0.8229280638185513,
+        "align_PLCC": 0.8930698360534033,
+        "test_quality_N": 597,
+        "test_align_N": 597
+      },
+      "aigciqa2023": {
+        "selected_epoch": 35,
+        "last_epoch": 60,
+        "quality_SROCC": 0.8765688002118064,
+        "quality_PLCC": 0.8888532605352306,
+        "align_SROCC": 0.7911476395296854,
+        "align_PLCC": 0.7916314753633488,
+        "test_quality_N": 480,
+        "test_align_N": 480
+      }
+    }
+  },
+  "means": {
+    "baseline": {
+      "quality_SROCC": 0.8894294907295098,
+      "quality_PLCC": 0.9129708659787698,
+      "align_SROCC": 0.8189057362709592,
+      "align_PLCC": 0.8507904252671599
+    },
+    "ggd": {
+      "quality_SROCC": 0.8819067451805257,
+      "quality_PLCC": 0.9058485619929075,
+      "align_SROCC": 0.8059213634204382,
+      "align_PLCC": 0.8398595044652928
+    },
+    "stats6": {
+      "quality_SROCC": 0.8834240454656691,
+      "quality_PLCC": 0.9055771837810346,
+      "align_SROCC": 0.8070378516741183,
+      "align_PLCC": 0.842350655708376
+    }
+  },
+  "sources": {
+    "ggd": {
+      "version": "projection_only_v1_ctx5_mscn_ggd_v1",
+      "config_sha256": "a52a8506e41614db5e2223c5a642f86ad39b682a4ddc495be7f49379ad412c2d",
+      "checkpoint": "/home1/wzx/aigc_naturalness_code/simsiam/outputs/richhf18k_projection_only_v1_ctx5_mscn_ggd_v1_seed42/best_component_anchor_pretrain.pth",
+      "sha256": "a95fd3907678972aee6a80f9dc7240ba3ad503ef8a19c61b7ae5acec1a6b12f6",
+      "selected_epoch": 5,
+      "completion_sha256": "d350ca3016bae83ac252a39753666fe9dcb29d41791a5cb34a590473fafd163a",
+      "training_continuity": "interruption_recovery_v1",
+      "recovery_manifest_sha256": "1c1e6c927df4af2fdd51f7e226d1776df85f4514fbdadc22f45d4260798b575c"
+    },
+    "stats6": {
+      "version": "projection_only_v1_ctx5_mscn_stats6_v1",
+      "config_sha256": "aa38bffceddf179f2b52b2ab1e65aae147ff520f5417cb14116367ae2d055df5",
+      "checkpoint": "/home1/wzx/aigc_naturalness_code/simsiam/outputs/richhf18k_projection_only_v1_ctx5_mscn_stats6_v1_seed42/best_component_anchor_pretrain.pth",
+      "sha256": "51468a54ef92149d3e42fafbe74b991e785a14fada77f9f0553d70dc87f29275",
+      "selected_epoch": 5,
+      "completion_sha256": "cd5de424424c4559686ffc362fc245f234a0ad7cb166206f91692ed323cd9034",
+      "training_continuity": "interruption_recovery_v1",
+      "recovery_manifest_sha256": "3091b05ed1e665012a1a0c7bb08ae1c0f75e82c9bf82d814bf952e5e47bd1239"
+    }
+  },
+  "audit": {
+    "ggd": {
+      "pretrain": {
+        "config_matches_policy": true,
+        "artifact_hashes_verified": true,
+        "selection_verified": true,
+        "seed": 42,
+        "split_seed": 42,
+        "code_commit": "06695687b8b54f7efb128e0bc32a6be738db2744",
+        "workspace_dirty": true,
+        "split_membership_file_available": false
+      },
+      "agiqa1k": {
+        "config_matches_policy": true,
+        "artifact_hashes_verified": true,
+        "selection_verified": true,
+        "seed": 42,
+        "split_seed": 3407,
+        "code_commit": "d34899b4deacc3699283ee8f225e474dd72ce867",
+        "workspace_dirty": true,
+        "split_membership_file_available": false
+      },
+      "agiqa3k": {
+        "config_matches_policy": true,
+        "artifact_hashes_verified": true,
+        "selection_verified": true,
+        "seed": 42,
+        "split_seed": 42,
+        "code_commit": "d34899b4deacc3699283ee8f225e474dd72ce867",
+        "workspace_dirty": true,
+        "split_membership_file_available": false
+      },
+      "aigciqa2023": {
+        "config_matches_policy": true,
+        "artifact_hashes_verified": true,
+        "selection_verified": true,
+        "seed": 42,
+        "split_seed": 42,
+        "code_commit": "d34899b4deacc3699283ee8f225e474dd72ce867",
+        "workspace_dirty": true,
+        "split_membership_file_available": false
+      }
+    },
+    "stats6": {
+      "pretrain": {
+        "config_matches_policy": true,
+        "artifact_hashes_verified": true,
+        "selection_verified": true,
+        "seed": 42,
+        "split_seed": 42,
+        "code_commit": "06695687b8b54f7efb128e0bc32a6be738db2744",
+        "workspace_dirty": true,
+        "split_membership_file_available": false
+      },
+      "agiqa1k": {
+        "config_matches_policy": true,
+        "artifact_hashes_verified": true,
+        "selection_verified": true,
+        "seed": 42,
+        "split_seed": 3407,
+        "code_commit": "d34899b4deacc3699283ee8f225e474dd72ce867",
+        "workspace_dirty": true,
+        "split_membership_file_available": false
+      },
+      "agiqa3k": {
+        "config_matches_policy": true,
+        "artifact_hashes_verified": true,
+        "selection_verified": true,
+        "seed": 42,
+        "split_seed": 42,
+        "code_commit": "d34899b4deacc3699283ee8f225e474dd72ce867",
+        "workspace_dirty": true,
+        "split_membership_file_available": false
+      },
+      "aigciqa2023": {
+        "config_matches_policy": true,
+        "artifact_hashes_verified": true,
+        "selection_verified": true,
+        "seed": 42,
+        "split_seed": 42,
+        "code_commit": "d34899b4deacc3699283ee8f225e474dd72ce867",
+        "workspace_dirty": true,
+        "split_membership_file_available": false
+      }
+    }
+  }
+}
