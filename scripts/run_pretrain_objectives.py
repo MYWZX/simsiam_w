@@ -14,7 +14,7 @@ VARIANTS={
 }
 QUEUES={'low':tuple(VARIANTS)[::2],'high':tuple(VARIANTS)[1::2]}
 CONFIG=Path('configs/pretrain_objectives');STAGES=pipeline.STAGES
-ACTIONS=STAGES+('all','downstream','continue','pack','pack-downstream')
+ACTIONS=STAGES+('all','downstream','continue','pack','pack-downstream','recover-pretrain','recover-all')
 
 
 def expected_config(variant,stage='pretrain'):
@@ -35,12 +35,20 @@ def expected_config(variant,stage='pretrain'):
 
 
 def make_runner(variant):
-    return pipeline.make_runner(variant,config_factory=expected_config,config_dir=CONFIG,
-                                version=f'projection_only_v1_ctx5_obj_{variant}')
+    r=pipeline.make_runner(variant,config_factory=expected_config,config_dir=CONFIG,
+                           version=f'projection_only_v1_ctx5_obj_{variant}')
+    from scripts import objective_recovery
+    objective_recovery.install(r)
+    return r
 
 
 def dispatch(r,action,dry_run=False):
-    if action.startswith('pack'):
+    if action.startswith('recover-'):
+        from scripts import nss_recovery
+        variant=next(v for v in VARIANTS if r.VERSION==f'projection_only_v1_ctx5_obj_{v}')
+        nss_recovery.recover(r,variant,dry_run)
+        if action=='recover-all' and not dry_run:pipeline.run_pipeline(r,'continue')
+    elif action.startswith('pack'):
         if dry_run:raise ValueError('--dry-run applies only to run actions')
         r.pack('pretrain' if action=='pack' else 'downstream')
     elif action in ('all','continue','downstream'):
@@ -49,6 +57,9 @@ def dispatch(r,action,dry_run=False):
 
 
 def run_queue(queue,action='pretrain',dry_run=False):
+    if action=='recover-all':
+        from scripts import objective_recovery
+        return objective_recovery.recover_queue(sys.modules[__name__],queue,dry_run)
     if queue not in QUEUES or action not in ('pretrain','all','downstream','continue','pack','pack-downstream'):
         raise ValueError('Queues accept pretrain/all/downstream/continue/pack/pack-downstream')
     runners=[make_runner(v) for v in QUEUES[queue]]
@@ -76,7 +87,14 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('variant',choices=tuple(VARIANTS)+tuple(QUEUES)+('check-configs',))
     p.add_argument('action',nargs='?',default='pretrain',choices=ACTIONS)
-    p.add_argument('--dry-run',action='store_true');a=p.parse_args();os.chdir(ROOT)
+    p.add_argument('--dry-run',action='store_true')
+    p.add_argument('--wait-low',action='store_true',help='Wait for the low queue and verify its completion before high recovery')
+    a=p.parse_args();os.chdir(ROOT)
+    if a.wait_low:
+        if a.variant!='high' or a.action!='recover-all':p.error('--wait-low requires high recover-all')
+        if os.environ.get('CUDA_VISIBLE_DEVICES')!='0':p.error('--wait-low requires CUDA_VISIBLE_DEVICES=0')
+        from scripts import objective_recovery
+        objective_recovery.wait_for_low(sys.modules[__name__],a.dry_run)
     if a.variant=='check-configs':
         if a.action!='pretrain' or a.dry_run:p.error('check-configs takes no other arguments')
         for v in VARIANTS:

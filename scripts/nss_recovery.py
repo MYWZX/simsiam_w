@@ -65,10 +65,14 @@ def preflight(r,variant):
     r.require_subset(cfg,checkpoint['cfg'])
     snapshot.pop('source_config',None)
     if checkpoint['cfg']!=snapshot:raise ValueError('Effective checkpoint config differs from original snapshot')
-    mode=cfg['model']['nss_text_gate']['descriptor'];dim=cfg['model']['nss_text_gate']['nss_dim']
-    signature=checkpoint['model'].get('iqa.nss_descriptor_signature')
-    code=1 if mode=='mscn_stats6_v1' else 2
-    if signature is None or not torch.equal(signature.cpu(),torch.tensor([code,dim])):raise ValueError('NSS restart signature mismatch')
+    descriptor_validator=getattr(r,'validate_recovery_descriptor',None)
+    if callable(descriptor_validator):
+        descriptor_validator(cfg,checkpoint['model'])
+    else:
+        mode=cfg['model']['nss_text_gate']['descriptor'];dim=cfg['model']['nss_text_gate']['nss_dim']
+        signature=checkpoint['model'].get('iqa.nss_descriptor_signature')
+        code=1 if mode=='mscn_stats6_v1' else 2
+        if signature is None or not torch.equal(signature.cpu(),torch.tensor([code,dim])):raise ValueError('NSS restart signature mismatch')
     epoch=int(checkpoint['epoch']);epochs=[x for x in original if x['event']=='epoch']
     if [int(x['epoch']) for x in epochs]!=list(range(1,epoch+1)):raise ValueError('CSV and checkpoint epochs differ')
     if not 0<epoch<int(cfg['train']['epochs']):raise ValueError('Checkpoint is outside the recoverable training horizon')
@@ -167,7 +171,7 @@ def recover(r,variant,dry_run=False):
         if r.digest(backup/'last_pretrain.pth')!=manifest['input_checkpoint_sha256'] or r.digest(backup/'best_component_anchor_pretrain.pth')!=manifest['selected_checkpoint_before_sha256']:
             raise ValueError('Checkpoint changed while preserving interrupted evidence')
         from utils.run_metadata import collect_run_metadata
-        manifest.update(evidence_sha256=evidence,command=command,recovery_runtime=collect_run_metadata(None,r.validate('pretrain')),
+        manifest.update(evidence_sha256=evidence,command=command,recovery_cuda_visible_devices=os.environ.get('CUDA_VISIBLE_DEVICES'),recovery_runtime=collect_run_metadata(None,r.validate('pretrain')),
                         created_utc=datetime.now(timezone.utc).isoformat())
         r.write_new(d/'recovery_manifest.json',manifest)
         with (d/'console.log').open('a') as log:

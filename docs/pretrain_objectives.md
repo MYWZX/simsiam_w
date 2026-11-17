@@ -68,7 +68,7 @@ bash scripts/run_pretrain_objectives.sh high all --dry-run
 
 check-configs验证全部40个静态配置；dry-run显示计划，检查配置及已存在阶段证据，不启动训练、不创建实验输出。不存在的未来预训练权重会在实际进入下游前核验。
 
-队列开始前会预检队列内五组，发现已有未完成输出或配置不符时不会先启动前面的昂贵训练。all/continue只复用已完成且验证通过的阶段，拒绝覆盖或自动resume未完成阶段。若服务器重启或失败，先保留目录/CSV/日志发回诊断，不删除或伪造completion_manifest。此前两组NSS专用recover-all入口不适用于本次新组。
+队列开始前会预检队列内五组，发现已有未完成输出或配置不符时不会先启动前面的昂贵训练。all/continue只复用已完成且验证通过的阶段，拒绝覆盖或自动resume未完成阶段。若服务器重启或失败，先保留目录/CSV/日志发回诊断，不删除或伪造completion_manifest。本脚本新增的显式recover-all可恢复合格预训练断点（见后文）；此前NSS专用脚本不适用于本次新组。
 
 ## 打包
 
@@ -98,3 +98,36 @@ tar -czf projection_only_v1_ctx5_objectives_all_results.tar.gz \
 真实训练器的evaluate损失汇总在假骨干上验证I-A/P-A系数仅改变相应贡献；local/word汇总使用隔离的固定原始loss，另由实际map/word估计器测试确认四个正系数均保持positive-only、无push、raw loss不被系数重复缩放且梯度有限。真实Component Anchor函数验证两个分量都收到0.1/0.3温度、概率评分与CE改变，CE+Ordinal的梯度有限。
 
 两队列all --dry-run、40配置check-configs、shell语法与git diff --check通过。只新增运行器、静态配置、文档和测试，没有修改模型、训练器或损失实现，也未在云端运行真实训练或加载服务器大权重。
+
+## 把暂停的GPU1任务改到GPU0继续
+
+Linux SIGSTOP/CONT只能在原设备暂停/继续同一进程，不能把已有CUDA上下文迁到另一张卡。本入口结束旧GPU1训练后，从磁盘最后完整轮次恢复，等GPU0整个low队列成功结束才在GPU0继续high队列。模型、优化器、scheduler、AMP、随机状态和选模耐心继承；未保存的半轮重算，不保证跨GPU逐位复现。
+
+用户当前暂停的GPU1主PID为767975，父high队列PID曾为498095；另一个GPU1用户的进程496175不属于本实验，不应操作。本脚本不按GPU批量杀进程。
+
+同步更新后，先使用目标核验脚本释放GPU1：
+
+```bash
+/home/sll/anaconda3/envs/WZX-AI/bin/python scripts/stop_objective_training.py 767975 --execute
+```
+
+它要求目标属于当前UID、已暂停、CUDA_VISIBLE_DEVICES=1、确为本仓库pretrain_objectives下的预训练，且存在last_pretrain.pth与CSV；父进程也必须是当前用户的本仓库GPU1 objective运行器。先结束父队列，再杀DataLoader子进程，最后杀暂停的训练主进程。每个信号发送前检查PID身份，避免误操作复用PID。不会删除或改写检查点/CSV。去掉--execute仅检查，不发信号。若PID已变化或目标不是这个状态，会拒绝，而不是猜测新进程。
+
+然后后台设置GPU0接续：
+
+```bash
+handoff_log="high_on_gpu0_$(date +%Y%m%d_%H%M%S).log"
+CUDA_VISIBLE_DEVICES=0 nohup bash scripts/run_pretrain_objectives.sh high recover-all --wait-low \
+  > "$handoff_log" 2>&1 < /dev/null &
+echo "$handoff_log"
+```
+
+只执行一次，按输出文件名查看日志。在等待期间不初始化CUDA训练，不占GPU0训练资源。查找当前用户、本仓库的low all队列并按PID/启动身份等待其退出；之后核验5组×4阶段全部完成。若low异常退出或没有完成记录，则拒绝接续。若low队列已结束且全部验证成功，可立即继续；不会仅凭GPU利用率为0或某个预训练PID消失就认定整队列结束。
+
+high recover-all先核查五组现有阶段，复用已完成的answer030，恢复pa100的预训练，再运行其未完成的三个下游，之后执行local100、word100、anchortau030。具体按磁盘完成证据判定，不硬编码“第一组必定完成”。已有未完成下游会拒绝覆盖；本入口仅恢复完整预训练断点，不恢复未保存的下游状态。所有待恢复checkpoint均须通过模式、配置、轮次、完整字段、选模/早停状态及原训练代码检查。
+
+原始日志、CSV、配置和权重保留在recovery_inputs，恢复清单记录新的CUDA_VISIBLE_DEVICES。源指纹带interruption_recovery_v1标记，成功后才发布正常完成记录。既有pack-downstream会包含恢复证据，不含任何权重。每组支持一次显式恢复；若再次失败，保留证据再诊断，不删除恢复标记。
+
+只有需要立刻恢复、且目标GPU已经可用时，才使用不带等待的`pa100 recover-all`或`high recover-all`；切勿和后台等待任务重复启动，也不再向旧767975发送CONT来尝试换卡。
+
+换卡接续验证：6项新测试通过（模拟进程树，不向真实进程发信号；排除他人PID/错误GPU/非暂停进程/复用PID，验证kill顺序及文件保留；原六维完整断点恢复并记录GPU0；low全阶段完成核验；high仅恢复中断项，跳过已完成并运行未启动项）。另8项原NSS恢复测试及10项目标队列回归通过，共24项。原运行提交7b324db到本次的模型/数据/损失/utils/train_cm_pretrain源码无改动。云端未实际终止服务器进程或启动GPU训练，真正换卡须执行上面的服务器命令。
