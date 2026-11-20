@@ -1065,6 +1065,15 @@ class CrossModalIQAFullModel(nn.Module):
                 module.requires_grad_(False)
             self.quality_mix_logit.requires_grad_(False)
 
+        self.anchor_global_source = mcfg.get("dual_quality_representation", {}).get("anchor_global_source", "adapter")
+        if self.anchor_global_source not in {"adapter", "residual"}:
+            raise ValueError("anchor_global_source must be adapter or residual")
+        if self.anchor_global_source == "residual" and (
+                not self.dual_quality_representation or not self.use_quality_adapter
+                or self.quality_adapter_mode != "residual_feature"
+                or mcfg.get("fusion", {}).get("mode") != "projection_only_v1"):
+            raise ValueError("Residual OAS requires projection_only_v1, dual quality and residual_feature adapter")
+
         if self.dual_quality_representation:
             dcfg = mcfg["dual_quality_representation"]
             if (self.quality_global_feature != "g" or not self.use_quality_adapter
@@ -1385,6 +1394,8 @@ class CrossModalIQAFullModel(nn.Module):
             "patch_hw": (h, w),
             "z_quality_global": z_quality_global,
         }
+        if self.anchor_global_source == "residual":
+            result["quality_residual_global"] = quality_residual
         if self.dual_quality_representation:
             result.update({"quality_representation": quality_representation,
                            "quality_local_feature": quality_local_feature,
@@ -1885,6 +1896,14 @@ class CrossModalIQAJointPretrain(nn.Module):
                 out.update({k: score_clean[k] for k in ("quality_text_logits", "quality_text_score")})
             else:
                 out.update(self.iqa.quality_text_bank(out["quality_clean_z"]))
+        if self.iqa.anchor_global_source == "residual":
+            # Only Component Anchors/Ordinal see the post-addition feature.
+            # Reuse the residual already scored by the global head: no extra
+            # QA/BN/Dropout call and no rescaling/normalizing of this term alone.
+            rho = torch.sigmoid(self.iqa.quality_feature_mix_logit)
+            out["component_anchor_clean_z"] = F.normalize(
+                (1.0-rho)*score_clean["quality_residual_global"]
+                + rho*score_clean["quality_local_feature"], dim=-1, eps=1e-6)
         if self.dual_quality_representation:
             out["quality_global_clean_z"] = score_clean["z_quality_global"]
             out["quality_local_clean_z"] = score_clean["quality_local_feature"]

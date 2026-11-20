@@ -965,6 +965,8 @@ def _compute_quality_component_anchor_ordinal_losses(
     aesthetics_loss_weight: Optional[torch.Tensor] = None,
 ) -> tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
     """Supervise Artifact and Aesthetics on orthogonal quality-projector planes."""
+    if "component_anchor_clean_z" in out:
+        out = {**out, "quality_clean_z": out["component_anchor_clean_z"]}
     component_cfg = tcfg.get("quality_component_anchor_ordinal", {})
     globally_enabled = bool(component_cfg.get("enabled", False))
     common_cfg = {
@@ -1928,6 +1930,8 @@ def _pcgrad_backward(
 
 def train_one_epoch(model, loader, optimizer, scaler, device, cfg, epoch: int, optimizer_step_callback=None):
     model.train()
+    from utils.pretrain_phases import enforce_eval
+    enforce_eval(model, cfg)
     tcfg = cfg["train"]
     record_steps = bool(tcfg.get("record_step_budget", False) or optimizer_step_callback is not None)
     processed_steps = successful_updates = 0
@@ -2846,6 +2850,10 @@ def main():
         print("[INFO] Joint IQA pretraining enabled: persistent IQA heads will be saved for downstream loading.")
     else:
         model = CrossModalSimSiamPretrain(cfg).to(device)
+    from utils.pretrain_phases import initialize as initialize_phase, finish as finish_phase, phase
+    if args.resume and phase(cfg) != "joint":
+        raise ValueError("Phase experiments do not support implicit resume; preserve interrupted outputs")
+    phase_record = initialize_phase(model, cfg)
     optimizer = build_optimizer(cfg, model)
     scheduler = CosineAnnealingLR(
         optimizer,
@@ -3078,6 +3086,7 @@ def main():
             )
             break
 
+    finish_phase(model, phase_record, output_dir)
     # Save final summary row into the same CSV.
     final_metrics = {
         "best_epoch": best_epoch,
