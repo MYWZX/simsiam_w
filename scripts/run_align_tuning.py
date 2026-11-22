@@ -19,6 +19,7 @@ VARIANTS={'alignlr050':('lr',.5),'alignlr200':('lr',2.),'asrocc050':('srocc',.02
 QUEUES={'lr':('alignlr050','alignlr200'),'srocc':('asrocc050','asrocc200')}
 DATASETS=('agiqa3k','aigciqa2023')
 VERSION='projection_only_v1_v2_align_tuning'
+PROTOCOL_DOC='docs/align_tuning.md'
 FILES=('launch_config.yaml','config_snapshot.yaml','console.log','launch_manifest.json',
        'completion_manifest.json','run_metadata.json','source_fingerprint.json','data_split_manifest.json')
 
@@ -174,7 +175,7 @@ def run(v,ds,split=None,dry_run=False):
 def pack():
     fingerprint=source()
     files={ROOT/'docs/current_tuning_reference.json',ROOT/'docs/current_tuning_reference.md',
-           ROOT/'docs/align_tuning.md'}
+           ROOT/PROTOCOL_DOC}
     files.update(ROOT/f'configs/current_tuning_reference/{ds}.yaml' for ds in DATASETS)
     for ds in DATASETS:
         cd,ct=control(ds,None,fingerprint);files.add(ct)
@@ -236,7 +237,7 @@ def main():
         if a.dataset or a.dry_run or a.continue_completed:p.error('check-configs takes no other arguments')
         for ds in DATASETS:
             for v in VARIANTS:config(v,ds)
-        print('8 downstream configs: train42/split42; original source, six-channel NSS and Quality selection preserved')
+        print(f'{len(VARIANTS)*len(DATASETS)} downstream configs: train42/split42; original source, six-channel NSS and Quality selection preserved')
     elif a.variant=='pack':
         if a.dataset or a.dry_run or a.continue_completed:p.error('pack takes no other arguments')
         pack()
