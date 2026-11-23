@@ -16,4 +16,13 @@ def dual_quality_diagnostics(model):
         result['shared_projection_bn_stats_frozen'] = 1.0
     if getattr(owner, 'shared_simsiam_projection', False) and not getattr(owner, 'shared_projection_project_patches', True):
         result['align_patch_uses_shared_pi'] = 0.0
+    if getattr(owner, 'align_control_enabled', False):
+        result.update({
+            'align_control_global_output': float(owner.align_output_mode == 'global'),
+            'align_control_half_mix': float(owner.align_output_mode == 'half'),
+            'align_control_uniform_pool': float(owner.align_local_pool == 'uniform'),
+            'align_control_gate_trainable': float(any(p.requires_grad for p in owner.align_gate.parameters())),
+            'align_control_match_trainable': float(any(p.requires_grad for m in
+                (owner.align_patch_img_proj, owner.align_patch_txt_proj) for p in m.parameters())),
+        })
     return result

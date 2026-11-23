@@ -1065,6 +1065,37 @@ class CrossModalIQAFullModel(nn.Module):
                 module.requires_grad_(False)
             self.quality_mix_logit.requires_grad_(False)
 
+        # Explicit downstream branch controls; preserve all historical defaults
+        # and construct the same modules before freezing unused parameters.
+        control = mcfg.get("align_branch_control", {})
+        if set(control) - {"version", "output", "local_pool"}:
+            raise ValueError("Unknown align_branch_control option")
+        self.align_control_enabled = bool(control)
+        self.align_output_mode = control.get("output", "learned")
+        self.align_local_pool = control.get("local_pool", "text")
+        if self.align_control_enabled:
+            if (control.get("version") != "alignment_branch_v1" or
+                    self.align_output_mode not in {"learned", "global", "half"} or
+                    self.align_local_pool not in {"text", "uniform"}):
+                raise ValueError("Invalid alignment_branch_v1 control")
+            if self.align_output_mode != "learned" and self.align_local_pool != "text":
+                raise ValueError("Change only one alignment branch factor per experiment")
+            tcfg = cfg.get("train", {})
+            if (mcfg.get("fusion", {}).get("mode") != "projection_only_v1" or
+                    tcfg.get("use_joint_iqa_pretraining", False) or
+                    not tcfg.get("two_output_only", False) or tcfg.get("quality_only", False) or
+                    not mcfg.get("dual_quality_representation", {}).get("enabled", False) or
+                    self.use_align_text_bank or self.use_align_prompt_cross_attention or self.use_align_vmamba):
+                raise ValueError("Branch controls require downstream projection_only_v1 two-task baseline")
+            if any(float(tcfg.get(k, 0)) != 0 for k in (
+                    "lambda_align_gate_reg", "lambda_dynamic_align_gate", "lambda_fusion_gate")):
+                raise ValueError("Branch controls cannot combine with extra gate supervision")
+            if self.align_output_mode != "learned":
+                self.align_gate.requires_grad_(False)
+            if self.align_local_pool == "uniform":
+                self.align_patch_img_proj.requires_grad_(False)
+                self.align_patch_txt_proj.requires_grad_(False)
+
         self.anchor_global_source = mcfg.get("dual_quality_representation", {}).get("anchor_global_source", "adapter")
         if self.anchor_global_source not in {"adapter", "residual"}:
             raise ValueError("anchor_global_source must be adapter or residual")
@@ -1119,6 +1150,8 @@ class CrossModalIQAFullModel(nn.Module):
             self._freeze_quality_adapter_bn_running_stats()
         if self.freeze_shared_projection_bn_stats:
             self._freeze_shared_projection_bn_running_stats()
+        if self.align_control_enabled and self.align_output_mode != "learned":
+            self.align_gate.eval()
         return self
 
     @staticmethod
@@ -1477,17 +1510,27 @@ class CrossModalIQAFullModel(nn.Module):
         else:
             patch_tokens_for_align = patch_align
 
-        p_img = F.normalize(self.align_patch_img_proj(patch_tokens_for_align), dim=-1, eps=1e-6)
-        p_txt = F.normalize(self.align_patch_txt_proj(text_align), dim=-1, eps=1e-6)
-        attn = torch.softmax(torch.sum(p_img * p_txt.unsqueeze(1), dim=-1), dim=1)
+        if self.align_local_pool == "uniform":
+            p_img = p_txt = None  # No matching projection is executed in this ablation.
+            attn = patch_tokens_for_align.new_full(
+                patch_tokens_for_align.shape[:2], 1.0 / patch_tokens_for_align.size(1))
+        else:
+            p_img = F.normalize(self.align_patch_img_proj(patch_tokens_for_align), dim=-1, eps=1e-6)
+            p_txt = F.normalize(self.align_patch_txt_proj(text_align), dim=-1, eps=1e-6)
+            attn = torch.softmax(torch.sum(p_img * p_txt.unsqueeze(1), dim=-1), dim=1)
         evidence = torch.sum(attn.unsqueeze(-1) * patch_tokens_for_align, dim=1)
         pair_p = torch.cat([evidence, text_align, torch.abs(evidence - text_align)], dim=-1)
         s_patch = torch.sigmoid(self.align_patch_head(pair_p).squeeze(-1))
 
         gate_in = torch.cat([z_align, text_align, s_global.unsqueeze(-1), s_patch.unsqueeze(-1)], dim=-1)
-        gate_logit = self.align_gate(gate_in).squeeze(-1)
-        g = torch.sigmoid(gate_logit)
-        s_align = g * s_global + (1.0 - g) * s_patch
+        if self.align_output_mode == "learned":
+            gate_logit = self.align_gate(gate_in).squeeze(-1)
+            g = torch.sigmoid(gate_logit)
+            s_align = g * s_global + (1.0 - g) * s_patch
+        else:
+            gate_logit = None  # Constant output mixing has no learned gate logit.
+            g = torch.ones_like(s_global) if self.align_output_mode == "global" else torch.full_like(s_global, 0.5)
+            s_align = s_global if self.align_output_mode == "global" else 0.5 * (s_global + s_patch)
         s_align_base = s_align
         align_text_out = {}
         if self.align_text_bank is not None:
