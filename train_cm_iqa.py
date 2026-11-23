@@ -1393,12 +1393,18 @@ def compute_losses(model, batch, device, cfg, prompt_bank=None, epoch: int | Non
         + float(tcfg.get("lambda_pert", 0.02)) * l_pert
         + 0.5 * fusion_gate_weight * l_fusion_gate
     )
+    from utils.alignment_controls import alignment_aux_weights
+    global_aux_weight, local_aux_weight = alignment_aux_weights(tcfg)
+    # Preserve the historical arithmetic exactly when the two weights match.
+    align_auxiliary = (global_aux_weight * (l_align_g + l_align_p)
+                       if global_aux_weight == local_aux_weight else
+                       global_aux_weight * l_align_g + local_aux_weight * l_align_p)
     loss_align_task = (
         float(tcfg.get("lambda_align", 1.0)) * l_align
         + float(tcfg.get("lambda_align_text_ce", 0.0)) * align_text_ce
         + float(tcfg.get("lambda_align_text_anchor", 0.0)) * align_text_anchor
         + 0.5 * lambda_final * l_final
-        + float(tcfg.get("lambda_align_aux", 0.3)) * (l_align_g + l_align_p)
+        + align_auxiliary
         + float(tcfg.get("lambda_rank_align", 0.0)) * l_rank_align
         + 0.5 * lambda_rank_final * l_rank_final
         + float(tcfg.get("lambda_srocc_align", 0.0)) * l_srocc_align
@@ -1422,7 +1428,7 @@ def compute_losses(model, batch, device, cfg, prompt_bank=None, epoch: int | Non
         "weighted_quality_text": (float(tcfg.get("lambda_quality_text_ce", 0.0)) * quality_text_ce).detach(),
         "weighted_quality_rank": (float(tcfg.get("lambda_rank_quality", 0.0)) * l_rank_quality).detach(),
         "weighted_quality_srocc": (float(tcfg.get("lambda_srocc_quality", 0.0)) * l_srocc_quality).detach(),
-        "weighted_align_patch": (float(tcfg.get("lambda_align_aux", 0.3)) * l_align_p).detach(),
+        "weighted_align_patch": (local_aux_weight * l_align_p).detach(),
         "weighted_legacy_negative": (float(tcfg.get("lambda_neg", 0.05)) * l_neg).detach(),
         "quality_text_ce": quality_text_ce.detach(),
         "quality_text_mae": quality_text_mae.detach(),

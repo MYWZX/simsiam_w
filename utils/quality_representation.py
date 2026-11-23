@@ -25,4 +25,6 @@ def dual_quality_diagnostics(model):
             'align_control_match_trainable': float(any(p.requires_grad for m in
                 (owner.align_patch_img_proj, owner.align_patch_txt_proj) for p in m.parameters())),
         })
+    if getattr(owner, 'align_local_temperature', 1.0) != 1.0:
+        result['align_local_temperature'] = owner.align_local_temperature
     return result

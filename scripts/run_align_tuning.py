@@ -123,9 +123,11 @@ def verify(v,ds,split,fingerprint):
         metrics=json.loads(row['metrics_json'])
         # All non-listed terms have zero coefficients in this fixed protocol.
         t=c['train'];prefix='train_train_'
+        from utils.alignment_controls import alignment_aux_weights
+        global_aux,local_aux=alignment_aux_weights(t)
         expected_loss=sum(coef*metrics[prefix+key] for key,coef in (
             ('quality',t['lambda_quality']),('align',t['lambda_align']),
-            ('align_global',t['lambda_align_aux']),('align_patch',t['lambda_align_aux']),
+            ('align_global',global_aux),('align_patch',local_aux),
             ('rank_quality',t['lambda_rank_quality']),('rank_align',t['lambda_rank_align']),
             ('srocc_quality',t['lambda_srocc_quality']),('srocc_align',t['lambda_srocc_align']),
             ('pert',t['lambda_pert'])))

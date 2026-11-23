@@ -1096,6 +1096,14 @@ class CrossModalIQAFullModel(nn.Module):
                 self.align_patch_img_proj.requires_grad_(False)
                 self.align_patch_txt_proj.requires_grad_(False)
 
+        self.align_local_temperature = float(mcfg.get("align_local_temperature", 1.0))
+        if not math.isfinite(self.align_local_temperature) or self.align_local_temperature <= 0:
+            raise ValueError("align_local_temperature must be finite and positive")
+        if self.align_local_temperature != 1.0 and (
+                self.align_control_enabled or mcfg.get("fusion", {}).get("mode") != "projection_only_v1"
+                or cfg.get("train", {}).get("use_joint_iqa_pretraining", False)):
+            raise ValueError("Match temperature controls require the original downstream text-pooling path")
+
         self.anchor_global_source = mcfg.get("dual_quality_representation", {}).get("anchor_global_source", "adapter")
         if self.anchor_global_source not in {"adapter", "residual"}:
             raise ValueError("anchor_global_source must be adapter or residual")
@@ -1517,7 +1525,10 @@ class CrossModalIQAFullModel(nn.Module):
         else:
             p_img = F.normalize(self.align_patch_img_proj(patch_tokens_for_align), dim=-1, eps=1e-6)
             p_txt = F.normalize(self.align_patch_txt_proj(text_align), dim=-1, eps=1e-6)
-            attn = torch.softmax(torch.sum(p_img * p_txt.unsqueeze(1), dim=-1), dim=1)
+            match_logits = torch.sum(p_img * p_txt.unsqueeze(1), dim=-1)
+            if self.align_local_temperature != 1.0:
+                match_logits = match_logits / self.align_local_temperature
+            attn = torch.softmax(match_logits, dim=1)
         evidence = torch.sum(attn.unsqueeze(-1) * patch_tokens_for_align, dim=1)
         pair_p = torch.cat([evidence, text_align, torch.abs(evidence - text_align)], dim=-1)
         s_patch = torch.sigmoid(self.align_patch_head(pair_p).squeeze(-1))
