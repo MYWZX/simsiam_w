@@ -75,3 +75,14 @@ bash scripts/run_protected_local.sh pack
 输出 `projection_only_v1_v2_protected_local_v1_results.tar.gz`。包含9份CSV、配置快照、元数据、实际划分、训练日志、来源指纹、检查点SHA256清单和冻结证明，**不包含pth权重**。大权重留在服务器新输出目录：两个完整Foundation以及各组的小型局部检查点。局部检查点不能脱离其指定Foundation独立使用。
 
 当前代码实现与测试不代表性能已提升；需要服务器实际结果，按同批Foundation/old/scratch/warm分别报告Quality和Alignment的SROCC/PLCC。
+
+
+## 终端一已经运行direct时：终端二自动接续
+
+终端一保持原direct命令，不重启。同步调度脚本后，终端二执行：
+
+```bash
+CUDA_VISIBLE_DEVICES=1 bash scripts/run_protected_local.sh warm-chain --continue
+```
+
+顺序为：RichHF局部预训练 → 等待并核验两个Foundation完整完成 → 两个warm下游。它不启动Foundation、old或scratch，与终端一使用不同输出目录。无需等待终端一的old/scratch结束，只要求两个Foundation准备好。等待时不创建模型、不占用训练显存；每30秒检查一次，完成标志出现后严格核验来源、SHA和结果，校验错误立即停止。默认最多等48小时，可用 `--wait-hours 72` 修改；若终端一失败且没有完成标志，会等待至超时，不自行重训或补写清单。局部预训练失败时不会继续下游。Ctrl-C停止等待会保留已完成的预训练，重跑同一条 `--continue` 命令可再次核验并接续。

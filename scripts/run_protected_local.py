@@ -11,6 +11,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tarfile
+import time
 import yaml
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
@@ -233,10 +234,41 @@ def run(v,ds,continue_completed=False):
 def plan(action,datasets):
     stages=[]
     if action in ('foundation','direct','all'):stages += [('foundation',ds) for ds in datasets]
-    if action in ('warmup','all'):stages += [('warmup','richhf')]
-    variants=('old','scratch') if action=='direct' else VARIANTS if action in ('downstream','all') else (action,) if action in VARIANTS else ()
+    if action in ('warmup','warm-chain','all'):stages += [('warmup','richhf')]
+    variants=('old','scratch') if action=='direct' else VARIANTS if action in ('downstream','all') else ('warm',) if action=='warm-chain' else (action,) if action in VARIANTS else ()
     stages += [(v,ds) for ds in datasets for v in variants]
     return stages
+
+
+def wait_for_foundations(datasets,wait_hours=48,poll_seconds=30):
+    if not math.isfinite(wait_hours) or wait_hours<=0 or not math.isfinite(poll_seconds) or poll_seconds<=0:
+        raise ValueError('Wait timeout/poll interval must be positive and finite')
+    deadline=time.monotonic()+wait_hours*3600
+    pending=list(datasets)
+    while pending:
+        for ds in pending[:]:
+            marker=foundation_path(ds).parent/'completion_manifest.json'
+            if marker.is_file() and marker.stat().st_size>0:
+                # An empty file can be the producer's just-created, not-yet-
+                # flushed completion record. Leave it pending.
+                # Existence alone is insufficient: a corrupt/completed foreign
+                # experiment must fail immediately, never be swallowed/retried.
+                verify_foundation(ds)
+                print('[FOUNDATION READY]',ds,flush=True)
+                pending.remove(ds)
+        if not pending:return
+        remaining=deadline-time.monotonic()
+        if remaining<=0:
+            raise TimeoutError('Foundation wait expired; local pretraining retained; pending: '+', '.join(pending))
+        print('[WAIT FOUNDATION]',', '.join(pending),
+              '(no model/GPU allocation while waiting; Ctrl-C is safe)',flush=True)
+        time.sleep(min(poll_seconds,remaining))
+
+
+def run_warm_chain(datasets,continue_completed=False,wait_hours=48):
+    run('warmup','richhf',continue_completed)
+    wait_for_foundations(datasets,wait_hours)
+    for ds in datasets:run('warm',ds,continue_completed)
 
 
 def pack():
@@ -260,12 +292,15 @@ def pack():
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument('action',choices=('foundation','warmup','direct','old','scratch','warm','downstream','all','pack','check-configs'))
+    p.add_argument('action',choices=('foundation','warmup','warm-chain','direct','old','scratch','warm','downstream','all','pack','check-configs'))
     p.add_argument('--dataset',choices=DATASETS);p.add_argument('--dry-run',action='store_true')
     p.add_argument('--continue',dest='continue_completed',action='store_true')
+    p.add_argument('--wait-hours',type=float,default=None,help='warm-chain only: foundation timeout, default 48h')
     a=p.parse_args();os.chdir(ROOT);datasets=DATASETS if a.dataset is None else (a.dataset,)
+    if a.wait_hours is not None and (a.action!='warm-chain' or not math.isfinite(a.wait_hours) or a.wait_hours<=0):
+        p.error('--wait-hours requires warm-chain and a positive finite value')
     if a.action=='pack':
-        if a.dataset or a.dry_run or a.continue_completed:p.error('pack takes no other arguments')
+        if a.dataset or a.dry_run or a.continue_completed or a.wait_hours is not None:p.error('pack takes no other arguments')
         pack();return
     if a.action=='warmup' and a.dataset:p.error('warmup is RichHF-only; omit --dataset')
     stages=plan('all' if a.action=='check-configs' else a.action,datasets)
@@ -279,6 +314,8 @@ def main():
         if d.exists() or t.exists():
             if not a.continue_completed:raise FileExistsError(f'Preserve existing outputs: {d}')
             verify_foundation(ds) if v=='foundation' else verify(v,ds)
+    if a.action=='warm-chain':
+        run_warm_chain(datasets,a.continue_completed,48 if a.wait_hours is None else a.wait_hours);return
     for v,ds in stages:
         if v=='foundation':foundation_runner().run_all(continue_completed=a.continue_completed,dataset=ds)
         else:run(v,ds,a.continue_completed)

@@ -260,4 +260,44 @@ class PipelineTests(unittest.TestCase):
             self.seal(v,'agiqa3k')
             with self.assertRaises(ValueError):protocol.verify(v,'agiqa3k')
 
+class WarmChainTests(unittest.TestCase):
+    def test_plan_and_order_pretrain_then_wait_then_warm_without_foundation_launch(self):
+        self.assertEqual(protocol.plan('warm-chain',protocol.DATASETS),[
+            ('warmup','richhf'),('warm','agiqa3k'),('warm','aigciqa2023')])
+        events=[]
+        with patch.object(protocol,'run',side_effect=lambda *args:events.append(('run',args))),patch.object(protocol,'wait_for_foundations',side_effect=lambda *args:events.append(('wait',args))):
+            protocol.run_warm_chain(protocol.DATASETS,True,24)
+        self.assertEqual(events,[('run',('warmup','richhf',True)),('wait',(protocol.DATASETS,24)),
+                                 ('run',('warm','agiqa3k',True)),('run',('warm','aigciqa2023',True))])
+        with patch.object(protocol,'run',side_effect=RuntimeError('warmup failed')),patch.object(protocol,'wait_for_foundations') as wait,self.assertRaises(RuntimeError):
+            protocol.run_warm_chain(protocol.DATASETS)
+        wait.assert_not_called()
+
+    def test_wait_handles_late_completion_and_verifies_each_source_once(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);now=[0.];slept=[]
+            def path(ds):return root/ds/'best_selected_downstream.pth'
+            def sleep(seconds):
+                slept.append(seconds);now[0]+=seconds
+                ds=protocol.DATASETS[len(slept)-1];path(ds).parent.mkdir(exist_ok=True)
+                (path(ds).parent/'completion_manifest.json').write_text('{}')
+            path(protocol.DATASETS[0]).parent.mkdir()
+            (path(protocol.DATASETS[0]).parent/'completion_manifest.json').write_text('')
+            with patch.object(protocol,'foundation_path',side_effect=path),patch.object(protocol,'verify_foundation') as verify,patch.object(protocol.time,'monotonic',side_effect=lambda:now[0]),patch.object(protocol.time,'sleep',side_effect=sleep),contextlib.redirect_stdout(io.StringIO()):
+                protocol.wait_for_foundations(protocol.DATASETS,1,30)
+            self.assertEqual(slept,[30,30]);self.assertEqual([c.args for c in verify.call_args_list],[(ds,) for ds in protocol.DATASETS])
+
+    def test_corrupt_completion_and_timeout_never_launch_warm_or_modify_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'best_selected_downstream.pth';marker=path.parent/'completion_manifest.json';marker.write_text('corrupt')
+            with patch.object(protocol,'foundation_path',return_value=path),patch.object(protocol,'verify_foundation',side_effect=ValueError('bad source')),patch.object(protocol.time,'sleep') as sleep,self.assertRaises(ValueError):
+                protocol.wait_for_foundations(('agiqa3k',))
+            sleep.assert_not_called();self.assertEqual(marker.read_text(),'corrupt');marker.unlink()
+            now=[0.]
+            with patch.object(protocol,'foundation_path',return_value=path),patch.object(protocol.time,'monotonic',side_effect=lambda:now[0]),patch.object(protocol.time,'sleep',side_effect=lambda s:now.__setitem__(0,now[0]+s)),contextlib.redirect_stdout(io.StringIO()),self.assertRaises(TimeoutError):
+                protocol.wait_for_foundations(('agiqa3k',),1/3600,30)
+        with patch.object(protocol,'run') as run,patch.object(protocol,'wait_for_foundations',side_effect=TimeoutError('not ready')),self.assertRaises(TimeoutError):
+            protocol.run_warm_chain(protocol.DATASETS,True)
+        self.assertEqual(run.call_count,1);self.assertEqual(run.call_args.args,('warmup','richhf',True))
+
 if __name__=='__main__':unittest.main()
