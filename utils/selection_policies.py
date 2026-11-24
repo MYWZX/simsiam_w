@@ -18,8 +18,13 @@ def configure_selection_comparison(cfg, args):
     if cfg.get('dataset', {}).get('type') in {'agiqa1k', 'agiqa1k_iqa'}:
         raise ValueError('Selection comparison requires Align labels; do not rerun 1K.')
     train = cfg.setdefault('train', {})
+    policies = dict(POLICIES)
+    if train.get('selection_comparison_version') == 'quality_mean_v1':
+        policies['joint'] = 'val_quality_align_mean_SROCC'
+    elif train.get('selection_comparison_version') is not None:
+        raise ValueError('Unknown selection comparison version')
     train.update(compare_selection_policies=True, epochs=60, early_stopping_enabled=False,
-                 selection_policies=dict(POLICIES))
+                 selection_policies=policies)
     return True
 
 
@@ -35,7 +40,10 @@ def cpu_state_dict(model):
 
 
 class SelectionComparison:
-    def __init__(self):
+    def __init__(self, policies=None):
+        self.policies = dict(POLICIES if policies is None else policies)
+        if self.policies not in (POLICIES, {'quality': 'val_quality_SROCC', 'joint': 'val_quality_align_mean_SROCC'}):
+            raise ValueError('Unsupported comparison policy set')
         self.best = {}
 
     def update(self, model, metrics, epoch, selector):
@@ -43,7 +51,7 @@ class SelectionComparison:
             raise ValueError('Selection comparison requires at least two validation Align labels.')
         # Validate both values before mutating either policy's state.
         values = {}
-        for policy, key in POLICIES.items():
+        for policy, key in self.policies.items():
             value, maximize, _ = selector(metrics, {'train': {
                 'selection_metric': key, 'selection_mode': 'max'}})
             assert maximize
@@ -55,13 +63,13 @@ class SelectionComparison:
             for name, changed in improved.items():
                 if changed:
                     self.best[name] = dict(value=values[name], epoch=epoch, state=snapshot)
-        return {name: dict(selection_metric=POLICIES[name], value=self.best[name]['value'],
+        return {name: dict(selection_metric=self.policies[name], value=self.best[name]['value'],
                            epoch=self.best[name]['epoch'], is_best=improved[name])
-                for name in POLICIES}
+                for name in self.policies}
 
     def evaluate_selected(self, model, evaluate_fn):
         """Test only after training; identical selected epochs are evaluated once."""
-        if set(self.best) != set(POLICIES):
+        if set(self.best) != set(self.policies):
             raise RuntimeError('Both validation selection policies must have a best state.')
         results, cached = {}, {}
         for name, record in self.best.items():
@@ -70,7 +78,7 @@ class SelectionComparison:
                 model.load_state_dict(record['state'])
                 cached[epoch] = evaluate_fn()
             val, test = cached[epoch]
-            results[name] = dict(selection_policy=name, selection_metric=POLICIES[name],
+            results[name] = dict(selection_policy=name, selection_metric=self.policies[name],
                                  best_epoch=epoch, best_selection_value=record['value'],
                                  best_val=val, best_test=test or {},
                                  best_checkpoint='', last_checkpoint='')

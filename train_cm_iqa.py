@@ -463,6 +463,7 @@ def build_optimizer(cfg: Dict, model: nn.Module):
         "quality_adapter_head", "quality_adapter_gate_logit",
     )
     align_prefixes = (
+        "align_region_word",
         "text_to_fused", "align_global_head", "align_patch_img_proj",
         "align_patch_txt_proj", "align_patch_head", "align_gate",
         "align_global_adapter", "align_patch_adapter", "align_text_adapter",
@@ -1521,6 +1522,8 @@ def train_one_epoch(model, loader, optimizer, scaler, device, cfg, epoch, prompt
                 "align_task": losses["loss_align_task"],
             })
             print(f"[INFO] Fusion gradient audit: {gradient_audit}")
+        from utils.task_gradient_probe import maybe_record_probe
+        maybe_record_probe(_unwrap_model(model), losses, cfg, epoch, step, scaler=scaler)
         if global_pcgrad:
             quality_mask = batch.get("quality_mask")
             align_mask = batch.get("align_mask")
@@ -1864,6 +1867,16 @@ def get_selection_value(metrics: Dict, cfg: Dict) -> tuple[float, bool, str]:
     tcfg = cfg.get("train", {})
     key = str(tcfg.get("selection_metric", "val_reg_loss"))
     mode = str(tcfg.get("selection_mode", "min")).lower()
+    if key == "val_quality_align_mean_SROCC":
+        if float(metrics.get("val_align_N", 0)) < 2:
+            raise ValueError("Joint mean selection requires validation Align labels")
+        if any(k not in metrics for k in ("val_quality_SROCC", "val_align_SROCC")):
+            raise ValueError("Joint mean selection requires both validation correlations")
+        values = [float(metrics[k]) for k in ("val_quality_SROCC", "val_align_SROCC")]
+        if not all(math.isfinite(x) and -1 <= x <= 1 for x in values):
+            raise ValueError("Joint mean selection requires finite correlations in [-1, 1]")
+        metrics[key] = sum(values) / 2
+        return metrics[key], True, key
     if key in {"val_component_hmean_SROCC", "val_quality_align_hmean_SROCC"}:
         # No synthetic Final-MOS checkpoint selection. Combine the two
         # independently labelled tasks only for model selection.
@@ -2138,6 +2151,14 @@ def main():
         if metadata is not None:
             metadata["quality_mix_initialization"] = beta_record
 
+    from utils.task_gradient_probe import new_region_parameter_record
+    region_record = new_region_parameter_record(model)
+    if region_record:
+        print("[INFO] New region-word parameters (not inherited):", region_record)
+        logger.log(event="region_word_initialization", epoch=0, metrics={"parameters": region_record})
+        if metadata is not None:
+            metadata["region_word_initialization"] = region_record
+            metadata["region_word_version"] = "clip_region_word_v1"
     if metadata_enabled:
         # Hash again after both model construction and checkpoint loading. A
         # replaced input must not silently acquire an unrelated provenance hash.
@@ -2218,7 +2239,7 @@ def main():
     # runs intentionally do not write model checkpoints: keep the selected
     # weights in memory for the final validation/test report and retain only
     # the config snapshot plus the experiment CSV.
-    comparison = SelectionComparison() if compare_selection else None
+    comparison = SelectionComparison(cfg["train"]["selection_policies"]) if compare_selection else None
     best = None
     best_epoch = -1
     best_model_state = None

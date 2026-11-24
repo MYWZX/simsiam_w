@@ -189,7 +189,9 @@ class GlobalVisualEncoder(nn.Module):
         self.output_dim = output_dim
         self.proj = nn.Linear(self.feat_dim, output_dim) if self.feat_dim != output_dim else nn.Identity()
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, return_tokens: bool = False):
+        if return_tokens and (not self._uses_open_clip or not hasattr(self.backbone, "output_tokens")):
+            raise ValueError("Region-word alignment requires an OpenCLIP ViT with token output")
         if self._uses_open_clip:
             if self.source_normalization == "imagenet":
                 source_mean = self.source_mean.to(dtype=x.dtype)
@@ -203,11 +205,20 @@ class GlobalVisualEncoder(nn.Module):
             model_mean = self.model_mean.to(dtype=x.dtype)
             model_std = self.model_std.to(dtype=x.dtype)
             x = (x.clamp(0.0, 1.0) - model_mean) / model_std
-        feat = self.backbone(x)
+        tokens = None
+        if return_tokens:
+            old_output_tokens = self.backbone.output_tokens
+            try:
+                self.backbone.output_tokens = True
+                feat, tokens = self.backbone(x)
+            finally:
+                self.backbone.output_tokens = old_output_tokens
+        else:
+            feat = self.backbone(x)
         feat = self.proj(feat)
         if self.normalize_output:
             feat = torch.nn.functional.normalize(feat.float(), dim=-1).to(feat.dtype)
-        return feat
+        return (feat, tokens) if return_tokens else feat
 
 
 class ResNet50LocalEncoder(nn.Module):

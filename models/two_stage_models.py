@@ -261,7 +261,7 @@ class FrozenCLIPTextEncoder(nn.Module):
             cast_dtype = self.model.transformer.get_cast_dtype()
             x = self.model.token_embedding(token_ids).to(cast_dtype)
         x = x + self.model.positional_embedding.to(x.dtype)
-        with torch.set_grad_enabled(bool(self.num_context_tokens)):
+        with torch.set_grad_enabled(torch.is_grad_enabled() and bool(self.num_context_tokens)):
             x = self.model.transformer(x, attn_mask=self.model.attn_mask)
             x = self.model.ln_final(x)
         return x.float(), token_ids
@@ -480,8 +480,13 @@ class ImageTextBackbone(nn.Module):
         self,
         x: torch.Tensor,
         local_crops: Optional[torch.Tensor] = None,
+        return_global_tokens: bool = False,
     ) -> Dict[str, torch.Tensor]:
-        f_sem = self.global_encoder(x)    # [B, D_sem]
+        clip_tokens = None
+        if return_global_tokens:
+            f_sem, clip_tokens = self.global_encoder(x, return_tokens=True)
+        else:
+            f_sem = self.global_encoder(x)    # [B, D_sem]
         if self.use_global_adapter:
             f_sem = self.global_adapter(f_sem)
         if local_crops is None:
@@ -518,6 +523,7 @@ class ImageTextBackbone(nn.Module):
             "f_sem": f_sem,
             "f_loc": f_loc,
             "z": z,
+            **({"clip_patch_tokens": clip_tokens} if return_global_tokens else {}),
             "num_local_crops": 1 if local_crops is None else int(local_crops.shape[1]),
         }
 
@@ -1133,6 +1139,43 @@ class CrossModalIQAFullModel(nn.Module):
             self.quality_feature_mix_logit = nn.Parameter(torch.tensor(math.log(initial / (1.0 - initial))))
             self.register_buffer("dual_quality_signature", torch.tensor(2 if self.quality_adapter_mode == "residual_feature" else 1, dtype=torch.int64))
 
+        # Opt-in downstream experiment. Construct LAST and isolate RNG so all
+        # inherited modules and reset scoring heads retain baseline initialization.
+        region_cfg = mcfg.get("align_region_word", {})
+        self.align_region_word = None
+        if region_cfg:
+            if region_cfg != {"version": "clip_region_word_v1"}:
+                raise ValueError("align_region_word requires version=clip_region_word_v1 only")
+            tcfg = cfg.get("train", {})
+            if (not self.backbone.projection_only or self.align_control_enabled
+                    or self.align_local_temperature != 1.0 or self.use_align_prompt_cross_attention
+                    or self.use_align_vmamba or self.use_align_text_bank
+                    or tcfg.get("use_joint_iqa_pretraining", False)
+                    or not tcfg.get("two_output_only", False) or tcfg.get("quality_only", False)
+                    or self.shared_projection_project_patches or not self.shared_simsiam_projection
+                    or self.align_global_feature != "g" or not self.dual_quality_representation
+                    or tcfg.get("use_align_rank", False)
+                    or any(float(tcfg.get(key, 0)) != 0 for key in (
+                        "lambda_neg", "lambda_hard_neg", "lambda_align_rank",
+                        "lambda_align_gate_reg", "lambda_dynamic_align_gate", "lambda_fusion_gate"))):
+                raise ValueError("Region-word experiment requires the unmodified downstream projection-only two-task path")
+            visual = self.backbone.global_encoder
+            if not visual._uses_open_clip or not hasattr(visual.backbone, "output_tokens"):
+                raise ValueError("Region-word experiment requires OpenCLIP ViT patch tokens")
+            if (getattr(visual.backbone, "attn_pool", None) is not None
+                    or getattr(visual.backbone, "pool_type", "tok") != "tok"):
+                raise ValueError("Only standard CLS-pooled OpenCLIP ViT is supported")
+            if (self.backbone.text_encoder.num_context_tokens != 5
+                    or getattr(self.backbone.text_encoder.model, "text_pool_type", "argmax") != "argmax"):
+                raise ValueError("Region-word experiment requires standard CLIP text pooling and five contexts")
+            from models.region_word_alignment import RegionWordAlignment
+            with torch.random.fork_rng(devices=[]):
+                self.align_region_word = RegionWordAlignment(
+                    int(visual.backbone.conv1.out_channels),
+                    int(self.backbone.text_encoder.model.token_embedding.embedding_dim), fused_dim)
+            for module in (self.align_patch_adapter, self.align_patch_img_proj, self.align_patch_txt_proj):
+                module.requires_grad_(False)
+
     def _freeze_quality_adapter_bn_running_stats(self):
         # eval() changes BatchNorm's source of statistics, not requires_grad.
         # Keep affine parameters and other Adapter layers (including Dropout)
@@ -1478,6 +1521,7 @@ class CrossModalIQAFullModel(nn.Module):
         patch_hw: Optional[tuple[int, int]] = None,
         text_tokens: Optional[torch.Tensor] = None,
         text_token_ids: Optional[torch.Tensor] = None,
+        clip_patch_tokens: Optional[torch.Tensor] = None,
     ) -> Dict[str, torch.Tensor]:
         if self.shared_simsiam_projection:
             z_global = self.project_shared_image(z_global)
@@ -1485,7 +1529,8 @@ class CrossModalIQAFullModel(nn.Module):
                 patch_tokens = self.project_shared_image(patch_tokens)
         z_align = self.align_global_adapter(z_global)
         text_align = self.project_align_text(text_fused)
-        patch_align = self.align_patch_adapter(patch_tokens)
+        patch_align = (self.align_patch_adapter(patch_tokens)
+                       if self.align_region_word is None else None)
 
         align_cross_attention_weights = None
         if (
@@ -1510,27 +1555,37 @@ class CrossModalIQAFullModel(nn.Module):
         pair_g = torch.cat([z_align, text_align, torch.abs(z_align - text_align)], dim=-1)
         s_global = torch.sigmoid(self.align_global_head(pair_g).squeeze(-1))
 
-        # Align-only V-Mamba enhancement. Do not feed this back to the quality
-        # branch. This preserves quality features while improving local visual
-        # evidence search for image-text alignment.
-        if self.align_vmamba is not None:
-            patch_tokens_for_align = self.align_vmamba(patch_align, hw=patch_hw)
+        if self.align_region_word is not None:
+            from models.region_word_alignment import content_token_mask
+            if clip_patch_tokens is None or text_tokens is None or text_token_ids is None:
+                raise ValueError("Region-word alignment requires visual patches and Prompt tokens")
+            mask = content_token_mask(text_token_ids, self.backbone.text_encoder.num_context_tokens)
+            evidence, local_text, region_word_weights = self.align_region_word(clip_patch_tokens, text_tokens, mask)
+            pair_p = torch.cat([evidence, local_text, torch.abs(evidence-local_text)], dim=-1)
+            attn = region_word_weights.sum(-1) / mask.sum(-1, keepdim=True)
+            p_img = p_txt = None
         else:
-            patch_tokens_for_align = patch_align
+            # Align-only V-Mamba enhancement. Do not feed this back to the quality
+            # branch. This preserves quality features while improving local visual
+            # evidence search for image-text alignment.
+            if self.align_vmamba is not None:
+                patch_tokens_for_align = self.align_vmamba(patch_align, hw=patch_hw)
+            else:
+                patch_tokens_for_align = patch_align
 
-        if self.align_local_pool == "uniform":
-            p_img = p_txt = None  # No matching projection is executed in this ablation.
-            attn = patch_tokens_for_align.new_full(
-                patch_tokens_for_align.shape[:2], 1.0 / patch_tokens_for_align.size(1))
-        else:
-            p_img = F.normalize(self.align_patch_img_proj(patch_tokens_for_align), dim=-1, eps=1e-6)
-            p_txt = F.normalize(self.align_patch_txt_proj(text_align), dim=-1, eps=1e-6)
-            match_logits = torch.sum(p_img * p_txt.unsqueeze(1), dim=-1)
-            if self.align_local_temperature != 1.0:
-                match_logits = match_logits / self.align_local_temperature
-            attn = torch.softmax(match_logits, dim=1)
-        evidence = torch.sum(attn.unsqueeze(-1) * patch_tokens_for_align, dim=1)
-        pair_p = torch.cat([evidence, text_align, torch.abs(evidence - text_align)], dim=-1)
+            if self.align_local_pool == "uniform":
+                p_img = p_txt = None  # No matching projection is executed in this ablation.
+                attn = patch_tokens_for_align.new_full(
+                    patch_tokens_for_align.shape[:2], 1.0 / patch_tokens_for_align.size(1))
+            else:
+                p_img = F.normalize(self.align_patch_img_proj(patch_tokens_for_align), dim=-1, eps=1e-6)
+                p_txt = F.normalize(self.align_patch_txt_proj(text_align), dim=-1, eps=1e-6)
+                match_logits = torch.sum(p_img * p_txt.unsqueeze(1), dim=-1)
+                if self.align_local_temperature != 1.0:
+                    match_logits = match_logits / self.align_local_temperature
+                attn = torch.softmax(match_logits, dim=1)
+            evidence = torch.sum(attn.unsqueeze(-1) * patch_tokens_for_align, dim=1)
+            pair_p = torch.cat([evidence, text_align, torch.abs(evidence - text_align)], dim=-1)
         s_patch = torch.sigmoid(self.align_patch_head(pair_p).squeeze(-1))
 
         gate_in = torch.cat([z_align, text_align, s_global.unsqueeze(-1), s_patch.unsqueeze(-1)], dim=-1)
@@ -1609,7 +1664,9 @@ class CrossModalIQAFullModel(nn.Module):
     ) -> Dict[str, torch.Tensor]:
         # Keep high-resolution local crops isolated to the Quality branch.
         # Align continues to use the base-resolution shared visual path.
-        img = self.backbone.encode_image(image)
+        img = (self.backbone.encode_image(image, return_global_tokens=True)
+               if self.align_region_word is not None and prompts is not None
+               else self.backbone.encode_image(image))
         quality_img = (
             self.backbone.encode_image(image, local_crops=local_crops)
             if local_crops is not None else img
@@ -1621,7 +1678,7 @@ class CrossModalIQAFullModel(nn.Module):
         if prompts is not None:
             text_feat = self.backbone.encode_text(prompts, image.device)
             text_fused = self.text_to_fused(text_feat)
-            if self.align_prompt_cross_attention is not None:
+            if self.align_prompt_cross_attention is not None or self.align_region_word is not None:
                 text_tokens, text_token_ids = self.backbone.text_encoder.encode_token_features(
                     prompts, image.device
                 )
@@ -1653,7 +1710,8 @@ class CrossModalIQAFullModel(nn.Module):
             out["s_q"] = q_out["s_quality"]
             return out
 
-        align_patch_tokens = self._make_patch_tokens(img["f_loc"])
+        align_patch_tokens = (self._make_patch_tokens(img["f_loc"])
+                              if self.align_region_word is None else None)
         align_global = img["z"]
         if self.align_global_feature == "g":
             align_global = self.backbone.fusion.semantic_proj(img["f_sem"])
@@ -1662,6 +1720,7 @@ class CrossModalIQAFullModel(nn.Module):
             patch_hw=(img["f_loc"].shape[-2], img["f_loc"].shape[-1]),
             text_tokens=text_tokens,
             text_token_ids=text_token_ids,
+            clip_patch_tokens=img.get("clip_patch_tokens"),
         )
         w_img, fusion_gate_delta = self._compute_fusion_weight(
             q_out["s_quality"] if getattr(self.backbone, "projection_only", False) else img["z"], text_fused, q_out["s_quality"], a_out["s_align"]

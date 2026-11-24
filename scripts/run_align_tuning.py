@@ -20,6 +20,7 @@ QUEUES={'lr':('alignlr050','alignlr200'),'srocc':('asrocc050','asrocc200')}
 DATASETS=('agiqa3k','aigciqa2023')
 VERSION='projection_only_v1_v2_align_tuning'
 PROTOCOL_DOC='docs/align_tuning.md'
+CONFIG_SUMMARY='train42/split42; original source, six-channel NSS and Quality selection preserved'
 FILES=('launch_config.yaml','config_snapshot.yaml','console.log','launch_manifest.json',
        'completion_manifest.json','run_metadata.json','source_fingerprint.json','data_split_manifest.json')
 
@@ -103,22 +104,7 @@ def verify(v,ds,split,fingerprint):
     if m['data_split']!={k:v for k,v in evidence.items() if k!='indices'}:raise ValueError('Split metadata mismatch')
     csv.field_size_limit(50_000_000)
     with table.open(encoding='utf-8-sig',newline='') as f:rows=list(csv.DictReader(f))
-    finals=[json.loads(r['metrics_json']) for r in rows if r['event']=='final']
-    if len(finals)!=1 or finals[0]['last_epoch']!=60 or finals[0]['selection_metric']!='val_quality_SROCC' or any(r['event']=='resume' for r in rows):raise ValueError('Expected complete 60-epoch validation-quality selection')
-    records=[json.loads(r['metrics_json']) for r in rows if r['event']=='optimizer_initialization']
-    if records!=[{'groups':groups}]:raise ValueError('Missing optimizer initialization event')
-    epochs=[r for r in rows if r['event']=='epoch']
-    if [int(r['epoch']) for r in epochs]!=list(range(1,61)):
-        raise ValueError('Missing or repeated epoch records')
-    selected=max(epochs,key=lambda row:json.loads(row['metrics_json'])['val_val_quality_SROCC'])
-    best_test=[r for r in rows if r['event']=='best_test']
-    best_val=[r for r in rows if r['event']=='best_val']
-    if (len(best_test)!=1 or len(best_val)!=1 or
-            int(selected['epoch'])!=int(best_test[0]['epoch']) or
-            int(selected['epoch'])!=int(best_val[0]['epoch']) or
-            int(selected['epoch'])!=finals[0]['best_epoch'] or
-            json.loads(best_test[0]['metrics_json'])!=finals[0]['best_test']):
-        raise ValueError('Best-test/validation selection mismatch')
+    epochs=verify_selection_records(c,rows,groups)
     for row in epochs:
         metrics=json.loads(row['metrics_json'])
         # All non-listed terms have zero coefficients in this fixed protocol.
@@ -139,6 +125,26 @@ def verify(v,ds,split,fingerprint):
             ('train_train_quality','train_train_weighted_quality_mse',c['train']['lambda_quality'])):
             if not math.isclose(metrics[weighted],coefficient*metrics[raw],rel_tol=1e-3,abs_tol=1e-7):
                 raise ValueError(f'Effective loss weight mismatch at epoch {row["epoch"]}: {weighted}')
+
+
+def verify_selection_records(c,rows,groups):
+    finals=[json.loads(r['metrics_json']) for r in rows if r['event']=='final']
+    if len(finals)!=1 or finals[0]['last_epoch']!=60 or finals[0]['selection_metric']!='val_quality_SROCC' or any(r['event']=='resume' for r in rows):raise ValueError('Expected complete 60-epoch validation-quality selection')
+    records=[json.loads(r['metrics_json']) for r in rows if r['event']=='optimizer_initialization']
+    if records!=[{'groups':groups}]:raise ValueError('Missing optimizer initialization event')
+    epochs=[r for r in rows if r['event']=='epoch']
+    if [int(r['epoch']) for r in epochs]!=list(range(1,61)):
+        raise ValueError('Missing or repeated epoch records')
+    selected=max(epochs,key=lambda row:json.loads(row['metrics_json'])['val_val_quality_SROCC'])
+    best_test=[r for r in rows if r['event']=='best_test']
+    best_val=[r for r in rows if r['event']=='best_val']
+    if (len(best_test)!=1 or len(best_val)!=1 or
+            int(selected['epoch'])!=int(best_test[0]['epoch']) or
+            int(selected['epoch'])!=int(best_val[0]['epoch']) or
+            int(selected['epoch'])!=finals[0]['best_epoch'] or
+            json.loads(best_test[0]['metrics_json'])!=finals[0]['best_test']):
+        raise ValueError('Best-test/validation selection mismatch')
+    return epochs
 
 
 def control(ds,split,fingerprint):
@@ -239,7 +245,7 @@ def main():
         if a.dataset or a.dry_run or a.continue_completed:p.error('check-configs takes no other arguments')
         for ds in DATASETS:
             for v in VARIANTS:config(v,ds)
-        print(f'{len(VARIANTS)*len(DATASETS)} downstream configs: train42/split42; original source, six-channel NSS and Quality selection preserved')
+        print(f'{len(VARIANTS)*len(DATASETS)} downstream configs: {CONFIG_SUMMARY}')
     elif a.variant=='pack':
         if a.dataset or a.dry_run or a.continue_completed:p.error('pack takes no other arguments')
         pack()
