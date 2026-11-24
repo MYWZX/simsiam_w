@@ -239,11 +239,14 @@ class PipelineTests(unittest.TestCase):
         for ds in protocol.DATASETS:
             for v in protocol.VARIANTS:
                 self.artifact(v,ds);protocol.verify(v,ds)
+        logs=self.root/'run_logs';logs.mkdir()
+        journal=logs/'protected_local_recovery_test.json'
+        journal.write_text(json.dumps(dict(format='protected_local_recovery_v1',version=protocol.VERSION,upstream=self.source,complete=True)))
         with contextlib.redirect_stdout(io.StringIO()):protocol.pack()
         import tarfile
         with tarfile.open(self.root/f'{protocol.VERSION}_results.tar.gz') as tar:
             names=tar.getnames();self.assertEqual(sum(n.endswith('.csv') for n in names),9)
-            self.assertFalse(any(n.endswith('.pth') for n in names));self.assertIn('summary.json',names)
+            self.assertFalse(any(n.endswith('.pth') for n in names));self.assertIn('summary.json',names);self.assertIn('run_logs/protected_local_recovery_test.json',names)
         with self.assertRaises(FileExistsError):protocol.pack()
 
     def test_changed_source_frozen_state_and_missing_projection_fail_even_after_resealing(self):

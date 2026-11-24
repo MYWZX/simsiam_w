@@ -274,6 +274,11 @@ def run_warm_chain(datasets,continue_completed=False,wait_hours=48):
 def pack():
     source_record=source();files={ROOT/'docs/protected_local.md',ROOT/'docs/current_tuning_reference.json',ROOT/'docs/current_tuning_reference.md'};results={}
     files.update(ROOT/f'configs/current_tuning_reference/{ds}.yaml' for ds in DATASETS)
+    for journal in (ROOT/'run_logs').glob('protected_local_recovery_*.json'):
+        recovery=base.read_json(journal)
+        if (recovery.get('format')=='protected_local_recovery_v1' and recovery.get('version')==VERSION
+                and recovery.get('upstream',{}).get('sha256')==source_record['sha256']):
+            files.add(journal)
     for ds in DATASETS:
         verify_foundation(ds);d=foundation_path(ds).parent
         files.update(p for p in d.iterdir() if p.suffix in ('.json','.yaml','.log'))

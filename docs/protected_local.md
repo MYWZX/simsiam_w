@@ -86,3 +86,24 @@ CUDA_VISIBLE_DEVICES=1 bash scripts/run_protected_local.sh warm-chain --continue
 ```
 
 顺序为：RichHF局部预训练 → 等待并核验两个Foundation完整完成 → 两个warm下游。它不启动Foundation、old或scratch，与终端一使用不同输出目录。无需等待终端一的old/scratch结束，只要求两个Foundation准备好。等待时不创建模型、不占用训练显存；每30秒检查一次，完成标志出现后严格核验来源、SHA和结果，校验错误立即停止。默认最多等48小时，可用 `--wait-hours 72` 修改；若终端一失败且没有完成标志，会等待至超时，不自行重训或补写清单。局部预训练失败时不会继续下游。Ctrl-C停止等待会保留已完成的预训练，重跑同一条 `--continue` 命令可再次核验并接续。
+
+
+## VSCode断开、确认两个队列都停止后的重新启动
+
+先用 `nvidia-smi` 与自己账号的 `ps` 确认没有原训练或等待队列。恢复工具默认只读审计：
+
+```bash
+/home/sll/anaconda3/envs/WZX-AI/bin/python scripts/recover_protected_local.py
+```
+
+确认需要重新启动时，一条命令会先保留半成品，再以nohup+setsid脱离终端启动GPU0 direct与GPU1 warm-chain：
+
+```bash
+bash scripts/restart_protected_local_background.sh
+```
+
+它不会杀进程。检测到本账号仍有训练/队列进程就拒绝移动文件；也不会覆盖已完成结果。所有完整任务先经过原有来源与哈希核验，`--continue`随后跳过。未完成且配置匹配的目录与CSV仅重命名为 `.interrupted_UTC时间_唯一后缀`，保留全部原内容，并将映射及已记录轮次写入 `run_logs/protected_local_recovery_*.json`。该恢复记录也纳入结果包。若CSV已有final或已经出现选中检查点，但缺完成清单，会停止并要求先核查，不伪造完成状态，也不贸然重训可能已完成的任务。
+
+**这是从中断阶段起点重跑，不是从最近一轮断点恢复**：当前权重文件不包含可用于中途恢复的完整优化器/RNG状态，未落盘的内存模型不能找回。中断尝试产生的额外计算由恢复记录保留。完整Foundation和已完成预训练不会因重启被重新训练。
+
+脚本打印两个后台PID及唯一日志目录。断开VSCode后重新连接仍可用打印出的 `tail -f ...` 查看；日志也在每阶段的 `console.log` 中。不要重复执行启动命令。nohup/setsid用于终端断开场景，服务器关机/重启仍会停止进程。
