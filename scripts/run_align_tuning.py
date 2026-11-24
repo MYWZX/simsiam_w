@@ -180,6 +180,10 @@ def run(v,ds,split=None,dry_run=False):
     verify(v,ds,split,fingerprint)
 
 
+def pack_extra_records(fingerprint):
+    return {}
+
+
 def pack():
     fingerprint=source()
     files={ROOT/'docs/current_tuning_reference.json',ROOT/'docs/current_tuning_reference.md',
@@ -195,10 +199,14 @@ def pack():
                 a=base.read_json(cd/'data_split_manifest.json');b=base.read_json(d/'data_split_manifest.json')
                 if any(a[k]!=b[k] for k in ('dataset_ids_sha256','indices')):
                     raise ValueError('Candidate/control memberships differ')
+    extra_records=pack_extra_records(fingerprint)
     archive=ROOT/f'{VERSION}_results.tar.gz'
     with archive.open('xb') as stream,tarfile.open(fileobj=stream,mode='w:gz') as tar:
         for p in sorted(files):tar.add(p,arcname=str(p.relative_to(ROOT)),recursive=False)
         data=json.dumps(fingerprint,indent=2).encode();info=tarfile.TarInfo('source_fingerprint.json');info.size=len(data);tar.addfile(info,io.BytesIO(data))
+        for name,record in extra_records.items():
+            data=json.dumps(record,indent=2,allow_nan=False).encode()
+            info=tarfile.TarInfo(name);info.size=len(data);tar.addfile(info,io.BytesIO(data))
     print(archive)
 
 

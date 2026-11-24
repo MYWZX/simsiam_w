@@ -180,6 +180,44 @@ class GradientTests(unittest.TestCase):
             for k,v in baseline.state_dict().items():torch.testing.assert_close(v,observed.state_dict()[k],rtol=0,atol=0)
 
 
+class DiagnosticAuditTests(unittest.TestCase):
+    def rows(self):
+        return [dict(version='same_forward_v1',model_mode='train',epoch=e,batch=b,
+                     groups={k:dict(status='ok',quality_norm=1.,align_norm=0.,cosine=None)
+                             for k in ('clip_visual','resnet_local','global_projection')})
+                for e in (1,10,30,60) for b in (1,2)]
+
+    def test_actual_infinite_autograd_is_unavailable_without_fabricating_values(self):
+        from utils.task_gradient_audit import audit_probe_records
+        m=nn.Module();m.backbone=nn.Module();m.backbone.global_encoder=nn.Linear(1,1,bias=False)
+        p=m.backbone.global_encoder.weight;p.grad=torch.ones_like(p)*17
+        stats=probe_task_gradients(m,p.sum()*float('inf'),p.sum())
+        self.assertEqual(stats['clip_visual']['status'],'nonfinite')
+        self.assertIsNone(stats['clip_visual']['quality_norm']);self.assertIsNone(stats['clip_visual']['cosine'])
+        self.assertEqual(p.grad.item(),17)
+        rows=self.rows();rows[0]['groups']=stats
+        report=audit_probe_records(rows,'aprobe')
+        self.assertEqual(report['unavailable_group_records'],3)
+        self.assertEqual(report['diagnostics_status'],'partial')
+        self.assertEqual(rows[0]['groups']['clip_visual']['status'],'nonfinite')
+
+    def test_malformed_status_schedule_finite_claims_and_resnet_dependency_still_fail(self):
+        from utils.task_gradient_audit import audit_probe_records
+        for case in ('status','schedule','nan_ok','nonfinite_numeric','resnet','nonfinite_resnet'):
+            rows=self.rows();g=rows[0]['groups']['clip_visual']
+            if case=='status':g['status']='unknown'
+            elif case=='schedule':rows.pop()
+            elif case=='nan_ok':g['quality_norm']=float('nan')
+            elif case=='nonfinite_numeric':g['status']='nonfinite'
+            elif case=='resnet':rows[0]['groups']['resnet_local'].update(align_norm=1,cosine=.5)
+            else:rows[0]['groups']['resnet_local']=dict(status='nonfinite',quality_norm=None,align_norm=None,cosine=None,shared_tensors=1)
+            with self.assertRaises(ValueError):audit_probe_records(rows,'aregionword')
+        rows=self.rows()
+        for row in rows:
+            row['groups']={k:{'status':'no_trainable_parameters'} for k in row['groups']}
+        self.assertEqual(audit_probe_records(rows,'aprobe')['diagnostics_status'],'unavailable')
+
+
 class SelectionTests(unittest.TestCase):
     def test_mean_policy_selects_on_validation_and_restores_separate_epochs(self):
         c={'dataset':{'type':'agiqa3k'},'train':{'compare_selection_policies':True,'selection_comparison_version':'quality_mean_v1'}}
@@ -230,6 +268,51 @@ class ProtocolTests(unittest.TestCase):
             names=tar.getnames();self.assertEqual(sum(n.endswith('.jsonl') for n in names),4);self.assertFalse(any(n.endswith('.pth') for n in names))
         d,t=r.paths('aregionword','agiqa3k');m=r.base.read_json(d/'run_metadata.json');m.pop('region_word_initialization');(d/'run_metadata.json').write_text(json.dumps(m));self.f.seal(d,t)
         with self.assertRaisesRegex(ValueError,'initialization'):r.verify('aregionword','agiqa3k',None,self.f.source)
+
+    def make_probe_nonfinite(self,d):
+        path=d/'task_gradient_probe.jsonl'
+        rows=[json.loads(x) for x in path.read_text().splitlines()]
+        rows[0]['groups']['clip_visual']={
+            'status':'nonfinite','quality_norm':None,'align_norm':None,
+            'cosine':None,'align_over_quality':None,
+            'shared_tensors':1,'quality_only_tensors':0,'align_only_tensors':0,'absent_tensors':0}
+        path.write_text(''.join(json.dumps(x)+'\n' for x in rows))
+
+    def test_nonfinite_diagnostic_preserves_completed_files_and_continues_only_pending_dataset(self):
+        r=self.r
+        for queue,v in (('probe','aprobe'),('region','aregionword')):
+            d,t=self.artifact(v,'agiqa3k');self.make_probe_nonfinite(d);self.f.seal(d,t)
+            before={p:p.read_bytes() for p in d.iterdir() if p.is_file()};before[t]=t.read_bytes()
+            with patch.object(r,'control'),patch.object(r,'run') as launch,contextlib.redirect_stdout(io.StringIO()) as log:
+                r.run_all(queue,continue_completed=True)
+            self.assertEqual([call.args for call in launch.call_args_list],[(v,'aigciqa2023')])
+            self.assertIn('DIAGNOSTIC WARNING',log.getvalue());self.assertIn('skip',log.getvalue())
+            self.assertEqual(before,{p:p.read_bytes() for p in before})
+            # A genuine result/file integrity failure still blocks continuation.
+            (d/'console.log').write_text('changed')
+            with patch.object(r,'control'),patch.object(r,'run') as launch,self.assertRaises(ValueError):
+                r.run_all(queue,continue_completed=True)
+            launch.assert_not_called()
+
+    def test_nonfinite_probe_is_retained_in_pack_and_explicitly_marked_partial(self):
+        r=self.r;controls={}
+        for ds in r.DATASETS:
+            for v in r.VARIANTS:
+                d,t=self.artifact(v,ds);self.make_probe_nonfinite(d);self.f.seal(d,t);controls.setdefault(ds,(d,t))
+        with patch.object(r,'control',side_effect=lambda ds,split,source:controls[ds]),contextlib.redirect_stdout(io.StringIO()):r.pack()
+        import tarfile
+        with tarfile.open(self.f.root/f'{r.VERSION}_results.tar.gz') as tar:
+            summary=json.load(tar.extractfile('task_gradient_audit.json'))
+            self.assertEqual(len(summary['runs']),4)
+            for ds in r.DATASETS:
+                for v in r.VARIANTS:
+                    c=r.config(v,ds);d,t=r.paths(v,ds);report=summary['runs'][c['run_id']]
+                    self.assertTrue(report['training_results_verified'])
+                    self.assertEqual(report['diagnostics_status'],'partial')
+                    self.assertEqual(report['unavailable_group_records'],1)
+                    self.assertEqual(report['valid_group_records'],23)
+                    self.assertEqual(report['raw_probe_sha256'],r.base.digest(d/'task_gradient_probe.jsonl'))
+                    self.assertEqual(tar.extractfile(c['output_dir']+'/task_gradient_probe.jsonl').read(),(d/'task_gradient_probe.jsonl').read_bytes())
 
     def test_dry_run_cpu_refusal_no_overwrite_and_exact_config_difference(self):
         r=self.r

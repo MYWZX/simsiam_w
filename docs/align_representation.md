@@ -84,3 +84,22 @@ bash scripts/run_align_representation.sh pack
 ```
 
 输出 `projection_only_v1_v2_align_representation_results.tar.gz`，包含四次CSV、配置、元数据、训练日志、划分、来源指纹、梯度JSONL和旧对照资料。核验两种策略是否选对轮次、测试结果是否与最终事件一致；不混用旧Quality选模结果和新joint选模结果。仍不保存下游大模型权重，不支持训练中断续跑。本轮成功与否须由实际服务器结果判断，尚未验证性能提升。
+
+
+## 完成后因梯度诊断核验报错的恢复
+
+`cb3ddaa` 的核验器错误地将非有限/不可用的梯度诊断视为整个实验失败。它们只能说明该批次该参数组的诊断不可靠，不能单凭此判断训练完成与否或评价梯度冲突。AMP下单独任务的缩放反向可能产生非有限梯度；具体批次、组和原因需查看原JSONL，不能从异常栈确认。
+
+修复后保留原计算、配置、CSV、元数据、原始梯度JSONL及完成清单，不补零、不重建诊断、不重训已完成模型。完成状态仍严格核验60轮、来源指纹、划分、优化器、两种选模及文件哈希。已知的 `nonfinite` / `no_trainable_parameters` 显式打印诊断警告；格式错误、未知状态、伪造的有限值、区域匹配意外依赖ResNet等依然拒绝。打包新增 `task_gradient_audit.json`，分别标注各次实验训练结果已核验、诊断完整/部分可用/不可用及原JSONL哈希。不得将不可用诊断解释为零梯度或无冲突。
+
+两终端若在AGIQA3K完成后退出，更新代码后分别执行：
+
+```bash
+git pull --ff-only origin work
+# 终端一
+CUDA_VISIBLE_DEVICES=0 bash scripts/run_align_representation.sh probe --continue
+# 终端二
+CUDA_VISIBLE_DEVICES=1 bash scripts/run_align_representation.sh region --continue
+```
+
+`--continue` 会核验并跳过已完成3K，启动尚未运行的2023。若2023也完整完成，则同样跳过；真正中断、缺完成清单或哈希不符的目录仍会拒绝，不自动覆盖/修补。不要删除结果目录，不手工编辑JSONL或完成清单。
