@@ -2070,7 +2070,9 @@ def main():
         if args.compare_selection_policies or cfg.get("train",{}).get("compare_selection_policies", False):
             raise ValueError("Fixed-budget refit cannot compare validation selection policies")
         cfg.setdefault("train", {})["refit_plan"] = str(args.refit_plan)
+    from utils.protected_local import validate_snapshot_config
     compare_selection = configure_selection_comparison(cfg, args)
+    validate_snapshot_config(cfg)
     validate_progressive_finetune_config(cfg)
     set_seed(int(cfg.get("seed", 42)))
     print(
@@ -2103,7 +2105,8 @@ def main():
     if pretrain_path and not os.path.isfile(pretrain_path):
         raise FileNotFoundError(f"Pretrained checkpoint not found: {pretrain_path}")
 
-    metadata_enabled = bool(compare_selection or cfg["train"].get("record_run_metadata", False) or refit_plan)
+    metadata_enabled = bool(compare_selection or cfg["train"].get("record_run_metadata", False)
+                            or cfg["train"].get("save_selected_downstream") or refit_plan)
     fingerprint = checkpoint_fingerprint(pretrain_path) if metadata_enabled else None
     metadata = None
     if metadata_enabled:
@@ -2382,6 +2385,8 @@ def main():
         **({"run_metadata_path": metadata_path} if metadata_enabled else {}),
     }
     logger.log(event="final", epoch=best_epoch, metrics=final_metrics, best_epoch=best_epoch, is_best=False)
+    from utils.protected_local import save_selected_downstream
+    save_selected_downstream(model, cfg, final_metrics, fingerprint)
 
 
 if __name__ == "__main__":
