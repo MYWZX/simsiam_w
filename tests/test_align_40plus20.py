@@ -1,6 +1,7 @@
 """Synthetic same-prefix trajectories, 40/41 boundary, optimizer/LR and strict protocol evidence."""
 import contextlib
 import copy
+from types import SimpleNamespace
 import csv
 import shutil
 import tarfile
@@ -12,8 +13,9 @@ import time
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock,patch
 import torch
+import yaml
 from scripts import run_align_40plus20 as study
 from scripts import run_align_representation as peers
 from utils import fair_40plus20 as phase
@@ -206,11 +208,16 @@ class PackageTests(unittest.TestCase):
             d,t=self.artifact(self.r,study.VARIANT,ds,True);self.r.verify(study.VARIANT,ds,None,self.source)
             history=self.root/'outputs'/('history_'+ds);history.mkdir();history_csv=history.with_suffix('.csv');history_csv.write_text('historical reference')
             controls[ds]=(history,history_csv)
+        logs=self.root/'run_logs';logs.mkdir()
+        (logs/'protected_local_recovery_fair.json').write_text(json.dumps(dict(version=study.VERSION,upstream=self.source)))
+        (logs/'protected_local_recovery_other.json').write_text(json.dumps(dict(version='other_profile',upstream=self.source)))
         with patch.object(self.r,'control',side_effect=lambda ds,split,fp:controls[ds]),contextlib.redirect_stdout(io.StringIO()):self.r.pack()
         with tarfile.open(self.root/(study.VERSION+'_results.tar.gz')) as tar:
             names=tar.getnames();self.assertEqual(sum(n.endswith('.csv') for n in names),8)
             self.assertEqual(sum(n.endswith('fair_phase_manifest.json') for n in names),2)
             self.assertFalse(any(n.endswith('.pth') for n in names));self.assertIn('comparison_protocol.json',names)
+            self.assertIn('run_logs/protected_local_recovery_fair.json',names)
+            self.assertNotIn('run_logs/protected_local_recovery_other.json',names)
         d,t=self.r.paths(study.VARIANT,'agiqa3k');proof=json.loads((d/'fair_phase_manifest.json').read_text());proof['optimizer_recreated']=True;(d/'fair_phase_manifest.json').write_text(json.dumps(proof))
         import test_align_tuning as fixture
         with patch.object(fixture,'r',self.r):self.helper.f.seal(d,t)
@@ -219,13 +226,13 @@ class PackageTests(unittest.TestCase):
 class LauncherTests(unittest.TestCase):
     def test_detached_launcher_only_submits_two_new_runs_and_stops_on_bad_inputs(self):
         from test_protected_local_recovery import BackgroundLauncherTests
-        for status in ('0','1'):
-            with self.subTest(status=status),tempfile.TemporaryDirectory() as directory:
+        for status,args in [('0',[]),('1',[]),('0',['--recover-incomplete']),('1',['--recover-incomplete'])]:
+            with self.subTest(status=status,args=args),tempfile.TemporaryDirectory() as directory:
                 root=Path(directory);env=BackgroundLauncherTests().prepare(root)
                 env['FAKE_RECOVERY_STATUS']=status
                 source=Path(__file__).resolve().parents[1]/'scripts/launch_align_40plus20_background.sh'
                 shutil.copy(source,root/'scripts/launch_align_40plus20_background.sh')
-                result=subprocess.run(['bash','scripts/launch_align_40plus20_background.sh'],cwd=root,env=env,capture_output=True,text=True)
+                result=subprocess.run(['bash','scripts/launch_align_40plus20_background.sh',*args],cwd=root,env=env,capture_output=True,text=True)
                 if status=='1':
                     self.assertNotEqual(result.returncode,0);self.assertFalse((root/'run_logs').exists());continue
                 self.assertEqual(result.returncode,0,result.stderr)
@@ -237,5 +244,50 @@ class LauncherTests(unittest.TestCase):
                 self.assertIn('gpu:0',a);self.assertIn('agiqa3k',a);self.assertIn('a40local20',a)
                 self.assertIn('gpu:1',b);self.assertIn('aigciqa2023',b);self.assertIn('setsid',b)
                 self.assertNotIn('aprobe',a+b);self.assertNotIn('warmup',a+b)
+
+class RecoveryTests(unittest.TestCase):
+    def setup_recovery(self,root):
+        from scripts import recover_align_40plus20 as recovery
+        def cfg(v,ds):return {'run_id':ds,'train':{'epochs':60}}
+        def paths(v,ds):return root/ds,root/(ds+'.csv')
+        runner=SimpleNamespace(DATASETS=('agiqa3k','aigciqa2023'),config=cfg,paths=paths,
+                               source=lambda:{'sha256':'source'},verify=lambda *a:None)
+        with patch.object(study,'make_runner',return_value=runner),patch.object(study,'ROOT',root):r=recovery.make_recovery()
+        return r,runner
+
+    def test_recovery_scope_preserves_only_incomplete_new_runs_and_keeps_controls(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);r,runner=self.setup_recovery(root)
+            for ds in runner.DATASETS:
+                d,t=runner.paths(study.VARIANT,ds);d.mkdir();(d/'launch_config.yaml').write_text(yaml.safe_dump(runner.config(study.VARIANT,ds)))
+                t.write_text('event,epoch,metrics_json\nepoch,7,{}\n');(d/'console.log').write_text('original log')
+            d,t=runner.paths(study.VARIANT,'aigciqa2023');(d/'completion_manifest.json').write_text('{}')
+            controls=root/'old_protected_and_60epoch_controls';controls.mkdir();(controls/'keep.csv').write_text('unchanged historical evidence')
+            with patch.object(r,'active_jobs',return_value=[]),contextlib.redirect_stdout(io.StringIO()):r.preserve_interrupted()
+            self.assertFalse((root/'agiqa3k').exists());self.assertTrue((root/'aigciqa2023').exists())
+            backup=next(root.glob('agiqa3k.interrupted_*'));self.assertEqual((backup/'console.log').read_text(),'original log')
+            self.assertEqual((controls/'keep.csv').read_text(),'unchanged historical evidence')
+            journal=json.loads(next((root/'run_logs').glob('*.json')).read_text());self.assertEqual(journal['version'],study.VERSION)
+            self.assertTrue(journal['complete'])
+
+    def test_running_queue_or_unsealed_final_blocks_recovery_without_moving_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);r,runner=self.setup_recovery(root)
+            d,t=runner.paths(study.VARIANT,'agiqa3k');d.mkdir();(d/'launch_config.yaml').write_text(yaml.safe_dump(runner.config(study.VARIANT,'agiqa3k')))
+            t.write_text('event,epoch,metrics_json\nfinal,60,{}\n')
+            with patch.object(r,'active_jobs',return_value=[{'pid':123}]),self.assertRaisesRegex(RuntimeError,'active'):r.preserve_interrupted()
+            with patch.object(r,'active_jobs',return_value=[]),self.assertRaisesRegex(RuntimeError,'Possibly completed'):r.preserve_interrupted()
+            self.assertTrue(d.is_dir());self.assertFalse(list(root.glob('*.interrupted_*')))
+            self.assertIn('run_align_40plus20.py',r.JOB_SCRIPTS);self.assertIn('train_cm_iqa.py',r.JOB_SCRIPTS)
+
+    def test_preflight_reports_existing_run_before_control_or_source_checks(self):
+        from scripts import recover_align_40plus20 as recovery
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);(root/'agiqa3k').mkdir()
+            runner=SimpleNamespace(DATASETS=('agiqa3k','aigciqa2023'),paths=lambda v,ds:(root/ds,root/(ds+'.csv')),
+                                   source=Mock(),control=Mock())
+            with patch.object(study,'make_runner',return_value=runner),patch.object(study.sys,'argv',['script','check-inputs']),patch.object(recovery,'make_recovery',return_value=SimpleNamespace(active_jobs=lambda:[{'pid':123}])):
+                with self.assertRaisesRegex(RuntimeError,'active jobs=.*123'):study.main()
+            runner.source.assert_not_called();runner.control.assert_not_called()
 
 if __name__=='__main__':unittest.main()

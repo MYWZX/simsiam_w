@@ -81,3 +81,24 @@ bash scripts/run_align_40plus20.sh pack
 ```
 
 输出 `projection_only_v1_v2_align_40plus20_v1_results.tar.gz`：包含两次新运行、原模型60轮与新结构60轮的四次已有对照，以及两份历史参考CSV（共8份CSV）、各自配置／日志／元数据／来源指纹、冻结证明、划分和统一比较协议。不会包含大权重，不把旧80轮实验或RichHF热身成绩混入本次60轮对照。
+
+
+## 新目录存在但缺completion_manifest时
+
+这不表示旧对照的梯度警告导致失败。新输出可能仍在运行，也可能是先前启动后中断；缺清单的目录不能通过 `--continue` 当成完整结果。
+
+只读检查两个新增任务和本账号进程：
+
+```bash
+/home/sll/anaconda3/envs/WZX-AI/bin/python scripts/recover_align_40plus20.py
+```
+
+确认需要重启时可一条命令安全恢复再后台启动：
+
+```bash
+bash scripts/launch_align_40plus20_background.sh --recover-incomplete
+```
+
+若仍有训练或队列进程，会列出PID并拒绝移动文件和启动新任务。若已停止，仅将这两个新任务中未完成且配置匹配的目录/CSV重命名为 `.interrupted_时间_后缀`，不删除、不覆盖。旧原基线、新结构60轮对照、protected_local实验均不在移动范围。完整结果仍严格核验并跳过；如果CSV已有final或检查点存在但清单丢失，则保留并要求先核查，不伪造完成清单。恢复映射纳入新结果包。
+
+本版本没有中途优化器/RNG断点；被确认中断的40+20任务会从第1轮重新训练60轮，不从某个已有20轮或60轮检查点拼接预算。先前启动后目录存在不代表此次命令已经再次提交，输入核验失败时两卡新任务均未启动。

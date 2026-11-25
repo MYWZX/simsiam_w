@@ -4,6 +4,13 @@ cd "$(dirname "$0")/.."
 fair_python="${ABLATION_PYTHON:-/home/sll/anaconda3/envs/WZX-AI/bin/python}"
 command -v nohup >/dev/null
 command -v setsid >/dev/null
+if (( $# )); then
+  if [[ $# -ne 1 || "$1" != "--recover-incomplete" ]]; then
+    echo "Usage: bash scripts/launch_align_40plus20_background.sh [--recover-incomplete]" >&2
+    exit 2
+  fi
+  "$fair_python" scripts/recover_align_40plus20.py --execute
+fi
 "$fair_python" scripts/run_align_40plus20.py check-inputs
 mkdir -p run_logs
 fair_log_dir=$(mktemp -d "run_logs/align4020_$(date -u +%Y%m%dT%H%M%SZ)_XXXXXX")

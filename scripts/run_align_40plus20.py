@@ -140,6 +140,10 @@ def make_runner():
         source=r.source();peers=peer_runner()
         files={ROOT/'docs/align_40plus20.md',ROOT/'docs/current_tuning_reference.json',ROOT/'docs/current_tuning_reference.md'}
         files.update(ROOT/f'configs/current_tuning_reference/{ds}.yaml' for ds in r.DATASETS)
+        for journal in (ROOT/'run_logs').glob('protected_local_recovery_*.json'):
+            recovery=r.base.read_json(journal)
+            if recovery.get('version')==VERSION and recovery.get('upstream',{}).get('sha256')==source['sha256']:
+                files.add(journal)
         protocol={'version':VERSION,'total_epochs':60,'joint_epochs':40,'local_epochs':20,
                   'controls':['aprobe','aregionword'],'selection_policies':config(r.DATASETS[0])['train']['selection_policies'],
                   'source':source,'new_run_count':2,'warmup_used':False}
@@ -164,6 +168,17 @@ def make_runner():
 def main():
     r=make_runner()
     if len(sys.argv)==2 and sys.argv[1]=='check-inputs':
+        for ds in r.DATASETS:
+            d,t=r.paths(VARIANT,ds)
+            if (d.exists() or t.exists()) and not (d/'completion_manifest.json').is_file():
+                from scripts.recover_align_40plus20 import make_recovery
+                jobs=make_recovery().active_jobs()
+                raise RuntimeError('Existing 40+20 output has no completion manifest: '+str(d)
+                    +'; active jobs='+json.dumps(jobs)
+                    +'. Inspect with scripts/recover_align_40plus20.py. '
+                    'If all jobs stopped, preserve incomplete outputs via '
+                    'bash scripts/launch_align_40plus20_background.sh --recover-incomplete. '
+                    'No new jobs launched or files modified.')
         source=r.source()
         for ds in r.DATASETS:
             r.control(ds,None,source)
