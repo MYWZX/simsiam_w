@@ -1473,6 +1473,8 @@ def compute_losses(model, batch, device, cfg, prompt_bank=None, epoch: int | Non
 def train_one_epoch(model, loader, optimizer, scaler, device, cfg, epoch, prompt_bank=None, optimizer_step_callback=None):
     model.train()
     enforce_progressive_frozen_eval(model, cfg, epoch)
+    from utils.fair_40plus20 import enforce_local_eval
+    enforce_local_eval(_unwrap_model(model), cfg, epoch)
     amp_enabled = bool(cfg["train"].get("amp", True)) and device.type == "cuda"
     keys = [
         "loss", "quality", "quality_text_ce", "quality_text_mae", "quality_text_anchor",
@@ -2073,6 +2075,8 @@ def main():
     from utils.protected_local import validate_snapshot_config
     compare_selection = configure_selection_comparison(cfg, args)
     validate_snapshot_config(cfg)
+    from utils.fair_40plus20 import validate as validate_fair_40plus20
+    validate_fair_40plus20(cfg)
     validate_progressive_finetune_config(cfg)
     set_seed(int(cfg.get("seed", 42)))
     print(
@@ -2259,6 +2263,14 @@ def main():
             epoch,
             base_trainable,
         )
+        from utils.fair_40plus20 import begin_epoch as begin_fair_epoch
+        fair_phase=begin_fair_epoch(_unwrap_model(model),optimizer,cfg,epoch)
+        if fair_phase is not None:
+            finetune_stage="fair_local_only"
+            trainable_counts={str(g.get("name",i)):sum(p.numel() for p in g["params"] if p.requires_grad)
+                              for i,g in enumerate(optimizer.param_groups)}
+            if epoch==41:
+                logger.log(event="fair_phase_transition",epoch=epoch,metrics=fair_phase)
         if finetune_stage != previous_finetune_stage:
             if previous_finetune_stage is not None:
                 # Give every newly unfrozen stage its own early-stop window.
@@ -2286,6 +2298,8 @@ def main():
             previous_finetune_stage = finetune_stage
         tr = train_one_epoch(model, train_loader, optimizer, scaler, device, cfg, epoch, prompt_bank=prompt_bank)
         va = evaluate(model, val_loader, device, cfg, split="val")
+        from utils.fair_40plus20 import record_validation as record_fair_validation
+        record_fair_validation(_unwrap_model(model),cfg,epoch,va)
         if not progressive_enabled or epoch >= encoder_start_epoch:
             scheduler.step()
 
@@ -2335,6 +2349,8 @@ def main():
             )
             break
 
+    from utils.fair_40plus20 import finalize as finalize_fair_40plus20
+    finalize_fair_40plus20(_unwrap_model(model),optimizer,scheduler,cfg)
     if comparison is not None:
         def evaluate_policy():
             val = evaluate(model, val_loader, device, cfg, split="val")
