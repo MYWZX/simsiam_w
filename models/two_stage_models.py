@@ -665,7 +665,9 @@ class CrossModalIQAFullModel(nn.Module):
         if nss5:
             self.register_buffer('nss_pathway_signature', torch.tensor([{'both':1,'inject_only':2,'gate_only':3}[self.nss_pathway]]))
         if nss_mode != 'legacy':
-            self.nss_descriptor = FiveStatDescriptor(nss_mode) if nss5 else StandardMSCNDescriptor(nss_mode)
+            from models.nss import LegacyKurtosisDescriptor
+            self.nss_descriptor = (LegacyKurtosisDescriptor() if nss_mode == 'legacy_kurt6_v1'
+                                   else FiveStatDescriptor(nss_mode) if nss5 else StandardMSCNDescriptor(nss_mode))
             self.register_buffer('nss_descriptor_signature', torch.tensor([NSS_MODES[nss_mode][0], nss_dim]))
 
         # Shared text projection to fused dimension.
@@ -1176,6 +1178,24 @@ class CrossModalIQAFullModel(nn.Module):
             for module in (self.align_patch_adapter, self.align_patch_img_proj, self.align_patch_txt_proj):
                 module.requires_grad_(False)
 
+        evidence_cfg = mcfg.get('align_evidence', {})
+        self.align_evidence = None
+        if evidence_cfg:
+            if (not self.backbone.projection_only or cfg.get('train',{}).get('use_joint_iqa_pretraining',False)
+                    or self.align_control_enabled or self.align_local_temperature != 1.0
+                    or self.use_align_prompt_cross_attention or self.use_align_vmamba or self.use_align_text_bank
+                    or self.backbone.use_global_adapter
+                    or not self.shared_simsiam_projection or self.shared_projection_project_patches
+                    or self.align_global_feature != 'g' or not cfg.get('train',{}).get('two_output_only',False)
+                    or cfg.get('train',{}).get('quality_only',False) or cfg.get('train',{}).get('fair_40plus20')):
+                raise ValueError('align_evidence requires downstream-only projection_only_v1 baseline routes')
+            from models.alignment_evidence import AlignmentEvidence
+            self.align_evidence = AlignmentEvidence(evidence_cfg, self.align_region_word is not None)
+            if self.align_evidence.native_reference and (
+                    not self.backbone.global_encoder._uses_open_clip
+                    or self.backbone.global_encoder.output_dim != self.backbone.text_encoder.output_dim):
+                raise ValueError('Native reference requires matched CLIP encoder embedding widths')
+
     def _freeze_quality_adapter_bn_running_stats(self):
         # eval() changes BatchNorm's source of statistics, not requires_grad.
         # Keep affine parameters and other Adapter layers (including Dropout)
@@ -1532,6 +1552,8 @@ class CrossModalIQAFullModel(nn.Module):
         patch_align = (self.align_patch_adapter(patch_tokens)
                        if self.align_region_word is None else None)
 
+        evidence_diagnostics = {}
+        evidence_control = self.align_evidence
         align_cross_attention_weights = None
         if (
             self.align_prompt_cross_attention is not None
@@ -1560,7 +1582,20 @@ class CrossModalIQAFullModel(nn.Module):
             if clip_patch_tokens is None or text_tokens is None or text_token_ids is None:
                 raise ValueError("Region-word alignment requires visual patches and Prompt tokens")
             mask = content_token_mask(text_token_ids, self.backbone.text_encoder.num_context_tokens)
-            evidence, local_text, region_word_weights = self.align_region_word(clip_patch_tokens, text_tokens, mask)
+            if evidence_control is None:
+                evidence, local_text, region_word_weights = self.align_region_word(clip_patch_tokens, text_tokens, mask)
+            else:
+                from models.alignment_evidence import lexical_mask, spatial_diagnostics
+                coverage = evidence_control.config.get('coverage', {})
+                if coverage.get('lexical_mask',False):
+                    mask,fallback = lexical_mask(text_token_ids,mask,self.backbone.text_encoder.tokenizer)
+                    evidence_diagnostics['lexical_fallback'] = fallback.float()
+                evidence,local_text,region_word_weights,match,importance = self.align_region_word(
+                    clip_patch_tokens,text_tokens,mask,evidence_control.temperature(),coverage)
+                evidence_diagnostics.update(spatial_diagnostics(region_word_weights))
+                evidence_diagnostics['token_match_mean'] = (match*mask).sum(-1)/mask.sum(-1)
+                evidence_diagnostics['token_match_min'] = match.masked_fill(~mask,torch.inf).min(-1).values
+                evidence_diagnostics['coverage_max'] = importance.max(-1).values
             pair_p = torch.cat([evidence, local_text, torch.abs(evidence-local_text)], dim=-1)
             attn = region_word_weights.sum(-1) / mask.sum(-1, keepdim=True)
             p_img = p_txt = None
@@ -1583,7 +1618,12 @@ class CrossModalIQAFullModel(nn.Module):
                 match_logits = torch.sum(p_img * p_txt.unsqueeze(1), dim=-1)
                 if self.align_local_temperature != 1.0:
                     match_logits = match_logits / self.align_local_temperature
+                if evidence_control is not None:
+                    match_logits = match_logits/evidence_control.temperature()
                 attn = torch.softmax(match_logits, dim=1)
+                if evidence_control is not None:
+                    from models.alignment_evidence import spatial_diagnostics
+                    evidence_diagnostics.update(spatial_diagnostics(attn))
             evidence = torch.sum(attn.unsqueeze(-1) * patch_tokens_for_align, dim=1)
             pair_p = torch.cat([evidence, text_align, torch.abs(evidence - text_align)], dim=-1)
         s_patch = torch.sigmoid(self.align_patch_head(pair_p).squeeze(-1))
@@ -1616,6 +1656,7 @@ class CrossModalIQAFullModel(nn.Module):
         return {
             "s_align": s_align,
             "s_align_base": s_align_base,
+            **({'alignment_diagnostics': evidence_diagnostics} if evidence_control is not None else {}),
             **align_text_out,
             "s_align_global": s_global,
             "s_align_patch": s_patch,
@@ -1722,6 +1763,22 @@ class CrossModalIQAFullModel(nn.Module):
             text_token_ids=text_token_ids,
             clip_patch_tokens=img.get("clip_patch_tokens"),
         )
+        if self.align_evidence is not None:
+            control = self.align_evidence
+            diagnostics = a_out['alignment_diagnostics']
+            if control.native_reference:
+                a_out['s_align'], reference = control.reference(img['f_sem'],text_feat,a_out['s_align'])
+                diagnostics.update(reference)
+            if control.diagnostics:
+                if 'native_cosine' not in diagnostics and img['f_sem'].shape == text_feat.shape:
+                    with torch.no_grad():
+                        diagnostics['native_cosine'] = (F.normalize(img['f_sem'].float(),dim=-1)*text_feat.float()).sum(-1)
+                from models.alignment_evidence import truncation_flags
+                diagnostics['prompt_truncated'] = truncation_flags(self.backbone.text_encoder,prompts,image.device)
+                temperature = torch.as_tensor(control.temperature(),device=image.device)
+                diagnostics['temperature'] = temperature.expand(image.size(0))
+            else:
+                a_out.pop('alignment_diagnostics',None)
         w_img, fusion_gate_delta = self._compute_fusion_weight(
             q_out["s_quality"] if getattr(self.backbone, "projection_only", False) else img["z"], text_fused, q_out["s_quality"], a_out["s_align"]
         )

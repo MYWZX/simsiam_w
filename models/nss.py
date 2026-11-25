@@ -4,7 +4,7 @@ from torch import nn
 from torch.nn import functional as F
 
 MODES = {'legacy': (0, 6), 'mscn_stats6_v1': (1, 6), 'mscn_ggd_v1': (2, 2),
-         'legacy_stats5_v1': (3, 5), 'mscn_stats5_v1': (4, 5)}
+         'legacy_stats5_v1': (3, 5), 'mscn_stats5_v1': (4, 5), 'legacy_kurt6_v1': (5, 6)}
 
 
 def validate_nss(config):
@@ -141,3 +141,46 @@ def collapse_legacy_nss_state(state, fused_dim):
     result[prefix+'nss_descriptor_signature']=torch.tensor([3,5],device=proj.device)
     result[prefix+'nss_pathway_signature']=torch.tensor([1],device=proj.device)
     return result
+
+
+class LegacyKurtosisDescriptor(nn.Module):
+    """Original first five statistics, sixth = centered excess kurtosis.
+
+    FP32 moments; population variance <= 1e-12 is degenerate and returns 0.
+    No GGD fit, no Gaussian normalization, no arbitrary kurtosis clipping.
+    """
+    def forward(self, rgb, out_hw):
+        with torch.autocast(device_type=rgb.device.type, enabled=False):
+            x = rgb.float()
+            gray = .299*x[:, :1] + .587*x[:, 1:2] + .114*x[:, 2:3]
+            mu = F.avg_pool2d(gray, 7, stride=1, padding=3)
+            sigma = (F.avg_pool2d((gray-mu)**2, 7, stride=1, padding=3)+1e-6).sqrt()
+            z = (gray-mu)/(sigma+1e-6)
+            pool = lambda a: F.adaptive_avg_pool2d(a, out_hw)
+            mean, second, absolute = pool(z), pool(z**2), pool(z.abs())
+            dx = F.pad(gray[:, :, :, 1:]-gray[:, :, :, :-1], (0,1,0,0))
+            dy = F.pad(gray[:, :, 1:, :]-gray[:, :, :-1, :], (0,0,0,1))
+            gradient = pool((dx**2+dy**2+1e-6).sqrt())
+            ratio = absolute/((second+1e-6).sqrt()+1e-6)
+            # Compute central moments within the SAME adaptive-pooling bins.
+            # A feature map may have a non-dividing grid: use exact bin bounds.
+            h, w = z.shape[-2:]
+            oh, ow = out_hw
+            def central_kurtosis(patch, axes):
+                centered = patch-patch.mean(axes,keepdim=True)
+                variance = centered.square().mean(axes)
+                fourth = centered.square().square().mean(axes)
+                k = fourth/variance.clamp_min(1e-12).square()-3
+                return torch.where(variance>1e-12,k,torch.zeros_like(k))
+            if h%oh == 0 and w%ow == 0:
+                patches = z.unfold(2,h//oh,h//oh).unfold(3,w//ow,w//ow)
+                kurtosis = central_kurtosis(patches,(-2,-1))
+            else:
+                rows=[]
+                for iy in range(oh):
+                    for ix in range(ow):
+                        patch=z[...,iy*h//oh:((iy+1)*h+oh-1)//oh,
+                                ix*w//ow:((ix+1)*w+ow-1)//ow]
+                        rows.append(central_kurtosis(patch,(-2,-1)))
+                kurtosis=torch.stack(rows,-1).reshape(z.size(0),1,oh,ow)
+            return torch.cat([mean, second, absolute, gradient, ratio, kurtosis], 1).flatten(2).transpose(1,2)

@@ -23,12 +23,19 @@ class RegionWordAlignment(nn.Module):
         self.image_projection = nn.Linear(visual_width, dim, bias=False)
         self.text_projection = nn.Linear(text_width, dim, bias=False)
 
-    def forward(self, regions, tokens, mask):
+    def forward(self, regions, tokens, mask, temperature=None, coverage=None):
         image = F.normalize(self.image_projection(regions), dim=-1, eps=1e-6)
         text = F.normalize(self.text_projection(tokens), dim=-1, eps=1e-6)
         # Every content token retrieves evidence over image regions. Mask AFTER
         # spatial softmax; masked columns cannot affect any valid column.
-        weights = torch.softmax(image @ text.transpose(1, 2), dim=1) * mask[:, None, :]
+        logits = image @ text.transpose(1, 2)
+        if temperature is not None:
+            logits = logits/temperature
+        weights = torch.softmax(logits, dim=1) * mask[:, None, :]
+        if coverage is not None:
+            from models.alignment_evidence import token_coverage
+            evidence, local_text, match, importance = token_coverage(image,text,weights,mask,coverage)
+            return evidence,local_text,weights,match,importance
         per_token = weights.transpose(1, 2) @ image
         count = mask.sum(-1, keepdim=True).to(image.dtype)
         evidence = (per_token * mask[..., None]).sum(1) / count

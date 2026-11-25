@@ -463,7 +463,7 @@ def build_optimizer(cfg: Dict, model: nn.Module):
         "quality_adapter_head", "quality_adapter_gate_logit",
     )
     align_prefixes = (
-        "align_region_word",
+        "align_region_word", "align_evidence",
         "text_to_fused", "align_global_head", "align_patch_img_proj",
         "align_patch_txt_proj", "align_patch_head", "align_gate",
         "align_global_adapter", "align_patch_adapter", "align_text_adapter",
@@ -1679,6 +1679,8 @@ def evaluate(model, loader, device, cfg, split="val"):
     all_abase, all_abase_target, all_atext, all_atext_target = [], [], [], []
     all_f, all_ft, all_q, all_qt, all_a, all_at = [], [], [], [], [], []
     all_ag, all_agt, all_ap, all_apt = [], [], [], []
+    evidence_values = {}
+    evidence_targets, evidence_native = [], []
     oracle_global_sum = 0.0
     align_valid_count = 0.0
     for batch in loader:
@@ -1701,6 +1703,19 @@ def evaluate(model, loader, device, cfg, split="val"):
         if bool(cfg.get("train", {}).get("quality_only", False)):
             out["s_final"] = out["s_quality"]
             out["fusion_w_img"] = out["s_quality"].new_tensor(1.0)
+        valid_align = amask.view(-1)>0
+        for key,value in out.get('alignment_diagnostics',{}).items():
+            selected = value.detach().float().view(-1)[valid_align]
+            if not torch.isfinite(selected).all():
+                raise ValueError('Nonfinite alignment evidence diagnostics: '+key)
+            evidence_values.setdefault(key,[]).extend(selected.cpu().tolist())
+        if 'alignment_diagnostics' in out and valid_align.any():
+            for key in ('s_align','s_align_global','s_align_patch'):
+                errors = (out[key]-align).abs().detach().view(-1)[valid_align]
+                evidence_values.setdefault(key+'_MAE',[]).extend(errors.cpu().tolist())
+            if 'native_cosine' in out['alignment_diagnostics']:
+                evidence_native.extend(out['alignment_diagnostics']['native_cosine'][valid_align].cpu().tolist())
+                evidence_targets.extend(align[valid_align].cpu().tolist())
         bs = image.size(0)
         q_mse = float(masked_mse(out["s_quality"], quality, qmask).item())
         a_mse = float(masked_mse(out["s_align"], align, amask).item())
@@ -1747,6 +1762,12 @@ def evaluate(model, loader, device, cfg, split="val"):
     m = {} if two_output_only else compute_regression_metrics(all_ft, all_f)
     if two_output_only:
         m["final_output_disabled"] = 1.0
+    for key,values in evidence_values.items():
+        if values:
+            m[f'{split}_evidence_{key}'] = float(np.mean(values))
+    if evidence_native:
+        for key,value in compute_regression_metrics(evidence_targets,evidence_native).items():
+            m[f'{split}_evidence_native_{key}'] = value
     m[f"{split}_quality_local_enabled"] = float(not getattr(_unwrap_model(model), "quality_no_local_branch", False))
     m[f"{split}_align_global_uses_g"] = float(getattr(_unwrap_model(model), "align_global_feature", "z") == "g")
     m[f"{split}_quality_global_uses_g"] = float(getattr(_unwrap_model(model), "quality_global_feature", "z") == "g")
@@ -2158,6 +2179,17 @@ def main():
         if metadata is not None:
             metadata["quality_mix_initialization"] = beta_record
 
+    if getattr(model, "align_evidence", None) is not None:
+        import hashlib
+        added = [{'name':name,'shape':list(p.shape),'initialization':'new_explicit',
+                  'sha256':hashlib.sha256(p.detach().cpu().contiguous().numpy().tobytes()).hexdigest()}
+                 for name,p in model.named_parameters() if name.startswith('align_evidence.')]
+        record = {'version':'align_evidence_v1','parameters':added,
+                  'config':cfg['model']['align_evidence'],
+                  'reference_space':'current_paired_CLIP_with_same_context_not_frozen_teacher'}
+        logger.log(event='alignment_evidence_initialization',epoch=0,metrics=record)
+        if metadata is not None:
+            metadata['alignment_evidence_initialization'] = record
     from utils.task_gradient_probe import new_region_parameter_record
     region_record = new_region_parameter_record(model)
     if region_record:
