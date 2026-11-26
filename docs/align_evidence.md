@@ -101,3 +101,19 @@ bash scripts/run_align_evidence.sh kurt6 pack
 /home/sll/anaconda3/envs/WZX-AI/bin/python scripts/plot_align_evidence.py legacy --output run_logs/evidence_legacy_figures_v1
 /home/sll/anaconda3/envs/WZX-AI/bin/python scripts/plot_align_evidence.py kurt6 --output run_logs/evidence_kurt6_figures_v1
 ```
+
+## 服务器重启后的本次恢复
+
+针对2026-11-26这次状态：legacy的3K五组已完成，2023/diag停在14轮；kurt6预训练last_pretrain.pth保存到15轮，best_epoch8、no_improve7，签名[5,6]。
+
+```bash
+git pull --ff-only origin work && bash scripts/launch_evidence_background.sh --recover-incomplete
+```
+
+启动前先验证K预训练完整断点、模型描述签名、原始配置、CSV轮次、选模/早停计数、原训练代码及已选检查点；随后核验legacy全部已完成任务，并只将未完成下游目录和CSV改名为`.interrupted_时间戳`，记录`run_logs/align_evidence_legacy_recovery_*.json`。遇到仍活动的训练/队列、未知配置、最终结果存在但未封存等歧义状态，拒绝移动/启动，不补造completion_manifest。
+
+GPU0继续legacy队列：跳过已核验的3K五组，2023/diag从其原始来源重新跑完整60轮，再跑余下组。这个下游没有完整优化器和双选模状态，不能称为从第15轮resume；原14轮证据保留在备份中。
+
+GPU1先保留K预训练CSV/日志/配置及所有检查点到`recovery_inputs`，从`last_pretrain.pth`恢复模型、优化器、调度器、scaler和RNG，重算未保存的第16轮，保留完整1–15轮历史与早停计数；完成并核验后，自动继续三个K下游对照和十个一致性实验。恢复后的来源指纹增加training_continuity和recovery_manifest_sha256，打包包含恢复证据，不含大模型权重。legacy证据包同时收录下游重跑日志的恢复记录。
+
+这里只支持一次明确的K预训练中断恢复。若恢复过程再次中断，现有recovery_manifest会使脚本停止保留，不能再次盲目执行或覆盖。K下游若已有其他半成品，原严格队列仍会停止保留，需要单独审计；本次已知状态下K下游尚未开始。不承诺与未中断运行逐位相同。本次仅修改脚本/文档/测试，模型、损失、数据及训练器保持原提交，因此恢复代码一致性检查仍成立。

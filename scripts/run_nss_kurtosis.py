@@ -43,14 +43,31 @@ def make_runner():
                      'nss_gate.0.weight','nss_gate.0.bias','nss_gate.3.weight','nss_gate.3.bias'):
             if 'iqa.'+name not in state:raise ValueError('Incomplete kurtosis NSS source: '+name)
     r.verify_checkpoint=verify
+    def validate_recovery_descriptor(cfg,state):
+        import torch
+        signature=state.get('iqa.nss_descriptor_signature')
+        if signature is None or not torch.equal(signature.cpu(),torch.tensor([5,6])):
+            raise ValueError('Kurtosis restart NSS signature mismatch')
+    r.validate_recovery_descriptor=validate_recovery_descriptor
+    from scripts import nss_recovery
+    nss_recovery.install(r)
     return r
 
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument('action',nargs='?',default='pretrain',choices=pipeline.STAGES+('all','continue','downstream','pack','pack-downstream'))
+    p.add_argument('action',nargs='?',default='pretrain',choices=pipeline.STAGES+('all','continue','downstream','pack','pack-downstream','recover-pretrain','recover-all'))
     p.add_argument('--dry-run',action='store_true');a=p.parse_args();os.chdir(ROOT);r=make_runner()
-    if a.action.startswith('pack'):
+    if a.action.startswith('recover-'):
+        from scripts import nss_recovery
+        d,t=r.paths('pretrain')
+        if d.exists() or t.exists():
+            nss_recovery.recover(r,VARIANT,a.dry_run)
+        elif a.action=='recover-pretrain':
+            pipeline.run_stage(r,'pretrain',a.dry_run)
+        if a.action=='recover-all' and (not a.dry_run or not (d.exists() or t.exists())):
+            pipeline.run_pipeline(r,'continue',a.dry_run)
+    elif a.action.startswith('pack'):
         if a.dry_run:p.error('Cannot dry-run packing')
         r.pack('pretrain' if a.action=='pack' else 'downstream')
     elif a.action in ('all','continue','downstream'):

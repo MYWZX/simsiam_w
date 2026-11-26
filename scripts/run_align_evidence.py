@@ -94,6 +94,13 @@ def make_runner(nss='legacy'):
        'ordered_variants':VARIANTS,'native_reference':'current paired CLIP; same five contexts; no frozen teacher',
        'comparisons':['legacy/diag vs kurt6/diag isolates NSS','diag -> temperature',
                       'temperature -> tokenmean changes local path','tokenmean -> coverage','coverage -> reference']}}
+    original_extra=r.pack_extra_records
+    def extra_records(fp):
+        records=original_extra(fp)
+        records['downstream_restart_records.json']={
+            p.name:r.base.read_json(p) for p in (r.ROOT/'run_logs').glob('align_evidence_'+nss+'_recovery_*.json')}
+        return records
+    r.pack_extra_records=extra_records
     return r
 
 

@@ -108,7 +108,8 @@ def preserve_interrupted():
     for move in moves:
         if os.path.lexists(move['destination']):raise FileExistsError(move['destination'])
     logs=protocol.ROOT/'run_logs';logs.mkdir(exist_ok=True)
-    journal=logs/f'protected_local_recovery_{stamp}.json'
+    prefix=globals().get('RECOVERY_PREFIX','protected_local')
+    journal=logs/f'{prefix}_recovery_{stamp}.json'
     record=dict(format='protected_local_recovery_v1',version=protocol.VERSION,upstream=upstream,stages=entries,moves=moves,
                 complete=False,note='Incomplete phases restart from their configured source; no optimizer/RNG resume.')
     with journal.open('x') as stream:json.dump(record,stream,ensure_ascii=False,indent=2)
