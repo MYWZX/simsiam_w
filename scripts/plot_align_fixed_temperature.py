@@ -17,9 +17,11 @@ METRICS=[('val_val_quality_SROCC','Validation quality SROCC'),
          ('val_val_evidence_temperature','Fixed matching temperature')]
 
 
-def render(ds,destination):
-    r=make_runner();fig,axes=plt.subplots(2,3,figsize=(14,7),layout='constrained')
-    for variant,tau in VARIANTS.items():
+def render(ds,destination, *, runner=None, variants=None):
+    r=make_runner() if runner is None else runner
+    curves=VARIANTS if variants is None else variants
+    fig,axes=plt.subplots(2,3,figsize=(14,7),layout='constrained')
+    for variant,tau in curves.items():
         _,table=r.paths(variant,ds);csv.field_size_limit(50_000_000)
         with table.open(newline='') as f:
             rows=[(int(x['epoch']),json.loads(x['metrics_json'])) for x in csv.DictReader(f) if x['event']=='epoch']

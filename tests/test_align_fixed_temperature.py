@@ -93,7 +93,7 @@ class ArtifactTests(unittest.TestCase):
         shutil.copy(ROOT/'docs/align_fixed_temperature.md',self.f.root/'docs')
 
     def artifact(self,v,ds):
-        r=self.r;d,t=self.f.fake(v,ds,False);c=r.config(v,ds);tau=study.VARIANTS[v]
+        r=self.r;d,t=self.f.fake(v,ds,False);c=r.config(v,ds);tau=r.VARIANTS[v]
         split=r.base.read_json(d/'data_split_manifest.json');split.update(train_batches=1,test_ids_sha256='test')
         (d/'data_split_manifest.json').write_text(json.dumps(split))
         meta=r.base.read_json(d/'run_metadata.json');meta['data_split']={k:x for k,x in split.items() if k!='indices'}

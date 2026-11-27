@@ -57,16 +57,21 @@ def verify_initialization(c,meta):
         raise ValueError('Missing explicit region/token projection initialization fingerprints')
 
 
-def make_runner():
+def make_runner(*, variants=None, version=VERSION, protocol_doc='docs/align_fixed_temperature.md', queues=None):
+    variants=dict(VARIANTS if variants is None else variants)
+    if len(variants)!=2 or any(not math.isfinite(t) or not .03<t<2. for t in variants.values()):
+        raise ValueError('Exactly two fixed temperatures strictly between .03 and 2 required')
     spec=importlib.util.spec_from_file_location('_fixed_temperature_protocol',ROOT/'scripts/run_align_tuning.py')
     r=importlib.util.module_from_spec(spec);spec.loader.exec_module(r)
-    r.ROOT=ROOT;r.VARIANTS=dict(VARIANTS);r.QUEUES={'unit':('tau100',),'sharp':('tau010',)}
-    r.VERSION=VERSION;r.PROTOCOL_DOC='docs/align_fixed_temperature.md'
-    r.CONFIG_SUMMARY='original six-channel NSS/source; fixed tau=1 vs .1; same region-token mean route; 60 epochs; Q/joint selection'
+    r.ROOT=ROOT;r.VARIANTS=dict(variants)
+    names=tuple(variants)
+    r.QUEUES=dict({'unit':(names[0],),'sharp':(names[1],)} if queues is None else queues)
+    r.VERSION=version;r.PROTOCOL_DOC=protocol_doc
+    r.CONFIG_SUMMARY=f'original six-channel NSS/source; fixed temperatures {variants}; same region-token mean route; 60 epochs; Q/joint selection'
     r.verify_selection_records=evidence.representation.verify_comparison
     def config(v,ds,split=None):
-        if v not in VARIANTS or ds not in r.DATASETS or split not in (None,42):
-            raise ValueError('Only tau100/tau010 on 3K/2023 split42')
+        if v not in variants or ds not in r.DATASETS or split not in (None,42):
+            raise ValueError('Only named fixed-temperature cases on 3K/2023 split42')
         c=copy.deepcopy(evidence.make_runner('legacy').config('tokenmean',ds,split))
         t,m=c['train'],c['model']
         expected_source='outputs/'+r.reference()['source']['checkpoint'].split('/outputs/',1)[1]
@@ -80,8 +85,8 @@ def make_runner():
                 or t['layerwise_lr']['align_mult']!=1.
                 or t['lambda_srocc_quality']!={'agiqa3k':.02,'aigciqa2023':.04}[ds]):
             raise ValueError('Restore the original v2 NSS/source/optimizer protocol')
-        m['align_evidence']['temperature'].update(mode='fixed',initial=VARIANTS[v])
-        name=f'{ds}_{VERSION}_{v}_train42_split42'
+        m['align_evidence']['temperature'].update(mode='fixed',initial=variants[v])
+        name=f'{ds}_{version}_{v}_train42_split42'
         c.update(run_id=name,output_dir='outputs/'+name,results_csv='outputs/'+name+'.csv')
         return c
     r.config=config
@@ -95,7 +100,7 @@ def make_runner():
         verify_initialization(c,meta);verify_diagnostics(c,rows)
         verify_lrs(rows,meta['optimizer_initialization'])
         split_record=r.base.read_json(d/'data_split_manifest.json');verify_step_budget(rows,split_record)
-        other=next(x for x in VARIANTS if x!=v);od,ot=r.paths(other,ds,split)
+        other=next(x for x in variants if x!=v);od,ot=r.paths(other,ds,split)
         if (od/'completion_manifest.json').is_file():
             # Original verifier does not recurse into this pair check.
             original(other,ds,split,source)
@@ -110,7 +115,7 @@ def make_runner():
                 raise ValueError('Paired actual split memberships differ')
     r.verify=verify
     r.pack_extra_records=lambda fp:{'fixed_temperature_protocol.json':{
-        'version':VERSION,'source':fp,'fixed_temperatures':VARIANTS,
+        'version':version,'source':fp,'fixed_temperatures':variants,
         'nss':'legacy six-dimensional unchanged','region_token_pool':'mean with lexical BPE mask',
         'new_trainable_parameters':'two explicitly initialized region/token projections; no learned temperature',
         'selection':'quality and arithmetic-mean joint on one 60-epoch trajectory',
