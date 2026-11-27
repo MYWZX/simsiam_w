@@ -40,11 +40,12 @@ def cpu_state_dict(model):
 
 
 class SelectionComparison:
-    def __init__(self, policies=None):
+    def __init__(self, policies=None, capture_nonpersistent=False):
         self.policies = dict(POLICIES if policies is None else policies)
         if self.policies not in (POLICIES, {'quality': 'val_quality_SROCC', 'joint': 'val_quality_align_mean_SROCC'}):
             raise ValueError('Unsupported comparison policy set')
         self.best = {}
+        self.capture_nonpersistent = bool(capture_nonpersistent)
 
     def update(self, model, metrics, epoch, selector):
         if float(metrics.get('val_align_N', 0)) < 2:
@@ -60,9 +61,13 @@ class SelectionComparison:
                     for name, value in values.items()}
         if any(improved.values()):
             snapshot = cpu_state_dict(model)
+            if self.capture_nonpersistent:
+                from utils.semantic_snapshot import buffers
+                selected_buffers=buffers(model)
             for name, changed in improved.items():
                 if changed:
                     self.best[name] = dict(value=values[name], epoch=epoch, state=snapshot)
+                    if self.capture_nonpersistent:self.best[name]['buffers']=selected_buffers
         return {name: dict(selection_metric=self.policies[name], value=self.best[name]['value'],
                            epoch=self.best[name]['epoch'], is_best=improved[name])
                 for name in self.policies}
@@ -76,6 +81,9 @@ class SelectionComparison:
             epoch = record['epoch']
             if epoch not in cached:
                 model.load_state_dict(record['state'])
+                if self.capture_nonpersistent:
+                    from utils.semantic_snapshot import restore_buffers
+                    restore_buffers(model,record['buffers'])
                 cached[epoch] = evaluate_fn()
             val, test = cached[epoch]
             results[name] = dict(selection_policy=name, selection_metric=self.policies[name],

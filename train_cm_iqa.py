@@ -2096,6 +2096,8 @@ def main():
     from utils.protected_local import validate_snapshot_config
     compare_selection = configure_selection_comparison(cfg, args)
     validate_snapshot_config(cfg)
+    from utils.semantic_snapshot import enabled as semantic_export_enabled
+    semantic_export=semantic_export_enabled(cfg)
     from utils.fair_40plus20 import validate as validate_fair_40plus20
     validate_fair_40plus20(cfg)
     validate_progressive_finetune_config(cfg)
@@ -2131,7 +2133,7 @@ def main():
         raise FileNotFoundError(f"Pretrained checkpoint not found: {pretrain_path}")
 
     metadata_enabled = bool(compare_selection or cfg["train"].get("record_run_metadata", False)
-                            or cfg["train"].get("save_selected_downstream") or refit_plan)
+                            or cfg["train"].get("save_selected_downstream") or semantic_export or refit_plan)
     fingerprint = checkpoint_fingerprint(pretrain_path) if metadata_enabled else None
     metadata = None
     if metadata_enabled:
@@ -2279,6 +2281,8 @@ def main():
     # weights in memory for the final validation/test report and retain only
     # the config snapshot plus the experiment CSV.
     comparison = SelectionComparison(cfg["train"]["selection_policies"]) if compare_selection else None
+    if comparison is not None and semantic_export:comparison.capture_nonpersistent=True
+    best_semantic_buffers=None
     best = None
     best_epoch = -1
     best_model_state = None
@@ -2352,6 +2356,9 @@ def main():
                 best_epoch = epoch
                 no_improve = 0
                 best_model_state = copy.deepcopy(model.state_dict())
+                if semantic_export:
+                    from utils.semantic_snapshot import buffers
+                    best_semantic_buffers=buffers(model)
                 print(f"Selected epoch={epoch}, best_{sel_key}={best:.6f}")
             else:
                 no_improve += 1
@@ -2390,6 +2397,9 @@ def main():
             return val, test
 
         results = comparison.evaluate_selected(model, evaluate_policy)
+        if semantic_export:
+            from utils.semantic_snapshot import export_comparison
+            export_comparison(model,cfg,comparison,results,last_epoch,fingerprint)
         for name, result in results.items():
             selected_epoch = result["best_epoch"]
             print(f"[Selection:{name}] epoch={selected_epoch}, {result['selection_metric']}={result['best_selection_value']:.6f}")
@@ -2406,6 +2416,9 @@ def main():
 
     if best_model_state is not None:
         model.load_state_dict(best_model_state)
+        if semantic_export:
+            from utils.semantic_snapshot import restore_buffers
+            restore_buffers(model,best_semantic_buffers)
         print(f"Restored selected in-memory model state from epoch {best_epoch}.")
 
     print("Evaluating the selected in-memory model on validation set...")
@@ -2435,6 +2448,9 @@ def main():
     logger.log(event="final", epoch=best_epoch, metrics=final_metrics, best_epoch=best_epoch, is_best=False)
     from utils.protected_local import save_selected_downstream
     save_selected_downstream(model, cfg, final_metrics, fingerprint)
+    if semantic_export:
+        from utils.semantic_snapshot import save
+        save(cfg,'quality',final_metrics,last_epoch,fingerprint,model.state_dict(),best_semantic_buffers)
 
 
 if __name__ == "__main__":
